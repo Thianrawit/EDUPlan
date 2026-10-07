@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduPlan AI — ระบบสร้างแผนการจัดการเรียนรู้อัจฉริยะ</title>
+  <meta name="description" content="ระบบสร้างแผนการจัดการเรียนรู้ตามมาตรฐาน วPA สำหรับคุณครูทุกระดับชั้น อ.1 - ม.6">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><path d='M30 40 L50 25 L70 40 L50 55 Z M35 55 L35 70 Q50 78 65 70 L65 55' stroke='white' stroke-width='6' fill='none'/></svg>">
+  <link rel="preload" href="./fonts/THSARABUN.TTF" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="./fonts/THSARABUNBOLD.TTF" as="font" type="font/ttf" crossorigin />
+  <style>
+    @font-face {
+      font-family: 'TH SarabunPSK';
+      src: url('./fonts/THSARABUN.TTF') format('truetype'), url('/fonts/THSARABUN.TTF') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'TH SarabunPSK';
+      src: url('./fonts/THSARABUNBOLD.TTF') format('truetype'), url('/fonts/THSARABUNBOLD.TTF') format('truetype');
+      font-weight: bold;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'TH Sarabun PSK';
+      src: url('./fonts/THSARABUN.TTF') format('truetype'), url('/fonts/THSARABUN.TTF') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'TH Sarabun PSK';
+      src: url('./fonts/THSARABUNBOLD.TTF') format('truetype'), url('/fonts/THSARABUNBOLD.TTF') format('truetype');
+      font-weight: bold;
+      font-style: normal;
+      font-display: swap;
+    }
+    .a4-paper, .a4-sheet, #preview-content, #preview-content * {
+      font-family: 'TH SarabunPSK', 'TH Sarabun PSK', sans-serif !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col">
+
+  <!-- ============================================================ -->
+  <!-- Top Navigation Header -->
+  <!-- ============================================================ -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+          EP
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-slate-900 text-lg leading-tight">EduPlan AI</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">มาตรฐาน วPA</span>
+          </div>
+          <p class="text-xs text-slate-500 hidden sm:block">ระบบสร้างแผนการจัดการเรียนรู้อัจฉริยะ</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="flex items-center gap-2">
+        <div class="hidden md:flex items-center gap-1.5 mr-2">
+          <span class="text-xs text-slate-400">ตัวอย่าง:</span>
+          <button class="preset-btn" data-preset="thai1">ภาษาไทย ป.1</button>
+          <button class="preset-btn" data-preset="math1">คณิตศาสตร์ ป.1</button>
+          <button class="preset-btn" data-preset="sci1">วิทยาศาสตร์ ม.1</button>
+          <button class="preset-btn" data-preset="ec2">ปฐมวัย อ.2</button>
+        </div>
+        <button id="btn-reset-form" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors cursor-pointer" title="ล้างข้อมูลและเริ่มต้นใหม่">
+          เริ่มใหม่
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <!-- Main Container -->
+  <!-- ============================================================ -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 sm:py-10">
+
+    <!-- ============================================================ -->
+    <!-- VIEW 1: MODE CHOICE SCREEN (Image 1) -->
+    <!-- ============================================================ -->
+    <section id="mode-choice-section" class="py-6 sm:py-12 animate-fade-in">
+      <div class="text-center max-w-xl mx-auto mb-10">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium mb-3">
+          เริ่มต้นเตรียมข้อมูล
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
+          ได้เลย คุณอยากเตรียมข้อมูลแบบไหนดี?
+        </h1>
+        <p class="text-slate-600 text-sm sm:text-base">
+          เลือกลักษณะการกรอกข้อมูลที่ท่านสะดวก เพื่อให้ระบบสร้างแผนการสอนที่ตรงตามความต้องการ
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <!-- Card 1: Step by Step -->
+        <div id="card-mode-wizard" class="mode-card active">
+          <div>
+            <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-5 border border-blue-100">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2">
+              กรอกข้อมูลทีละส่วน
+            </h2>
+            <p class="text-slate-600 text-sm leading-relaxed mb-6">
+              ค่อยๆ เตรียมข้อมูลไปด้วยกัน แสดงครั้งละหน้า พร้อมบอกขั้นตอนถัดไป ไม่ซับซ้อน เหมาะสำหรับการเริ่มต้น
+            </p>
+          </div>
+          <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+            <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+              แนะนำสำหรับการเริ่มต้น
+            </span>
+            <span class="text-blue-600 font-bold text-lg">→</span>
+          </div>
+        </div>
+
+        <!-- Card 2: All in One -->
+        <div id="card-mode-allinone" class="mode-card">
+          <div>
+            <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center mb-5 border border-slate-200">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2">
+              กรอกข้อมูลทั้งหมด
+            </h2>
+            <p class="text-slate-600 text-sm leading-relaxed mb-6">
+              เห็นฟอร์มครบทุกส่วนในหน้าเดียว เหมาะเมื่อคุณเตรียมรายละเอียดไว้แล้ว และต้องการความรวดเร็ว
+            </p>
+          </div>
+          <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+            <span class="text-xs font-medium text-slate-500">
+              ทุกส่วนในหน้าเดียว
+            </span>
+            <span class="text-slate-400 font-bold text-lg">→</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- VIEW 2: SINGLE-QUESTION WIZARD (Images 2, 3, 4) -->
+    <!-- ============================================================ -->
+    <section id="wizard-container" class="hidden">
+      <!-- Wizard Top Context Bar -->
+      <div class="flex items-center justify-between mb-8 pb-3 border-b border-slate-200">
+        <div class="flex items-center gap-2">
+          <span id="wizard-context-tag" class="text-xs font-medium text-slate-600 bg-white px-3 py-1.5 rounded-full border border-slate-200">
+            กำลังเตรียมแผนการจัดการเรียนรู้
+          </span>
+        </div>
+        <button id="btn-wizard-change-mode" class="text-xs font-medium text-blue-600 hover:text-blue-800 bg-white hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          เปลี่ยนวิธีกรอก
+        </button>
+      </div>
+
+      <!-- Icon / Avatar in the center (like Image 2 & 3) -->
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 inline-flex items-center justify-center shadow-xs">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+        </div>
+        <p class="text-xs text-slate-400 mt-1.5 font-medium tracking-wide">EduPlan AI</p>
+      </div>
+
+      <!-- Question Panels (One Question Visible At a Time) -->
+      <div class="min-h-[340px] flex flex-col justify-start">
+
+        <!-- STEP 1: หน่วยการเรียนรู้และชื่อแผน (ไว้หน้าสุด) -->
+        <div id="step-panel-1" class="wizard-step-panel">
+          <div class="text-center mb-8">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              หน่วยการเรียนรู้และชื่อแผนการจัดการเรียนรู้
+            </h2>
+            <p class="text-slate-500 text-sm">ระบุชื่อหน่วย แผนการจัดการเรียนรู้ และเรื่องที่ต้องการสอน</p>
+          </div>
+
+          <div class="max-w-xl mx-auto w-full space-y-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">ชื่อหน่วยการเรียนรู้ (ถ้ามี)</label>
+              <input type="text" id="wizard-unit" class="form-input-clean unit-input" placeholder="เช่น หน่วยการเรียนรู้ที่ 2 เทคโนโลยีสารสนเทศ (เว้นว่างได้)" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">ชื่อแผนการจัดการเรียนรู้ (ถ้ามี)</label>
+              <input type="text" id="wizard-plan-name" class="form-input-clean plan-name-input" placeholder="เช่น แผนการจัดการเรียนรู้ที่ 1 การแก้ปัญหาด้วยแนวคิดเชิงคำนวณ" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">เรื่อง หรือเนื้อหาที่ต้องการสอน</label>
+              <input type="text" id="wizard-topic" class="form-input-clean topic-input text-lg py-3.5 px-4 shadow-xs" placeholder="เช่น การแก้ปัญหาด้วยแนวคิดเชิงคำนวณ หรือ การอ่านออกเสียงคำประสมสระอา" />
+              <p class="text-xs text-slate-400 mt-1">สามารถพิมพ์สั้นๆ หรือระบุประเด็นสำคัญที่ต้องการให้นักเรียนเรียนรู้</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: ระดับชั้น -->
+        <div id="step-panel-2" class="wizard-step-panel hidden">
+          <div class="text-center mb-8">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              แผนนี้สำหรับนักเรียนชั้นไหน?
+            </h2>
+            <p class="text-slate-500 text-sm">เลือกระดับชั้นของบทเรียนที่ท่านต้องการสอน</p>
+          </div>
+
+          <div class="space-y-6 max-w-xl mx-auto">
+            <!-- Early Childhood -->
+            <div>
+              <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">ระดับปฐมวัย</div>
+              <div class="flex flex-wrap justify-center gap-2">
+                <button type="button" class="pill-btn grade-pill" data-grade="k1">อ.1</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="k2">อ.2</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="k3">อ.3</button>
+              </div>
+            </div>
+
+            <!-- Primary -->
+            <div>
+              <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">ระดับประถมศึกษา</div>
+              <div class="flex flex-wrap justify-center gap-2">
+                <button type="button" class="pill-btn grade-pill" data-grade="p1">ป.1</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="p2">ป.2</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="p3">ป.3</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="p4">ป.4</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="p5">ป.5</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="p6">ป.6</button>
+              </div>
+            </div>
+
+            <!-- Secondary -->
+            <div>
+              <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">ระดับมัธยมศึกษา</div>
+              <div class="flex flex-wrap justify-center gap-2">
+                <button type="button" class="pill-btn grade-pill" data-grade="m1">ม.1</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="m2">ม.2</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="m3">ม.3</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="m4">ม.4</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="m5">ม.5</button>
+                <button type="button" class="pill-btn grade-pill" data-grade="m6">ม.6</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: กลุ่มสาระวิชาและชื่อรายวิชา (หลังจากเลือกระดับชั้น) -->
+        <div id="step-panel-3" class="wizard-step-panel hidden">
+          <div class="text-center mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              กลุ่มสาระวิชาและชื่อรายวิชา
+            </h2>
+            <p class="text-slate-500 text-sm">เลือกกลุ่มสาระการเรียนรู้ และระบุชื่อรายวิชาสำหรับแผนการสอน</p>
+          </div>
+
+          <div id="wizard-subject-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto mb-5">
+            <button type="button" class="choice-card subject-card" data-subject="thai">
+              <div class="font-semibold text-slate-900">ภาษาไทย</div>
+              <div class="text-xs text-slate-500 mt-0.5">การอ่าน เขียน ฟัง ดู พูด</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="math">
+              <div class="font-semibold text-slate-900">คณิตศาสตร์</div>
+              <div class="text-xs text-slate-500 mt-0.5">จำนวน การวัด เรขาคณิต</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="science">
+              <div class="font-semibold text-slate-900">วิทยาศาสตร์และเทคโนโลยี</div>
+              <div class="text-xs text-slate-500 mt-0.5">สิ่งมีชีวิต กายภาพ วิทยาการคำนวณ</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="english">
+              <div class="font-semibold text-slate-900">ภาษาต่างประเทศ (อังกฤษ)</div>
+              <div class="text-xs text-slate-500 mt-0.5">การสื่อสารและภาษา</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="social">
+              <div class="font-semibold text-slate-900">สังคมศึกษาฯ</div>
+              <div class="text-xs text-slate-500 mt-0.5">ประวัติศาสตร์ ภูมิศาสตร์ หน้าที่พลเมือง</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="health">
+              <div class="font-semibold text-slate-900">สุขศึกษาและพลศึกษา</div>
+              <div class="text-xs text-slate-500 mt-0.5">การดูแลสุขภาพและการเคลื่อนไหว</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="art">
+              <div class="font-semibold text-slate-900">ศิลปะ ดนตรี นาฏศิลป์</div>
+              <div class="text-xs text-slate-500 mt-0.5">ทัศนศิลป์ ดนตรี และการแสดง</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="career">
+              <div class="font-semibold text-slate-900">การงานอาชีพ</div>
+              <div class="text-xs text-slate-500 mt-0.5">ทักษะการทำงานและอาชีพ</div>
+            </button>
+            <button type="button" class="choice-card subject-card" data-subject="custom">
+              <div class="font-semibold text-slate-900">วิชาเพิ่มเติม / กำหนดเอง</div>
+              <div class="text-xs text-slate-500 mt-0.5">ระบุวิชาอื่นๆ ตามหลักสูตรสถานศึกษา</div>
+            </button>
+          </div>
+
+          <!-- ช่องกรอกกลุ่มสาระการเรียนรู้เมื่อเลือก เพิ่มเติม / กำหนดเอง ใน Wizard -->
+          <div id="wizard-custom-subject-container" class="max-w-2xl mx-auto w-full mb-3 p-4 rounded-xl border border-amber-200 bg-amber-50/60 hidden">
+            <label class="block text-sm font-semibold text-slate-800 mb-1">
+              กลุ่มสาระการเรียนรู้ (สำหรับวิชาเพิ่มเติม / กำหนดเอง)
+            </label>
+            <input type="text" id="wizard-custom-subject" class="form-input-clean custom-subject-input" placeholder="เช่น ภาษาต่างประเทศ หรือ วิชาศึกษาค้นคว้าด้วยตนเอง (IS)" />
+            <p class="text-xs text-slate-500 mt-1">ข้อความนี้จะแสดงในส่วนหัวเอกสาร เช่น "กลุ่มสาระการเรียนรู้ ภาษาต่างประเทศ"</p>
+          </div>
+
+          <div class="max-w-2xl mx-auto w-full p-4 rounded-xl border border-blue-100 bg-blue-50/50">
+            <label class="block text-sm font-semibold text-slate-800 mb-1">
+              ชื่อรายวิชา (ระบุรหัสวิชาหรือชื่อเฉพาะได้)
+            </label>
+            <input type="text" id="wizard-subject-name" class="form-input-clean subject-name-input" placeholder="เช่น ว22101 วิทยาการคำนวณ หรือ ภาษาไทยพื้นฐาน" />
+            <p class="text-xs text-slate-500 mt-1">ข้อความนี้จะแสดงในส่วนหัวเอกสาร เช่น "รายวิชา ว22101 วิทยาการคำนวณ"</p>
+          </div>
+        </div>
+
+        <!-- STEP 4: ระยะเวลาเรียน -->
+        <div id="step-panel-4" class="wizard-step-panel hidden">
+          <div class="text-center mb-8">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              ใช้เวลาในการจัดการเรียนรู้เท่าใด?
+            </h2>
+            <p class="text-slate-500 text-sm">เลือกระยะเวลาของคาบเรียนนี้เพื่อจัดสรรขั้นตอนกิจกรรมให้เหมาะสม</p>
+          </div>
+
+          <div class="flex flex-wrap justify-center gap-3 max-w-xl mx-auto mb-4">
+            <button type="button" class="pill-btn duration-pill active" data-duration="1hour">1 ชั่วโมง</button>
+            <button type="button" class="pill-btn duration-pill" data-duration="50min">50 นาที</button>
+            <button type="button" class="pill-btn duration-pill" data-duration="2periods">1 ชั่วโมง 40 นาที</button>
+            <button type="button" class="pill-btn duration-pill" data-duration="2hours">2 ชั่วโมง</button>
+            <button type="button" class="pill-btn duration-pill" data-duration="custom">กำหนดเอง</button>
+          </div>
+
+          <div id="wizard-custom-duration-container" class="max-w-md mx-auto hidden mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50 text-center">
+            <p class="text-xs font-semibold text-slate-700 mb-3">รูปแบบการระบุเวลา:</p>
+            <div class="flex justify-center items-center gap-4 mb-4 text-xs font-medium text-slate-700">
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" name="wizard-custom-type" value="hours" checked />
+                <span>ชั่วโมงอย่างเดียว</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" name="wizard-custom-type" value="minutes" />
+                <span>นาทีอย่างเดียว</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" name="wizard-custom-type" value="both" />
+                <span>ทั้งชั่วโมงและนาที</span>
+              </label>
+            </div>
+
+            <!-- Custom Hours Only -->
+            <div id="wizard-custom-hours-row" class="flex justify-center items-center gap-2">
+              <input type="number" id="wizard-custom-hours" class="form-input-clean text-center w-24 py-1.5" min="1" max="10" value="3" />
+              <span class="text-xs font-semibold text-slate-600">ชั่วโมง</span>
+            </div>
+
+            <!-- Custom Minutes Only -->
+            <div id="wizard-custom-minutes-row" class="hidden justify-center items-center gap-2">
+              <input type="number" id="wizard-custom-minutes" class="form-input-clean text-center w-24 py-1.5" min="5" max="360" value="45" step="5" />
+              <span class="text-xs font-semibold text-slate-600">นาที</span>
+            </div>
+
+            <!-- Custom Both -->
+            <div id="wizard-custom-both-row" class="hidden justify-center items-center gap-2">
+              <input type="number" id="wizard-custom-both-hours" class="form-input-clean text-center w-20 py-1.5" min="1" max="10" value="1" />
+              <span class="text-xs font-semibold text-slate-600">ชั่วโมง</span>
+              <input type="number" id="wizard-custom-both-minutes" class="form-input-clean text-center w-20 py-1.5" min="0" max="59" value="30" step="5" />
+              <span class="text-xs font-semibold text-slate-600">นาที</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 5: มาตรฐานและตัวชี้วัด -->
+        <div id="step-panel-5" class="wizard-step-panel hidden">
+          <div class="text-center mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              เลือกมาตรฐานของบทเรียนนี้กันนะ
+            </h2>
+            <p class="text-slate-500 text-sm">คลิกที่มาตรฐานเพื่อเลือกตัวชี้วัดที่สอดคล้องกับบทเรียน</p>
+          </div>
+
+          <!-- Early Childhood Domains View -->
+          <div id="wizard-ec-domains" class="hidden max-w-2xl mx-auto space-y-3 mb-4">
+            <p class="text-xs text-blue-600 font-semibold mb-2">สาระการเรียนรู้ปฐมวัย (เลือกได้หลายข้อ):</p>
+            <div class="ec-domains-list space-y-2"></div>
+          </div>
+
+          <!-- Standard Cards Grid -->
+          <div id="wizard-standards-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
+            <!-- Dynamic Standard Cards -->
+          </div>
+
+          <div id="wizard-selected-indicators-summary" class="max-w-2xl mx-auto mt-4 text-xs text-slate-500 text-center">
+            ยังไม่ได้เลือกตัวชี้วัด (คลิกที่การ์ดมาตรฐานด้านบนเพื่อเลือกตัวชี้วัด)
+          </div>
+        </div>
+
+        <!-- STEP 6: จุดประสงค์การเรียนรู้ (K-P-A) -->
+        <div id="step-panel-6" class="wizard-step-panel hidden">
+          <div class="text-center mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              กำหนดจุดประสงค์การเรียนรู้ (K, P, A)
+            </h2>
+            <p class="text-slate-500 text-sm">สามารถพิมพ์เอง หรือกดปุ่มเพื่อให้ระบบช่วยร่างข้อความเริ่มต้น</p>
+          </div>
+
+          <div class="max-w-2xl mx-auto w-full space-y-4">
+            <div class="flex justify-end">
+              <button type="button" class="btn-outline-blue btn-ai-kpa text-xs py-1.5 px-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                ให้ระบบช่วยร่าง K-P-A อัตโนมัติ
+              </button>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ด้านความรู้ (K: Knowledge)</label>
+                <textarea class="form-textarea-clean kpa-k" rows="2" placeholder="เช่น ผู้เรียนสามารถอธิบายหลักการอ่านออกเสียงคำที่ประสมสระอาได้ถูกต้อง"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ด้านทักษะกระบวนการ (P: Practice / Process)</label>
+                <textarea class="form-textarea-clean kpa-p" rows="2" placeholder="เช่น ผู้เรียนสามารถอ่านออกเสียงคำและเขียนสะกดคำที่ประสมสระอาได้"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ด้านเจตคติ / คุณลักษณะ (A: Attitude)</label>
+                <textarea class="form-textarea-clean kpa-a" rows="2" placeholder="เช่น ผู้เรียนมีความกระตือรือร้นและมีมารยาทในการอ่าน"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 7: วิธีการจัดการเรียนรู้ -->
+        <div id="step-panel-7" class="wizard-step-panel hidden">
+          <div class="text-center mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              วิธีการจัดการเรียนรู้ที่ต้องการใช้
+            </h2>
+            <p class="text-slate-500 text-sm">เลือกรูปแบบการสอนหลัก โดยกิจกรรมจะถูกออกแบบตามขั้นตอนของรูปแบบนั้นอย่างเคร่งครัด</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto" id="wizard-methods-grid">
+            <!-- Dynamic Teaching Method Choice Cards -->
+          </div>
+
+          <div id="wizard-custom-method-container" class="max-w-xl mx-auto mt-3 hidden">
+            <input type="text" id="wizard-custom-method" class="form-input-clean custom-method-input" placeholder="ระบุวิธีสอนอื่นๆ เช่น การเรียนรู้แบบร่วมมือ (Cooperative Learning)" />
+          </div>
+        </div>
+
+        <!-- STEP 8: สมรรถนะและทิศทางของแผน -->
+        <div id="step-panel-8" class="wizard-step-panel hidden">
+          <div class="text-center mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              สมรรถนะสำคัญและทิศทางของแผน
+            </h2>
+            <p class="text-slate-500 text-sm">เลือกสิ่งที่ต้องการเน้นเป็นพิเศษในกิจกรรมการเรียนรู้นี้</p>
+          </div>
+
+          <div class="max-w-2xl mx-auto space-y-6">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-2">สมรรถนะสำคัญของผู้เรียน:</label>
+              <div class="competencies-container flex flex-wrap gap-2"></div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-2">ทิศทางของแผนการจัดการเรียนรู้:</label>
+              <div class="directions-container flex flex-wrap gap-2"></div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">บรรยากาศหรือข้อกำหนดเพิ่มเติม (เว้นว่างได้):</label>
+              <textarea class="form-textarea-clean atmosphere-input" rows="2" placeholder="เช่น บรรยากาศเป็นกันเอง สนุกสนาน มีการเล่นเกมท้ายคาบ หรือเน้นการดูแลนักเรียนเป็นรายบุคคล"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 9: ข้อมูลหัวแผนและท้ายแผน (แยกเป็นอีกหน้านึง ก่อนท้ายสุด) -->
+        <div id="step-panel-9" class="wizard-step-panel hidden">
+          <div class="text-center mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              ข้อมูลหัวแผนและท้ายแผน
+            </h2>
+            <p class="text-slate-500 text-sm">ระบุข้อมูลสำหรับส่วนหัวและส่วนท้ายของเอกสารราชการ (เว้นว่างได้ ระบบจะใส่เส้นประให้)</p>
+          </div>
+
+          <div class="max-w-xl mx-auto w-full white-card p-6 text-sm space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อโรงเรียน</label>
+                <input type="text" id="wizard-school" class="form-input-clean school-input" placeholder="เช่น โรงเรียนเทศบาล ๑" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ภาคเรียนที่</label>
+                <input type="text" id="wizard-semester" class="form-input-clean semester-input text-center" placeholder="เช่น 1 หรือ 2" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ปีการศึกษา</label>
+                <input type="text" id="wizard-year" class="form-input-clean year-input text-center" placeholder="เช่น 2569 (เว้นว่างดึงปีนี้)" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">วันที่</label>
+                <input type="text" id="wizard-date" class="form-input-clean date-input text-center" placeholder="เช่น 15" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">เดือน</label>
+                <input type="text" id="wizard-month" class="form-input-clean month-input text-center" placeholder="เช่น กรกฎาคม" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">พ.ศ.</label>
+                <input type="text" id="wizard-byear" class="form-input-clean byear-input text-center" placeholder="เช่น 2569" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อผู้เขียนแผน (ครูผู้สอน)</label>
+                <input type="text" id="wizard-teacher-name" class="form-input-clean teacher-name-input" placeholder="เช่น นายสมชาย สอนดี" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">ตำแหน่ง</label>
+                <input type="text" id="wizard-teacher-position" class="form-input-clean teacher-pos-input" placeholder="เช่น ครูผู้ช่วย / ครู" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 10: สรุปและพร้อมสร้างแผน (หน้าท้ายสุด) -->
+        <div id="step-panel-10" class="wizard-step-panel hidden">
+          <div class="text-center mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              พร้อมสร้างแผนการจัดการเรียนรู้แล้ว
+            </h2>
+            <p class="text-slate-500 text-sm">ตรวจสอบข้อมูลสรุปด้านล่างแล้วกดปุ่มเพื่อเริ่มประมวลผล</p>
+          </div>
+
+          <div class="max-w-xl mx-auto w-full white-card p-6 mb-6 text-sm space-y-3">
+            <div class="flex justify-between pb-2 border-b border-slate-100">
+              <span class="text-slate-500">ระดับชั้น:</span>
+              <span id="summary-grade" class="font-semibold text-slate-900">-</span>
+            </div>
+            <div class="flex justify-between pb-2 border-b border-slate-100">
+              <span class="text-slate-500">รายวิชา / สาระการเรียนรู้:</span>
+              <span id="summary-subject" class="font-semibold text-slate-900">-</span>
+            </div>
+            <div class="flex justify-between pb-2 border-b border-slate-100">
+              <span class="text-slate-500">เรื่องที่สอน:</span>
+              <span id="summary-topic" class="font-semibold text-slate-900 text-right max-w-xs">-</span>
+            </div>
+            <div class="flex justify-between pb-2 border-b border-slate-100">
+              <span class="text-slate-500">เวลาเรียน:</span>
+              <span id="summary-duration" class="font-semibold text-slate-900">-</span>
+            </div>
+            <div class="flex justify-between pb-2 border-b border-slate-100">
+              <span class="text-slate-500">ตัวชี้วัดที่เลือก:</span>
+              <span id="summary-indicators" class="font-semibold text-blue-600">-</span>
+            </div>
+            <div class="flex justify-between pb-2 border-b border-slate-100">
+              <span class="text-slate-500">วิธีการจัดการเรียนรู้:</span>
+              <span id="summary-method" class="font-semibold text-slate-900">-</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">โรงเรียน / ผู้เขียนแผน:</span>
+              <span id="summary-school-teacher" class="font-semibold text-slate-900">-</span>
+            </div>
+          </div>
+
+          <div class="text-center flex items-center justify-center">
+            <button id="btn-generate-wizard" class="btn-primary text-lg py-3.5 px-10 shadow-lg font-bold">
+              ⚡ สร้างแผนด้วย AI
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- Bottom Navigation Bar with Dot Progress (ไข่ปลา) -->
+      <!-- ============================================================ -->
+      <div class="mt-12 pt-6 border-t border-slate-200 flex items-center justify-between gap-4">
+        <!-- Back Button -->
+        <button id="btn-prev" class="btn-secondary text-sm">
+          ← ย้อนกลับ
+        </button>
+
+        <!-- Dot Progress Bar (ไข่ปลา) -->
+        <div id="wizard-dots-container" class="dot-progress">
+          <!-- 10 dots will be rendered here -->
+        </div>
+
+        <!-- Next Button -->
+        <button id="btn-next" class="btn-primary text-sm">
+          ถัดไป →
+        </button>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- VIEW 3: ALL-IN-ONE SECTION -->
+    <!-- ============================================================ -->
+    <section id="allinone-section" class="hidden animate-fade-in">
+      <div class="flex items-center justify-between mb-6 pb-3 border-b border-slate-200">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">กรอกข้อมูลทั้งหมดในหน้าเดียว</h2>
+          <p class="text-xs text-slate-500">กรอกรายละเอียดครบถ้วนแล้วกดปุ่มสร้างแผนด้านล่าง</p>
+        </div>
+        <button id="btn-allinone-to-wizard" class="text-xs font-medium text-blue-600 hover:text-blue-800 bg-white hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer">
+          เปลี่ยนเป็นกรอกทีละส่วน
+        </button>
+      </div>
+
+      <div class="space-y-6">
+        <!-- Section 1: ข้อมูลพื้นฐาน -->
+        <div class="white-card p-6">
+          <h3 class="font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+            1. ข้อมูลพื้นฐานของบทเรียน
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ระดับชั้น</label>
+              <select id="aio-grade" class="form-select-clean grade-select"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">กลุ่มสาระการเรียนรู้</label>
+              <select id="aio-subject" class="form-select-clean subject-select"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อรายวิชา</label>
+              <input type="text" id="aio-subject-name" class="form-input-clean subject-name-input" placeholder="เช่น ว22101 วิทยาการคำนวณ หรือ ภาษาไทย 1" />
+            </div>
+          </div>
+          <!-- ช่องกรอกกลุ่มสาระการเรียนรู้เมื่อเลือก เพิ่มเติม / กำหนดเอง ใน All-in-One -->
+          <div id="aio-custom-subject-container" class="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50/60 hidden">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">
+              ระบุกลุ่มสาระการเรียนรู้ (สำหรับวิชาเพิ่มเติม / กำหนดเอง)
+            </label>
+            <input type="text" id="aio-custom-subject" class="form-input-clean custom-subject-input" placeholder="เช่น ภาษาต่างประเทศ หรือ วิชาศึกษาค้นคว้าด้วยตนเอง (IS)" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อแผนการจัดการเรียนรู้</label>
+              <input type="text" id="aio-plan-name" class="form-input-clean plan-name-input" placeholder="เช่น แผนการจัดการเรียนรู้ที่ 1" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">หน่วยการเรียนรู้</label>
+              <input type="text" id="aio-unit" class="form-input-clean unit-input" placeholder="เช่น หน่วยที่ 1 สระแสนสนุก" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">เรื่องที่ต้องการสอน</label>
+              <input type="text" id="aio-topic" class="form-input-clean topic-input" placeholder="เช่น การอ่านออกเสียงคำที่ประสมสระอา" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ระยะเวลาเรียน</label>
+              <select id="aio-duration" class="form-select-clean duration-select"></select>
+            </div>
+            <div id="aio-custom-duration-container" class="sm:col-span-3 hidden p-3 rounded-lg border border-slate-200 bg-slate-50 mt-1">
+              <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+                <span class="font-semibold text-slate-700">ระบุเวลาเอง:</span>
+                <div class="flex items-center gap-3">
+                  <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="aio-custom-type" value="hours" checked />
+                    <span>ชั่วโมงอย่างเดียว</span>
+                  </label>
+                  <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="aio-custom-type" value="minutes" />
+                    <span>นาทีอย่างเดียว</span>
+                  </label>
+                  <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="aio-custom-type" value="both" />
+                    <span>ทั้งชั่วโมงและนาที</span>
+                  </label>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div id="aio-custom-hours-row" class="flex items-center gap-1">
+                    <input type="number" id="aio-custom-hours" class="form-input-clean text-center w-16 py-1 text-xs" min="1" max="10" value="3" />
+                    <span class="text-slate-600">ชั่วโมง</span>
+                  </div>
+                  <div id="aio-custom-minutes-row" class="hidden items-center gap-1">
+                    <input type="number" id="aio-custom-minutes" class="form-input-clean text-center w-16 py-1 text-xs" min="5" max="360" value="45" step="5" />
+                    <span class="text-slate-600">นาที</span>
+                  </div>
+                  <div id="aio-custom-both-row" class="hidden items-center gap-1">
+                    <input type="number" id="aio-custom-both-hours" class="form-input-clean text-center w-14 py-1 text-xs" min="1" max="10" value="1" />
+                    <span class="text-slate-600">ชม.</span>
+                    <input type="number" id="aio-custom-both-minutes" class="form-input-clean text-center w-14 py-1 text-xs" min="0" max="59" value="30" step="5" />
+                    <span class="text-slate-600">นาที</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: มาตรฐานและตัวชี้วัด -->
+        <div class="white-card p-6">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-100">
+            <h3 class="font-bold text-slate-900">2. มาตรฐานการเรียนรู้และตัวชี้วัด</h3>
+            <span id="aio-selected-indicators-summary" class="text-xs text-slate-500">คลิกที่การ์ดมาตรฐานเพื่อเลือกตัวชี้วัด</span>
+          </div>
+          <div class="standards-container">
+            <div id="aio-standards-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 standards-list">
+              <p class="text-slate-400 text-sm italic col-span-2">กรุณาเลือกระดับชั้นและวิชาก่อน</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: จุดประสงค์ KPA -->
+        <div class="white-card p-6">
+          <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+            <h3 class="font-bold text-slate-900">3. จุดประสงค์การเรียนรู้ (K, P, A)</h3>
+            <button type="button" class="btn-outline-blue btn-ai-kpa text-xs py-1 px-3">
+              ให้ระบบช่วยร่าง K-P-A
+            </button>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ด้านความรู้ (K)</label>
+              <textarea class="form-textarea-clean kpa-k" rows="2" placeholder="ผู้เรียนสามารถ..."></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ด้านทักษะกระบวนการ (P)</label>
+              <textarea class="form-textarea-clean kpa-p" rows="2" placeholder="ผู้เรียนสามารถ..."></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ด้านเจตคติ (A)</label>
+              <textarea class="form-textarea-clean kpa-a" rows="2" placeholder="ผู้เรียนมีความ..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: วิธีการสอนและทิศทาง -->
+        <div class="white-card p-6">
+          <h3 class="font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+            4. วิธีการสอนและทิศทางของแผน
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">วิธีการจัดการเรียนรู้</label>
+              <select id="aio-teaching-method" class="form-select-clean teaching-method-select"></select>
+              <div id="aio-custom-method-container" class="mt-2 hidden">
+                <input type="text" id="aio-custom-method" class="form-input-clean custom-method-input" placeholder="ระบุวิธีสอนอื่นๆ เช่น การเรียนรู้แบบร่วมมือ (Cooperative Learning)" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-2">สมรรถนะสำคัญของผู้เรียน</label>
+              <div class="competencies-container flex flex-wrap gap-2"></div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-2">ทิศทางของแผน</label>
+              <div class="directions-container flex flex-wrap gap-2"></div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">บรรยากาศห้องเรียน / รายละเอียดเพิ่มเติม</label>
+              <textarea id="aio-atmosphere" class="form-textarea-clean atmosphere-input" rows="2" placeholder="ระบุเพิ่มเติมได้ (เว้นว่างได้)..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 5: ข้อมูลหัวแผนและท้ายแผน (ไม่บังคับ) -->
+        <div class="white-card p-6">
+          <h3 class="font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+            <span>5. ข้อมูลหัวแผนและท้ายแผน (ไม่บังคับ)</span>
+            <span class="text-xs font-normal text-slate-400">เว้นว่างได้ ระบบจะใส่เส้นประให้</span>
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อโรงเรียน</label>
+              <input type="text" id="aio-school" class="form-input-clean school-input" placeholder="เช่น โรงเรียนเทศบาล ๑" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ภาคเรียนที่</label>
+              <input type="text" id="aio-semester" class="form-input-clean semester-input text-center" placeholder="เช่น 1 หรือ 2" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ปีการศึกษา</label>
+              <input type="text" id="aio-year" class="form-input-clean year-input text-center" placeholder="เช่น 2569 (เว้นว่างดึงปีนี้)" />
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">วันที่</label>
+              <input type="text" id="aio-date" class="form-input-clean date-input text-center" placeholder="เช่น 15" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">เดือน</label>
+              <input type="text" id="aio-month" class="form-input-clean month-input text-center" placeholder="เช่น กรกฎาคม" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">พ.ศ.</label>
+              <input type="text" id="aio-byear" class="form-input-clean byear-input text-center" placeholder="เช่น 2569" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อผู้เขียนแผน</label>
+              <input type="text" id="aio-teacher-name" class="form-input-clean teacher-name-input" placeholder="เช่น นายสมชาย สอนดี" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ตำแหน่งผู้เขียนแผน</label>
+              <input type="text" id="aio-teacher-position" class="form-input-clean teacher-pos-input" placeholder="เช่น ครูผู้ช่วย / ครู" />
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center pt-2 flex items-center justify-center">
+          <button id="btn-generate-aio" class="btn-primary text-lg py-3.5 px-10 shadow-lg font-bold">
+            ⚡ สร้างแผนด้วย AI
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- VIEW 4: PREVIEW & EXPORT SECTION -->
+    <!-- ============================================================ -->
+    <section id="preview-section" class="hidden mt-10 animate-fade-in" style="display: none;">
+      <!-- Export Toolbar -->
+      <div class="white-card p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <button id="btn-back-to-form" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1">
+            ← กลับไปแก้ไขข้อมูล
+          </button>
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">ตัวอย่างแผนการจัดการเรียนรู้</h2>
+            <p class="text-xs text-slate-500">สามารถคลิกเพื่อแก้ไขเนื้อหาในแต่ละส่วนได้โดยตรง</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btn-copy-all" class="btn-secondary text-sm">
+            📋 คัดลอกทั้งแผน (สำหรับ Word)
+          </button>
+          <button id="btn-print" class="btn-secondary text-sm" title="พิมพ์หรือบันทึกเป็น PDF (A4 มาตรฐานราชการ)">
+            พิมพ์ / บันทึก PDF
+          </button>
+          <button id="btn-export-docx" class="btn-primary text-sm">
+            ส่งออกไฟล์ .docx
+          </button>
+        </div>
+      </div>
+
+      <!-- A4 Sheet Preview -->
+      <div class="a4-paper mb-8" id="preview-content">
+        <!-- Rendered lesson plan appears here -->
+      </div>
+
+      <!-- Refinement Box -->
+      <div class="white-card p-6">
+        <h3 class="text-base font-bold text-slate-900 mb-2">สั่งปรับปรุงแผนการสอนเพิ่มเติม</h3>
+        <p class="text-xs text-slate-500 mb-3">ระบุความต้องการเพิ่มเติม เช่น "ขอเพิ่มกิจกรรมเกมท้ายคาบ 10 นาที" หรือ "ปรับขั้นสรุปให้เน้นการประเมินตนเอง"</p>
+        <div class="flex gap-2">
+          <input type="text" id="refine-input" class="form-input-clean flex-1 text-sm" placeholder="พิมพ์คำสั่งปรับปรุงแผนที่ต้องการ..." />
+          <button id="btn-refine" class="btn-primary text-sm px-5 whitespace-nowrap">
+            ปรับปรุงแผน
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================ -->
+  <!-- Footer -->
+  <!-- ============================================================ -->
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-auto">
+    <div class="max-w-4xl mx-auto px-4">
+      <p class="font-medium text-slate-700">EduPlan AI — ระบบสร้างแผนการจัดการเรียนรู้อัจฉริยะ</p>
+      <p class="mt-1 text-slate-400">พัฒนาขึ้นเพื่อสนับสนุนคุณครูไทยตามมาตรฐาน วPA · ใช้งานผ่านเว็บได้โดยตรง</p>
+    </div>
+  </footer>
+
+  <!-- ============================================================ -->
+  <!-- MODAL: Indicator Selection Drawer (Image 5) -->
+  <!-- ============================================================ -->
+  <div id="indicator-modal-overlay" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-xl max-h-[85vh] flex flex-col p-6">
+      <div class="pb-3 border-b border-slate-100 flex items-center justify-between mb-4">
+        <div>
+          <h3 id="ind-modal-title" class="text-lg font-bold text-slate-900">ตัวชี้วัด</h3>
+          <p id="ind-modal-subtitle" class="text-xs text-slate-500 mt-0.5">เลือกตัวชี้วัดที่ต้องการ แล้วกดเรียบร้อย</p>
+        </div>
+        <button id="ind-modal-close" class="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer p-1">✕</button>
+      </div>
+
+      <div id="ind-modal-list" class="flex-1 overflow-y-auto space-y-2 pr-1 my-2">
+        <!-- Dynamic list of indicator cards with checkboxes -->
+      </div>
+
+      <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-3 mt-2">
+        <button id="ind-modal-clear" class="text-xs text-slate-500 hover:text-red-600 font-medium cursor-pointer">
+          ยกเลิกตัวชี้วัดของมาตรฐานนี้
+        </button>
+        <button id="ind-modal-done" class="btn-primary text-sm py-2 px-6">
+          เรียบร้อย
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MODAL: Confirmation Dialog -->
+  <!-- ============================================================ -->
+  <div id="modal-overlay" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-md">
+      <h3 id="modal-title" class="text-lg font-bold text-slate-900 mb-2">ยืนยัน</h3>
+      <p id="modal-message" class="text-slate-600 text-sm mb-6"></p>
+      <div class="flex justify-end gap-2">
+        <button id="modal-no" class="btn-secondary text-sm">ยกเลิก</button>
+        <button id="modal-yes" class="btn-primary text-sm">ตกลง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MODAL: Worker Proxy Settings -->
+  <!-- ============================================================ -->
+  <div id="settings-modal-overlay" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-lg">
+      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+        <h3 class="text-lg font-bold text-slate-900">
+          ตั้งค่า Cloudflare Worker Proxy
+        </h3>
+        <button id="settings-close-btn" class="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">✕</button>
+      </div>
+      <p class="text-sm text-slate-600 mb-4 leading-relaxed">
+        ระบบใช้สถาปัตยกรรม <strong>Zero Frontend Keys</strong> โดยคำขอ AI ทั้งหมดจะส่งผ่าน Cloudflare Worker เพื่อจัดการ Key Rotation สลับ 3 Gemini API Keys อัตโนมัติ
+      </p>
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Worker Endpoint URL</label>
+        <input id="worker-endpoint-input" type="url" class="form-input-clean text-sm" placeholder="https://eduplan-proxy.your-worker.workers.dev" />
+        <p class="text-xs text-slate-400 mt-1">สามารถเปลี่ยนเป็น URL ของ Cloudflare Worker ที่ท่าน Deploy ไว้ (บันทึกในบราวเซอร์นี้)</p>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="settings-reset-btn" class="btn-secondary text-sm">ใช้ค่าเริ่มต้น</button>
+        <button id="settings-save-btn" class="btn-primary text-sm">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Loading Overlay -->
+  <!-- ============================================================ -->
+  <div id="loading-overlay" class="loading-overlay hidden" style="display: none;">
+    <div class="loading-card">
+      <div class="loading-spinner"></div>
+      <p id="loading-text" class="text-base font-semibold text-slate-800">กำลังสร้างแผนการจัดการเรียนรู้...</p>
+      <p class="text-xs text-slate-400 mt-1">กรุณารอสักครู่ ระบบกำลังจัดสรรเนื้อหาตามมาตรฐาน วPA</p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

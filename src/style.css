@@ -1,0 +1,882 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@font-face {
+  font-family: 'TH SarabunPSK';
+  src: url('/fonts/THSARABUN.TTF') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TH SarabunPSK';
+  src: url('/fonts/THSARABUNBOLD.TTF') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TH SarabunPSK';
+  src: url('/fonts/THSARABUNITALIC.TTF') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TH SarabunPSK';
+  src: url('/fonts/THSARABUNBOLDITALIC.TTF') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: url('/fonts/THSARABUN.TTF') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: url('/fonts/THSARABUNBOLD.TTF') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: url('/fonts/THSARABUNITALIC.TTF') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: url('/fonts/THSARABUNBOLDITALIC.TTF') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Enforce TH SarabunPSK on Lesson Plan Preview */
+.a4-paper,
+.a4-sheet,
+#preview-content,
+#preview-content * {
+  font-family: 'TH SarabunPSK', 'TH Sarabun PSK', sans-serif !important;
+}
+
+#preview-content p,
+#preview-content div,
+#preview-content td,
+#preview-content th,
+#preview-content span,
+#preview-content li {
+  font-size: 16pt !important;
+}
+
+#preview-content h1 {
+  font-size: 20pt !important;
+}
+
+#preview-content h2,
+#preview-content h3 {
+  font-size: 16pt !important;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   EduPlan AI — Clean & Light Design System (White & Blue Theme)
+   ออกแบบเรียบง่าย ชัดเจน ขนาดตัวหนังสือใหญ่ สบายตา สำหรับคุณครู
+   ============================================================ */
+
+:root {
+  --font-main: 'Sarabun', 'TH SarabunPSK', 'TH Sarabun PSK', sans-serif;
+  --font-doc: 'TH SarabunPSK', 'TH Sarabun PSK', sans-serif;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #eff6ff;
+  --color-primary-border: #bfdbfe;
+  --color-bg-page: #f8fafc;
+  --color-bg-card: #ffffff;
+  --color-border: #e2e8f0;
+  --color-border-hover: #93c5fd;
+  --color-text-main: #0f172a;
+  --color-text-body: #334155;
+  --color-text-muted: #64748b;
+  --color-text-subtle: #94a3b8;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 17px; /* ปรับขนาดฟอนต์หน้าเว็บเริ่มต้นให้ใหญ่และอ่านง่ายขึ้น */
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--color-bg-page);
+  color: var(--color-text-body);
+  font-size: 1.05rem; /* ~19px */
+  line-height: 1.6;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ============================================================
+   White Cards & Containers
+   ============================================================ */
+.white-card {
+  background-color: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.2s ease;
+}
+
+.white-card-hover:hover {
+  border-color: var(--color-border-hover);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* ============================================================
+   Pill Buttons (Grade, Subject, Option Selection)
+   ============================================================ */
+.pill-btn {
+  background-color: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #334155;
+  border-radius: 9999px;
+  padding: 10px 22px;
+  font-size: 1.05rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.pill-btn:hover {
+  border-color: #93c5fd;
+  background-color: #f0f7ff;
+  color: #1d4ed8;
+}
+
+.pill-btn.active {
+  background-color: #eff6ff;
+  border: 2px solid #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Choice Cards (e.g. Teaching Method, Standards) */
+.choice-card {
+  background-color: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px 20px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+  font-size: 1rem;
+}
+
+.choice-card:hover {
+  border-color: #93c5fd;
+  background-color: #f8fafc;
+}
+
+.choice-card.active {
+  border-color: #2563eb;
+  background-color: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+/* Subject Choice Cards (Elongated rectangular cards) */
+.subject-card {
+  min-height: 82px;
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* ============================================================
+   Mode Selection Cards (Image 1)
+   ============================================================ */
+.mode-card {
+  background-color: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 28px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 200px;
+  box-shadow: var(--shadow-sm);
+}
+
+.mode-card:hover {
+  border-color: #3b82f6;
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-2px);
+}
+
+.mode-card.active {
+  border-color: #2563eb;
+  background-color: #fafcff;
+  box-shadow: 0 0 0 2px #2563eb;
+}
+
+/* ============================================================
+   Dot Progress Bar (ไข่ปลา)
+   ============================================================ */
+.dot-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dot-item {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: #cbd5e1;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.dot-item:hover {
+  background-color: #94a3b8;
+  transform: scale(1.2);
+}
+
+.dot-item.active {
+  width: 24px;
+  background-color: #2563eb;
+  border-radius: 9999px;
+}
+
+.dot-item.completed {
+  background-color: #93c5fd;
+}
+
+/* ============================================================
+   Clean Form Inputs
+   ============================================================ */
+.form-input-clean {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 1rem;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.form-input-clean:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.form-input-clean::placeholder {
+  color: #94a3b8;
+}
+
+.form-textarea-clean {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 1rem;
+  color: #0f172a;
+  outline: none;
+  resize: vertical;
+  transition: all 0.15s ease;
+  line-height: 1.6;
+}
+
+.form-textarea-clean:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.form-textarea-clean::placeholder {
+  color: #94a3b8;
+}
+
+.form-select-clean {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 1.1rem;
+  color: #0f172a;
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em;
+  transition: all 0.15s ease;
+}
+
+.form-select-clean:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.form-select-clean:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* ============================================================
+   Action Buttons
+   ============================================================ */
+.btn-primary {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 22px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #1d4ed8;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-outline-blue {
+  background-color: #ffffff;
+  color: #2563eb;
+  border: 1.5px solid #2563eb;
+  border-radius: 12px;
+  padding: 8px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-outline-blue:hover {
+  background-color: #eff6ff;
+}
+
+/* ============================================================
+   Selectable Chips (Competencies & Directions)
+   ============================================================ */
+.chip-checkbox {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.chip-checkbox input[type="checkbox"] {
+  display: none;
+}
+
+.chip-checkbox:hover {
+  border-color: #93c5fd;
+  background-color: #f8fafc;
+}
+
+.chip-checkbox.active {
+  background-color: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+/* Preset buttons in header */
+.preset-btn {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  font-size: 0.813rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.preset-btn:hover {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+/* ============================================================
+   A4 Preview Paper (Official Thai Format)
+   ============================================================ */
+.a4-paper {
+  background-color: #ffffff;
+  color: #0f172a;
+  font-family: 'TH SarabunPSK', 'TH Sarabun PSK', 'Sarabun', sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 56px;
+  line-height: 1.8;
+  font-size: 16px;
+}
+
+.a4-paper h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 1.25rem;
+  color: #0f172a;
+}
+
+.a4-paper h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+  border-bottom: 1.5px solid #2563eb;
+  padding-bottom: 4px;
+}
+
+.a4-paper h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.35rem;
+  color: #1e293b;
+}
+
+.a4-paper p {
+  margin-bottom: 0.5rem;
+  color: #1e293b;
+}
+
+.a4-paper ul, .a4-paper ol {
+  margin-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.a4-paper li {
+  margin-bottom: 0.25rem;
+}
+
+.a4-paper table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.938rem;
+}
+
+.a4-paper th, .a4-paper td {
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.a4-paper th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.a4-paper .editable-block {
+  position: relative;
+  border-radius: 6px;
+  padding: 4px;
+  transition: all 0.15s ease;
+  cursor: text;
+}
+
+.a4-paper .editable-block:hover {
+  background-color: #f8fafc;
+  outline: 1.5px dashed #93c5fd;
+}
+
+.a4-paper .editable-block:focus-within {
+  outline: 2px solid #2563eb;
+  background-color: #ffffff;
+}
+
+.section-toolbar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.editable-block:hover .section-toolbar {
+  opacity: 1;
+}
+
+/* ============================================================
+   Modal & Loading Overlays
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  padding: 16px;
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+  display: none;
+}
+
+.modal-overlay:not(.hidden) {
+  display: flex;
+}
+
+.modal-overlay.hidden {
+  display: none !important;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  border-radius: 20px;
+  padding: 28px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  animation: modalSlideUp 0.2s ease-out;
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+  display: none;
+}
+
+.loading-overlay:not(.hidden) {
+  display: flex;
+}
+
+.loading-overlay.hidden {
+  display: none !important;
+}
+
+.loading-card {
+  text-align: center;
+  padding: 32px 40px;
+  border-radius: 20px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow-elevated);
+}
+
+.loading-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3.5px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Toast Notification
+   ============================================================ */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 380px;
+}
+
+.toast {
+  background-color: #ffffff;
+  color: #0f172a;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 0.938rem;
+  font-weight: 500;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  animation: toastSlide 0.25s ease-out;
+}
+
+@keyframes toastSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-success {
+  border-left: 4px solid #16a34a;
+}
+.toast-error {
+  border-left: 4px solid #dc2626;
+}
+.toast-info {
+  border-left: 4px solid #2563eb;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ============================================================
+   Responsive Styles
+   ============================================================ */
+@media (max-width: 768px) {
+  .a4-paper {
+    padding: 24px 20px;
+    font-size: 15px;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+  }
+  .mode-card {
+    min-height: auto;
+  }
+}
+
+/* ============================================================
+   Print Styles (Official Government A4 Output)
+   ============================================================ */
+@media print {
+  header,
+  footer,
+  #mode-choice-section,
+  #wizard-container,
+  #allinone-section,
+  #preview-section > .white-card:first-child,
+  #preview-section > .white-card:last-child,
+  .section-toolbar,
+  .toast-container,
+  .modal-overlay,
+  .loading-overlay,
+  .bottom-nav-bar,
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'TH Sarabun New', 'TH Sarabun PSK', 'Sarabun', sans-serif !important;
+    font-size: 16pt !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #preview-section {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .a4-paper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .a4-paper .editable-block {
+    padding: 0 !important;
+    outline: none !important;
+    border: none !important;
+  }
+
+  .a4-paper .editable-block:hover {
+    outline: none !important;
+    background: none !important;
+  }
+
+  .a4-paper h1 {
+    font-size: 18pt !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    margin-bottom: 12pt !important;
+    color: #000000 !important;
+  }
+
+  .a4-paper h2 {
+    font-size: 16pt !important;
+    font-weight: bold !important;
+    border-bottom: 1px solid #000000 !important;
+    color: #000000 !important;
+    margin-top: 14pt !important;
+    margin-bottom: 6pt !important;
+  }
+
+  .a4-paper table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin: 8pt 0 !important;
+    page-break-inside: avoid;
+  }
+
+  .a4-paper th,
+  .a4-paper td {
+    border: 1px solid #000000 !important;
+    padding: 4pt 6pt !important;
+    color: #000000 !important;
+    font-size: 14pt !important;
+  }
+
+  .a4-paper th {
+    background-color: #f0f0f0 !important;
+    font-weight: bold !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm 1.5cm 1.5cm 2cm;
+  }
+}

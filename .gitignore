@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+dist-ssr/
+*.local
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Cloudflare Wrangler cache
+.wrangler/
+
+# Temporary / Scratch files & logs
+scratch/
+*.log
+ตย
+.agentrules
+ReviewIDE.txt
+
+# Curriculum Data backups & raw working files
+public/data/*BackUp*
+public/data/*.txt

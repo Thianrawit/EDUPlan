@@ -1,0 +1,10 @@
+name = "eduplan-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# สำหรับการตั้งค่า API Keys แนะนำให้ใส่ผ่าน Secret (ความปลอดภัยสูงสุด):
+# npx.cmd wrangler secret put GEMINI_KEY_1
+# npx.cmd wrangler secret put GEMINI_KEY_2
+# npx.cmd wrangler secret put GEMINI_KEY_3
+
+# หรือใส่ผ่านหน้าเว็บ Cloudflare Dashboard -> Workers & Pages -> eduplan-proxy -> Settings -> Variables and Secrets
