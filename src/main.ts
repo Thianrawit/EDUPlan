@@ -30,9 +30,8 @@ import {
   PLAN_DIRECTIONS,
   DURATION_OPTIONS,
   type DurationOption,
-  getWorkerEndpoint,
-  setWorkerEndpoint,
-  DEFAULT_WORKER_ENDPOINT,
+
+  STORAGE_KEYS,
 } from './config';
 import {
   buildSystemInstruction,
@@ -41,10 +40,24 @@ import {
   getCurrentThaiDate,
   parseLessonPlanResponse,
   generateStandardLessonPlan,
+  cleanAndFormatStandardsText,
+  cleanAndFormatIndicatorsText,
+  formatCompetenciesText,
+  formatActivitiesToHtml,
   type LessonPlanInput,
 } from './templates';
 import type { LessonPlanData, EvaluationRow } from './types';
-import { callGemini, refineWithGemini, type GeminiResult } from './gemini';
+import {
+  callGemini,
+  refineWithGemini,
+  validateGeminiApiKey,
+  getStoredApiKey,
+  setStoredApiKey,
+  isByokEnabled,
+  sanitizeJsonString,
+  type GeminiResult,
+} from './gemini';
+import { sendTelemetry } from './telemetry';
 import {
   exportToDocx,
   buildFullPlanHtml,
@@ -183,27 +196,207 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
 }
 
 // ============================================================
-// Loading Overlay
+// Stopwatch & Loading Overlay (Real-time Steps Indicator)
 // ============================================================
-function showLoading(message: string) {
+let stopwatchInterval: any = null;
+let stopwatchStartTime = 0;
+
+function startStopwatch() {
   state.isLoading = true;
-  state.loadingMessage = message;
+  stopwatchStartTime = Date.now();
   const overlay = document.getElementById('loading-overlay');
-  const text = document.getElementById('loading-text');
+  const stopwatchEl = document.getElementById('loading-stopwatch');
+  const stepTextEl = document.getElementById('loading-step-text');
+
   if (overlay) {
     overlay.style.display = 'flex';
     overlay.classList.remove('hidden');
   }
-  if (text) text.textContent = message;
+
+  const updateDisplay = () => {
+    const elapsedSec = Math.floor((Date.now() - stopwatchStartTime) / 1000);
+    if (stopwatchEl) {
+      stopwatchEl.innerHTML = `กำลังจัดทำแผนการจัดการเรียนรู้...<br><span class="text-sm font-semibold text-slate-500">${elapsedSec} วินาที</span>`;
+    }
+    if (stepTextEl) {
+      if (elapsedSec <= 5) {
+        stepTextEl.textContent = 'กำลังวิเคราะห์มาตรฐานการเรียนรู้และตัวชี้วัด...';
+      } else if (elapsedSec <= 15) {
+        stepTextEl.textContent = 'กำลังออกแบบกิจกรรมการเรียนรู้ Active Learning...';
+      } else if (elapsedSec <= 25) {
+        stepTextEl.textContent = 'กำลังจัดทำตารางวัดและประเมินผล 4 คอลัมน์...';
+      } else {
+        stepTextEl.textContent = 'กำลังจัดรูปเล่มสารบรรณและบันทึกหลังสอน...';
+      }
+    }
+  };
+
+  updateDisplay();
+  clearInterval(stopwatchInterval);
+  stopwatchInterval = setInterval(updateDisplay, 1000);
 }
 
-function hideLoading() {
+function stopStopwatch() {
   state.isLoading = false;
+  clearInterval(stopwatchInterval);
+  stopwatchInterval = null;
   const overlay = document.getElementById('loading-overlay');
   if (overlay) {
     overlay.style.display = 'none';
     overlay.classList.add('hidden');
   }
+}
+
+function showLoading(message: string) {
+  state.isLoading = true;
+  state.loadingMessage = message;
+  const overlay = document.getElementById('loading-overlay');
+  const stopwatchEl = document.getElementById('loading-stopwatch');
+  const stepTextEl = document.getElementById('loading-step-text');
+  if (overlay) {
+    overlay.style.display = 'flex';
+    overlay.classList.remove('hidden');
+  }
+  if (stopwatchEl) stopwatchEl.textContent = 'กำลังประมวลผล...';
+  if (stepTextEl) stepTextEl.textContent = message;
+}
+
+function hideLoading() {
+  stopStopwatch();
+}
+
+// ============================================================
+// Error Retry Modal (พร้อมปุ่ม [🔄 ลองใหม่อีกครั้ง])
+// ============================================================
+let lastRetryAction: (() => void) | null = null;
+
+function showErrorRetryModal(title: string, message: string, onRetry?: () => void) {
+  const modal = document.getElementById('error-retry-modal');
+  const titleEl = document.getElementById('error-retry-title');
+  const msgEl = document.getElementById('error-retry-message');
+  const actionBtn = document.getElementById('error-retry-action');
+  const cancelBtn = document.getElementById('error-retry-cancel');
+
+  if (!modal) {
+    showToast(message, 'error');
+    return;
+  }
+
+  if (titleEl) titleEl.textContent = title;
+  if (msgEl) msgEl.textContent = message;
+
+  lastRetryAction = onRetry || null;
+  if (actionBtn) {
+    actionBtn.style.display = onRetry ? 'inline-flex' : 'none';
+  }
+
+  modal.style.display = 'flex';
+  modal.classList.remove('hidden');
+
+  const closeModal = () => {
+    modal.style.display = 'none';
+    modal.classList.add('hidden');
+  };
+
+  if (cancelBtn) cancelBtn.onclick = () => closeModal();
+  if (actionBtn) {
+    actionBtn.onclick = () => {
+      closeModal();
+      if (lastRetryAction) lastRetryAction();
+    };
+  }
+}
+
+// ============================================================
+// Precision Quota Guard (จำกัด 1 ครั้ง / วัน / อุปกรณ์)
+// ============================================================
+function getTodayIsoDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function hasUsedPrecisionToday(): boolean {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.PRECISION_QUOTA);
+    return saved === getTodayIsoDate();
+  } catch {
+    return false;
+  }
+}
+
+function markPrecisionUsedToday(): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PRECISION_QUOTA, getTodayIsoDate());
+    updatePrecisionQuotaUI();
+  } catch {
+    // ignore
+  }
+}
+
+function updatePrecisionQuotaUI(): void {
+  const used = hasUsedPrecisionToday();
+  const wizBtn = document.getElementById('btn-generate-wizard-precision') as HTMLButtonElement;
+  const aioBtn = document.getElementById('btn-generate-aio-precision') as HTMLButtonElement;
+  const wizBadge = document.getElementById('wizard-precision-badge');
+  const aioBadge = document.getElementById('aio-precision-badge');
+
+  if (wizBtn) {
+    wizBtn.disabled = used;
+    wizBtn.classList.toggle('disabled', used);
+    if (used) {
+      wizBtn.title = 'คุณใช้สิทธิ์โหมดละเอียดของวันนี้แล้ว (รีเซ็ตเที่ยงคืน)';
+    } else {
+      wizBtn.title = 'สร้างแผนการสอนเน้นความละเอียดสูง วPA';
+    }
+  }
+  if (aioBtn) {
+    aioBtn.disabled = used;
+    aioBtn.classList.toggle('disabled', used);
+    if (used) {
+      aioBtn.title = 'คุณใช้สิทธิ์โหมดละเอียดของวันนี้แล้ว (รีเซ็ตเที่ยงคืน)';
+    } else {
+      aioBtn.title = 'สร้างแผนการสอนเน้นความละเอียดสูง วPA';
+    }
+  }
+
+  if (wizBadge) wizBadge.classList.toggle('hidden', !used);
+  if (aioBadge) aioBadge.classList.toggle('hidden', !used);
+}
+
+function showPrecisionConfirmModal(onConfirm: () => void, onCancel?: () => void) {
+  const modal = document.getElementById('precision-confirm-modal');
+  const confirmBtn = document.getElementById('btn-precision-confirm');
+  const cancelBtn = document.getElementById('btn-precision-cancel');
+
+  if (!modal) {
+    if (confirm('โหมดนี้ใช้โมเดลวิเคราะห์ขั้นสูง ระบบจะใช้เวลาประมวลผลนานกว่าตัวปกติ และจำกัดวันละ 1 ครั้ง ต้องการดำเนินการต่อหรือไม่?')) {
+      onConfirm();
+    } else if (onCancel) {
+      onCancel();
+    }
+    return;
+  }
+
+  modal.style.display = 'flex';
+  modal.classList.remove('hidden');
+
+  const closeModal = () => {
+    modal.style.display = 'none';
+    modal.classList.add('hidden');
+  };
+
+  const handleConfirm = () => {
+    closeModal();
+    onConfirm();
+  };
+
+  const handleCancel = () => {
+    closeModal();
+    if (onCancel) onCancel();
+  };
+
+  if (confirmBtn) confirmBtn.onclick = handleConfirm;
+  if (cancelBtn) cancelBtn.onclick = handleCancel;
 }
 
 // ============================================================
@@ -254,8 +447,13 @@ function switchView(view: 'choice' | 'wizard' | 'allinone') {
 
   if (view === 'wizard') {
     showStep(state.currentStep || 1);
+    scrollToTarget(0, 0);
   } else if (view === 'allinone') {
     syncStateToAllInOne();
+    updatePrecisionQuotaUI();
+    scrollToTarget('#allinone-section', 80);
+  } else if (view === 'choice') {
+    scrollToTarget(0, 0);
   }
 
   scheduleSaveDraft();
@@ -279,6 +477,7 @@ function renderDots() {
 
     dot.addEventListener('click', () => {
       showStep(i);
+      scrollToTarget(0, 0);
     });
 
     container.appendChild(dot);
@@ -365,11 +564,60 @@ function showStep(stepNum: number) {
     renderStep5Standards();
   } else if (stepNum === 10) {
     renderSummaryStep();
+    updatePrecisionQuotaUI();
   }
+
+  // เลื่อนมุมมองหน้าจอกลับขึ้นไปบนสุดทันทีเมื่อเปลี่ยนขั้นตอน
+  scrollToTarget(0, 0);
 
   scheduleSaveDraft();
 }
 (window as any).showStep = showStep;
+
+
+// ============================================================
+// Lifecycle Security Guard (beforeunload) & Viewport Helpers
+// ============================================================
+let isGenerating = false;
+
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  e.preventDefault();
+  e.returnValue = 'ระบบกำลังประมวลผลแผนการสอน หากปิดหน้าต่างนี้ กระบวนการจะหยุดลงทันทีและอาจทำให้สูญเสียสิทธิ์ของวัน';
+  return e.returnValue;
+}
+
+/**
+ * เลื่อนมุมมองหน้าจอไปยังอิลิเมนต์เป้าหมายอย่างนุ่มนวล พร้อมชดเชยระยะ Header/Navbar (Smart Smooth Scroll)
+ */
+function scrollToTarget(target: HTMLElement | string | number, offset = 80) {
+  setTimeout(() => {
+    if (typeof target === 'number') {
+      window.scrollTo({ top: target, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: target, behavior: 'smooth' });
+      document.body.scrollTo({ top: target, behavior: 'smooth' });
+      return;
+    }
+    if (typeof target === 'string' && (target === '#wizard-container' || target === '#mode-choice-section')) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+      document.body.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const el = typeof target === 'string' ? document.querySelector(target) as HTMLElement : target;
+    if (!el) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+      document.body.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    const y = el.getBoundingClientRect().top + scrollTop - offset;
+    const finalY = Math.max(0, y);
+    window.scrollTo({ top: finalY, behavior: 'smooth' });
+    document.documentElement.scrollTo({ top: finalY, behavior: 'smooth' });
+    document.body.scrollTo({ top: finalY, behavior: 'smooth' });
+  }, 20);
+}
 
 // ============================================================
 // Step 1: Grade Level Selection
@@ -1137,7 +1385,57 @@ function buildInputFromState(): LessonPlanInput {
 // ============================================================
 // Generate Lesson Plan
 // ============================================================
-async function generatePlan() {
+// Generate Lesson Plan (Tiered Architecture: Fast & Precision)
+// ============================================================
+async function executeGeneratePlan(mode: 'fast' | 'precision') {
+  isGenerating = true;
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  startStopwatch();
+  const startTime = Date.now();
+
+  try {
+    const input = buildInputFromState();
+    const systemInstruction = buildSystemInstruction();
+    const prompt = buildLessonPlanPrompt(input);
+
+    const result = await callGemini(prompt, systemInstruction, 8192, mode);
+    const durationSeconds = Math.round((Date.now() - startTime) / 100) / 10;
+
+    state.generatedPlan = result.text;
+    state.resolvedModel = result.resolvedModel;
+    state.lessonPlanData = parseLessonPlanResponse(result.text, input);
+
+    // บันทึกตัดสิทธิ์โหมดละเอียดเฉพาะเมื่อได้รับข้อมูล JSON จาก AI สำเร็จสมบูรณ์แล้วเท่านั้น
+    if (mode === 'precision') {
+      markPrecisionUsedToday();
+    }
+
+    renderPreview();
+    scrollToPreview();
+    scheduleSaveDraft();
+
+    // Anonymous Research Telemetry (Non-blocking)
+    sendTelemetry({
+      subject_id: state.subjectId,
+      grade_level: state.gradeId,
+      generation_mode: mode,
+      key_type: result.keyType,
+      resolved_model: result.resolvedModel,
+      duration_seconds: durationSeconds,
+    });
+
+    showToast(`สร้างแผนการจัดการเรียนรู้สำเร็จเรียบร้อย (${result.resolvedModel})`, 'success');
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างแผน';
+    showErrorRetryModal('เกิดข้อผิดพลาดในการสร้างแผนการสอน', msg, () => executeGeneratePlan(mode));
+  } finally {
+    isGenerating = false;
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+    stopStopwatch();
+  }
+}
+
+async function generatePlan(mode: 'fast' | 'precision' = 'fast') {
   if (!state.topic) {
     const topicEl = (document.getElementById('wizard-topic') as HTMLInputElement) ||
                     (document.getElementById('aio-topic') as HTMLInputElement) ||
@@ -1159,28 +1457,16 @@ async function generatePlan() {
     return;
   }
 
-  showLoading('ระบบกำลังจัดสรรแผนการจัดการเรียนรู้ตามมาตรฐาน วPA...');
-
-  try {
-    const input = buildInputFromState();
-    const systemInstruction = buildSystemInstruction();
-    const prompt = buildLessonPlanPrompt(input);
-    const result = await callGemini(prompt, systemInstruction, 8192, (attempt, maxRetries, waitMs) => {
-      const secs = Math.round(waitMs / 1000);
-      showLoading(`โควต้า API สูง กำลังลองใหม่ครั้งที่ ${attempt}/${maxRetries} (รอ ${secs} วินาที)...`);
+  if (mode === 'precision') {
+    if (hasUsedPrecisionToday()) {
+      showToast('คุณใช้สิทธิ์โหมดละเอียดของวันนี้แล้ว (รีเซ็ตเที่ยงคืน)', 'info');
+      return;
+    }
+    showPrecisionConfirmModal(() => {
+      executeGeneratePlan('precision');
     });
-    state.generatedPlan = result.text;
-    state.resolvedModel = result.resolvedModel;
-    state.lessonPlanData = parseLessonPlanResponse(result.text, input);
-    renderPreview();
-    scrollToPreview();
-    scheduleSaveDraft();
-    showToast('สร้างแผนการจัดการเรียนรู้สำเร็จเรียบร้อย', 'success');
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างแผน';
-    showToast(msg, 'error');
-  } finally {
-    hideLoading();
+  } else {
+    executeGeneratePlan('fast');
   }
 }
 
@@ -1348,7 +1634,8 @@ async function generateKPA() {
     return;
   }
 
-  showLoading('ระบบกำลังวิเคราะห์มาตรฐานและตัวชี้วัด เพื่อช่วยร่าง K-P-A...');
+  showLoading('ระบบกำลังสังเคราะห์จุดประสงค์ K-P-A อย่างรวดเร็ว...');
+  const startTime = Date.now();
 
   try {
     const fullGrade = formatFullGradeName(state.gradeId, curriculumData);
@@ -1373,13 +1660,11 @@ async function generateKPA() {
 
     const result = await callGemini(
       prompt,
-      'คุณคือผู้เชี่ยวชาญหลักสูตรและการเขียนแผนการสอน ตอบเป็น JSON ภาษาไทยทางการ ถูกต้องตามหลักวิชาการ',
+      'คุณคือผู้เชี่ยวชาญหลักสูตรและการเขียนแผนการสอน ตอบเป็น Compact JSON เท่านั้น',
       1024,
-      (attempt, maxRetries, waitMs) => {
-        const secs = Math.round(waitMs / 1000);
-        showLoading(`โควต้า API สูง กำลังลองใหม่ครั้งที่ ${attempt}/${maxRetries} (รอ ${secs} วินาที)...`);
-      }
+      'kpa'
     );
+    const durationSeconds = Math.round((Date.now() - startTime) / 100) / 10;
 
     const parsed = parseKPAResult(result.text);
 
@@ -1389,10 +1674,20 @@ async function generateKPA() {
 
     syncKPAToForm();
     scheduleSaveDraft();
+
+    sendTelemetry({
+      subject_id: state.subjectId,
+      grade_level: state.gradeId,
+      generation_mode: 'kpa',
+      key_type: result.keyType,
+      resolved_model: result.resolvedModel,
+      duration_seconds: durationSeconds,
+    });
+
     showToast('ระบบได้ร่าง K-P-A และแยกใส่ช่อง K, P และ A เรียบร้อยแล้ว', 'success');
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการร่าง K-P-A';
-    showToast(msg, 'error');
+    showErrorRetryModal('เกิดข้อผิดพลาดในการร่าง K-P-A', msg, () => generateKPA());
   } finally {
     hideLoading();
   }
@@ -1425,15 +1720,16 @@ async function refinePlan() {
     return;
   }
 
-  showLoading('ระบบกำลังปรับปรุงแผนการสอนตามคำสั่ง...');
+  isGenerating = true;
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  startStopwatch();
+  const startTime = Date.now();
 
   try {
     const systemInstruction = buildSystemInstruction();
-    const retryCallback = (attempt: number, maxRetries: number, waitMs: number) => {
-      const secs = Math.round(waitMs / 1000);
-      showLoading(`โควต้า API สูง กำลังลองใหม่ครั้งที่ ${attempt}/${maxRetries} (รอ ${secs} วินาที)...`);
-    };
-    const result = await refineWithGemini(state.generatedPlan, input.value.trim(), systemInstruction, retryCallback);
+    const result = await refineWithGemini(state.generatedPlan, input.value.trim(), systemInstruction, 'fast');
+    const durationSeconds = Math.round((Date.now() - startTime) / 100) / 10;
+
     state.generatedPlan = result.text;
     state.resolvedModel = result.resolvedModel;
     const planInput = buildInputFromState();
@@ -1441,12 +1737,24 @@ async function refinePlan() {
     renderPreview();
     input.value = '';
     scheduleSaveDraft();
+
+    sendTelemetry({
+      subject_id: state.subjectId,
+      grade_level: state.gradeId,
+      generation_mode: 'fast',
+      key_type: result.keyType,
+      resolved_model: result.resolvedModel,
+      duration_seconds: durationSeconds,
+    });
+
     showToast('ปรับปรุงแผนการจัดการเรียนรู้เรียบร้อยแล้ว', 'success');
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการปรับปรุง';
-    showToast(msg, 'error');
+    showErrorRetryModal('เกิดข้อผิดพลาดในการปรับปรุงแผน', msg, () => refinePlan());
   } finally {
-    hideLoading();
+    isGenerating = false;
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+    stopStopwatch();
   }
 }
 
@@ -1492,10 +1800,20 @@ function renderPreview() {
   }
 
   // Ensure lessonPlanData exists
+  const currentPlanInput = buildInputFromState();
   if (!state.lessonPlanData && state.generatedPlan) {
-    state.lessonPlanData = parseLessonPlanResponse(state.generatedPlan, buildInputFromState());
+    state.lessonPlanData = parseLessonPlanResponse(state.generatedPlan, currentPlanInput);
   }
   const data = state.lessonPlanData!;
+  if (data.standards) {
+    data.standards = cleanAndFormatStandardsText(data.standards, currentPlanInput);
+  }
+  if (data.indicators) {
+    data.indicators = cleanAndFormatIndicatorsText(data.indicators, currentPlanInput);
+  }
+  if (data.competencies) {
+    data.competencies = formatCompetenciesText(data.competencies, currentPlanInput.competencies);
+  }
 
   previewSection.style.display = 'block';
   previewSection.classList.remove('hidden');
@@ -1629,7 +1947,7 @@ function renderPreview() {
               📋 คัดลอกหัวข้อนี้
             </button>
           </div>
-          <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="concept">${escapeHtml(data.concept)}</div>
+          <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="concept">\t${escapeHtml(data.concept)}</div>
         </div>
 
         <!-- 4. จุดประสงค์รายวิชา (K, P, A) -->
@@ -1686,7 +2004,7 @@ function renderPreview() {
               📋 คัดลอกหัวข้อนี้
             </button>
           </div>
-          <div class="editable-content pl-1" contenteditable="true" data-field="activities">${formatActivitiesPreviewHtml(data.activities)}</div>
+          <div class="editable-content pl-1" contenteditable="true" data-field="activities">${formatActivitiesToHtml(data.activities)}</div>
         </div>
 
         <!-- 8. สื่อและแหล่งการเรียนรู้ -->
@@ -1773,7 +2091,7 @@ function renderPreview() {
             <!-- 2. ด้านความรู้ (K) -->
             <div>
               <div class="font-bold mb-1" style="font-size: 16pt;">ด้านความรู้ (K)</div>
-              <div class="text-slate-800" style="padding-left: 24pt; font-size: 16pt; line-height: 1.8;">
+              <div class="text-slate-800" style="font-size: 16pt; line-height: 1.8; word-break: break-all; overflow: hidden;">
                 ............................................................................................................................................................................................................
               </div>
             </div>
@@ -1781,7 +2099,7 @@ function renderPreview() {
             <!-- 3. ด้านทักษะและกระบวนการ (P) -->
             <div>
               <div class="font-bold mb-1" style="font-size: 16pt;">ด้านทักษะและกระบวนการ (P)</div>
-              <div class="text-slate-800" style="padding-left: 24pt; font-size: 16pt; line-height: 1.8;">
+              <div class="text-slate-800" style="font-size: 16pt; line-height: 1.8; word-break: break-all; overflow: hidden;">
                 ............................................................................................................................................................................................................
               </div>
             </div>
@@ -1789,7 +2107,7 @@ function renderPreview() {
             <!-- 4. ด้านคุณลักษณะอันพึงประสงค์ (A) -->
             <div>
               <div class="font-bold mb-1" style="font-size: 16pt;">ด้านคุณลักษณะอันพึงประสงค์ (A)</div>
-              <div class="text-slate-800" style="padding-left: 24pt; font-size: 16pt; line-height: 1.8;">
+              <div class="text-slate-800" style="font-size: 16pt; line-height: 1.8; word-break: break-all; overflow: hidden;">
                 ............................................................................................................................................................................................................
               </div>
             </div>
@@ -1797,7 +2115,7 @@ function renderPreview() {
             <!-- 5. ปัญหา / อุปสรรค -->
             <div>
               <div class="font-bold mb-1" style="font-size: 16pt;">ปัญหา / อุปสรรค</div>
-              <div class="text-slate-800" style="padding-left: 24pt; font-size: 16pt; line-height: 1.8;">
+              <div class="text-slate-800" style="font-size: 16pt; line-height: 1.8; word-break: break-all; overflow: hidden;">
                 ............................................................................................................................................................................................................
               </div>
             </div>
@@ -1805,7 +2123,7 @@ function renderPreview() {
             <!-- 6. ข้อเสนอแนะ / แนวทางแก้ไข -->
             <div>
               <div class="font-bold mb-1" style="font-size: 16pt;">ข้อเสนอแนะ / แนวทางแก้ไข</div>
-              <div class="text-slate-800" style="padding-left: 24pt; font-size: 16pt; line-height: 1.8;">
+              <div class="text-slate-800" style="font-size: 16pt; line-height: 1.8; word-break: break-all; overflow: hidden;">
                 ............................................................................................................................................................................................................
               </div>
             </div>
@@ -1816,7 +2134,7 @@ function renderPreview() {
                 <tbody>
                   <tr>
                     <td style="border: none; padding: 3px 0; text-align: center; font-size: 16pt; font-family: 'TH SarabunPSK', 'TH Sarabun PSK', sans-serif;">
-                      ลงชื่อ.................................................................
+                      .................................................................
                     </td>
                   </tr>
                   <tr>
@@ -1854,6 +2172,15 @@ function renderPreview() {
       const success = await copyRichText(content.html, content.text);
       if (success) {
         showToast(`คัดลอกหัวข้อที่ ${secNum} เรียบร้อยแล้ว`, 'success');
+        sendTelemetry({
+          subject_id: state.subjectId,
+          grade_level: state.gradeId,
+          generation_mode: 'fast',
+          key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
+          resolved_model: state.resolvedModel || 'gemini',
+          duration_seconds: 0,
+          export_action: 'copy_section',
+        });
       } else {
         showToast('ไม่สามารถคัดลอกลงคลิปบอร์ดได้', 'error');
       }
@@ -1898,7 +2225,7 @@ function renderPreview() {
 
 function scrollToPreview() {
   setTimeout(() => {
-    document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth' });
+    scrollToTarget(document.getElementById('preview-content') || '#preview-section', 40);
   }, 100);
 }
 
@@ -1916,6 +2243,15 @@ async function handleCopyAll() {
   const success = await copyRichText(html, plainText);
   if (success) {
     showToast('คัดลอกทั้งแผนเรียบร้อยแล้ว (สามารถวางใน Microsoft Word ได้ทันที)', 'success');
+    sendTelemetry({
+      subject_id: state.subjectId,
+      grade_level: state.gradeId,
+      generation_mode: 'fast',
+      key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
+      resolved_model: state.resolvedModel || 'gemini',
+      duration_seconds: 0,
+      export_action: 'copy_full',
+    });
   } else {
     showToast('ไม่สามารถคัดลอกลงคลิปบอร์ดได้', 'error');
   }
@@ -1929,6 +2265,15 @@ async function handleExportDocx() {
   try {
     const planData = state.lessonPlanData || parseLessonPlanResponse(state.generatedPlan, buildInputFromState());
     await exportToDocx(planData);
+    sendTelemetry({
+      subject_id: state.subjectId,
+      grade_level: state.gradeId,
+      generation_mode: 'fast',
+      key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
+      resolved_model: state.resolvedModel || 'gemini',
+      duration_seconds: 0,
+      export_action: 'docx',
+    });
     showToast('ส่งออกไฟล์ Word (.docx) สำเร็จแล้ว', 'success');
   } catch (error) {
     console.error('Export error:', error);
@@ -2326,7 +2671,7 @@ function applyPreset(presetKey: string) {
 }
 
 // ============================================================
-// Worker Proxy Settings Modal
+// Settings & BYOK (Bring Your Own Key) Modal
 // ============================================================
 function setupSettingsModal() {
   const modal = document.getElementById('settings-modal-overlay');
@@ -2334,12 +2679,53 @@ function setupSettingsModal() {
   const closeBtn = document.getElementById('settings-close-btn');
   const saveBtn = document.getElementById('settings-save-btn');
   const resetBtn = document.getElementById('settings-reset-btn');
-  const input = document.getElementById('worker-endpoint-input') as HTMLInputElement;
 
-  if (!modal || !input) return;
+  const byokToggle = document.getElementById('byok-toggle') as HTMLInputElement;
+  const byokKeyInput = document.getElementById('byok-key-input') as HTMLInputElement;
+  const byokCheckBtn = document.getElementById('byok-check-btn') as HTMLButtonElement;
+  const statusContainer = document.getElementById('byok-status-container');
+  const statusBadge = document.getElementById('byok-status-badge');
+  const warningInfo = document.getElementById('byok-warning-info');
+
+  const guideBtn = document.getElementById('byok-guide-btn');
+  const guideModal = document.getElementById('byok-guide-modal');
+  const guideCloseBtn = document.getElementById('byok-guide-close-btn');
+  const guideOkBtn = document.getElementById('byok-guide-ok-btn');
+
+  if (!modal) return;
+
+  const updateStatusUI = (status: 'active' | 'quota_exceeded' | 'invalid' | 'none', msg?: string) => {
+    if (!statusContainer || !statusBadge) return;
+    if (status === 'none') {
+      statusContainer.classList.add('hidden');
+      if (warningInfo) warningInfo.classList.add('hidden');
+      return;
+    }
+    statusContainer.classList.remove('hidden');
+    statusBadge.className = 'text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5';
+
+    if (status === 'active') {
+      statusBadge.classList.add('badge-active');
+      statusBadge.textContent = msg || '🟢 พร้อมใช้งาน (Active)';
+      if (warningInfo) warningInfo.classList.add('hidden');
+    } else if (status === 'quota_exceeded') {
+      statusBadge.classList.add('badge-warning');
+      statusBadge.textContent = msg || '🟡 โควต้าเต็มชั่วคราว (HTTP 429)';
+      if (warningInfo) {
+        warningInfo.classList.remove('hidden');
+        warningInfo.textContent = 'โควต้าคีย์ของท่านหมดชั่วคราว ระบบจะสลับไปใช้ระบบส่วนกลางให้อัตโนมัติ';
+      }
+    } else {
+      statusBadge.classList.add('badge-error');
+      statusBadge.textContent = msg || '🔴 คีย์ไม่ถูกต้อง (Invalid Key - 400/403)';
+      if (warningInfo) warningInfo.classList.add('hidden');
+    }
+  };
 
   const openModal = () => {
-    input.value = getWorkerEndpoint();
+    if (byokKeyInput) byokKeyInput.value = getStoredApiKey();
+    if (byokToggle) byokToggle.checked = isByokEnabled();
+    updateStatusUI('none');
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
   };
@@ -2355,20 +2741,77 @@ function setupSettingsModal() {
     if (e.target === modal) closeModal();
   });
 
-  saveBtn?.addEventListener('click', () => {
-    const val = input.value.trim();
-    if (val && !val.startsWith('http://') && !val.startsWith('https://')) {
-      showToast('กรุณาระบุ URL ที่ขึ้นต้นด้วย https:// หรือ http://', 'error');
+  // Auto-save on input change
+  byokKeyInput?.addEventListener('input', () => {
+    setStoredApiKey(byokKeyInput.value, byokToggle?.checked ?? false);
+  });
+
+  byokToggle?.addEventListener('change', () => {
+    setStoredApiKey(byokKeyInput?.value || '', byokToggle.checked);
+  });
+
+  // Check API Key
+  byokCheckBtn?.addEventListener('click', async () => {
+    const key = byokKeyInput?.value?.trim() || '';
+    if (!key) {
+      updateStatusUI('invalid', '🔴 กรุณาระบุ API Key');
+      showToast('กรุณาระบุ API Key ก่อนตรวจสอบ', 'error');
       return;
     }
-    setWorkerEndpoint(val);
-    showToast('บันทึก URL ของ Worker Proxy เรียบร้อยแล้ว', 'success');
+
+    byokCheckBtn.disabled = true;
+    const originalText = byokCheckBtn.textContent;
+    byokCheckBtn.textContent = 'กำลังตรวจสอบ...';
+
+    try {
+      const res = await validateGeminiApiKey(key);
+      updateStatusUI(res.status, res.message);
+
+      if (res.status === 'quota_exceeded') {
+        if (byokToggle) byokToggle.checked = false;
+        setStoredApiKey(key, false);
+      }
+    } catch {
+      updateStatusUI('invalid', '🔴 ไม่สามารถเชื่อมต่อเพื่อตรวจสอบได้');
+    } finally {
+      byokCheckBtn.disabled = false;
+      byokCheckBtn.textContent = originalText;
+    }
+  });
+
+  // Guide Sub-Modal
+  const openGuide = () => {
+    if (guideModal) {
+      guideModal.style.display = 'flex';
+      guideModal.classList.remove('hidden');
+    }
+  };
+  const closeGuide = () => {
+    if (guideModal) {
+      guideModal.style.display = 'none';
+      guideModal.classList.add('hidden');
+    }
+  };
+  guideBtn?.addEventListener('click', openGuide);
+  guideCloseBtn?.addEventListener('click', closeGuide);
+  guideOkBtn?.addEventListener('click', closeGuide);
+  guideModal?.addEventListener('click', (e) => {
+    if (e.target === guideModal) closeGuide();
+  });
+
+  // Save Settings Button
+  saveBtn?.addEventListener('click', () => {
+    setStoredApiKey(byokKeyInput?.value || '', byokToggle?.checked ?? false);
+    showToast('บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
     closeModal();
   });
 
+  // Reset Settings Button
   resetBtn?.addEventListener('click', () => {
-    setWorkerEndpoint('');
-    input.value = DEFAULT_WORKER_ENDPOINT;
+    setStoredApiKey('', false);
+    if (byokKeyInput) byokKeyInput.value = '';
+    if (byokToggle) byokToggle.checked = false;
+    updateStatusUI('none');
     showToast('รีเซ็ตเป็นค่าเริ่มต้นเรียบร้อยแล้ว', 'info');
   });
 }
@@ -2439,12 +2882,14 @@ async function init() {
     } else {
       showStep(state.currentStep - 1);
     }
+    scrollToTarget(0, 0);
   });
 
   document.getElementById('btn-next')?.addEventListener('click', () => {
     if (state.currentStep < TOTAL_WIZARD_STEPS) {
       showStep(state.currentStep + 1);
     }
+    scrollToTarget(0, 0);
   });
 
   // Bind inputs
@@ -2505,9 +2950,17 @@ async function init() {
     btn.addEventListener('click', generateKPA);
   });
 
-  // Generate buttons (AI)
-  document.getElementById('btn-generate-wizard')?.addEventListener('click', generatePlan);
-  document.getElementById('btn-generate-aio')?.addEventListener('click', generatePlan);
+  // Generate buttons (AI) - Dual Tiered Modes (Fast & Precision)
+  document.getElementById('btn-generate-wizard-fast')?.addEventListener('click', () => generatePlan('fast'));
+  document.getElementById('btn-generate-wizard-precision')?.addEventListener('click', () => generatePlan('precision'));
+  document.getElementById('btn-generate-aio-fast')?.addEventListener('click', () => generatePlan('fast'));
+  document.getElementById('btn-generate-aio-precision')?.addEventListener('click', () => generatePlan('precision'));
+  // Backward compatibility
+  document.getElementById('btn-generate-wizard')?.addEventListener('click', () => generatePlan('fast'));
+  document.getElementById('btn-generate-aio')?.addEventListener('click', () => generatePlan('fast'));
+
+  // Initialize Precision Quota UI
+  updatePrecisionQuotaUI();
 
   // Back to Form button in Preview
   document.getElementById('btn-back-to-form')?.addEventListener('click', () => {

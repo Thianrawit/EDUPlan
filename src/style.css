@@ -880,3 +880,128 @@ body {
     margin: 1.5cm 1.5cm 1.5cm 2cm;
   }
 }
+
+/* ============================================================
+   Tiered Mode Action Buttons (Fast vs Precision)
+   ============================================================ */
+.btn-fast-mode {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border: 1px solid #1d4ed8;
+  transition: all 0.2s ease;
+}
+
+.btn-fast-mode:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.btn-fast-mode:active {
+  transform: translateY(0);
+}
+
+.btn-precision-mode {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff;
+  border: 1px solid #6d28d9;
+  transition: all 0.2s ease;
+}
+
+.btn-precision-mode:hover:not(:disabled):not(.disabled) {
+  background: linear-gradient(135deg, #6d28d9, #5b21b6);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.btn-precision-mode:active:not(:disabled):not(.disabled) {
+  transform: translateY(0);
+}
+
+.btn-precision-mode:disabled,
+.btn-precision-mode.disabled {
+  background: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  color: #f1f5f9 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+  opacity: 0.75;
+}
+
+.precision-badge {
+  display: block;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+/* ============================================================
+   Toggle Switch (BYOK)
+   ============================================================ */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.25s ease;
+  border-radius: 9999px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.25s ease;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+input:checked + .toggle-slider {
+  background-color: #2563eb;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+
+/* ============================================================
+   BYOK Status Badges
+   ============================================================ */
+.badge-active {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-warning {
+  background-color: #fef9c3;
+  color: #a16207;
+  border: 1px solid #fef08a;
+}
+
+.badge-error {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}

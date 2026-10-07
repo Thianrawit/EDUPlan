@@ -1,38 +1,48 @@
 /**
- * EduPlan AI — Cloudflare Worker Proxy
+ * EduPlan AI — Cloudflare Worker Proxy (Serverless Edge Gateway)
  * ============================================================
- * สถาปัตยกรรม Waterfall Model Cascading & Multi-Key Failover
+ * สถาปัตยกรรม Tiered AI Architecture & Zero-Wait Multi-Key Failover
  * 
  * คุณสมบัติ:
- * 1. Waterfall Model Cascading: ลองไล่ระดับโมเดลตามลำดับประสิทธิภาพ
- *    ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", 
- *     "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", 
- *     "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
- * 2. Multi-Key Failover: แต่ละโมเดลจะหมุนเวียนสลับ API Key (สุ่มลำดับ)
- *    เพื่อหลีกเลี่ยงการติด Rate Limit (15 RPM / Key)
- * 3. Smart Skip (Fast Cascade): หากโมเดลใดติด 404/400 (ยังไม่เปิดให้ใช้ในระบบ)
- *    ระบบจะข้ามไปโมเดลถัดไปทันทีโดยไม่เสียเวลาลองคีย์ซ้ำ
- * 4. Header & Payload Reporting: แนบ `_resolvedModel` ใน JSON และ
- *    Header `X-Resolved-Model` เพื่อให้ Client ทราบโมเดลที่ให้บริการจริง
+ * 1. Tiered Routing: จัดการลำดับโมเดลตาม mode ('kpa' | 'fast' | 'precision')
+ * 2. Zero-Wait Failover: หาก Key ติด HTTP 429 จะข้ามไป Key ถัดไปทันที (0ms wait)
+ * 3. Smart Skip: หากติด 404/400 ข้ามไปโมเดลถัดไปทันที
+ * 4. Fallback Model Safety Net: การันตีโมเดล gemini-2.0-flash / gemini-1.5-flash
+ *    เป็น Fallback สุดท้ายเสมอเพื่อป้องกัน 404
+ * 5. Metadata Headers: ส่งคืน X-Resolved-Model และแนบ _resolvedModel ใน body
  * ============================================================
  */
 
-const DEFAULT_MODEL_CASCADE = [
-  'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash', // Safety net: โมเดลมาตรฐานที่การันตีความพร้อมใช้งาน
-  'gemini-1.5-flash', // Safety net: ลำดับสุดท้าย
-];
+const TIER_MODELS = {
+  kpa: [
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ],
+  fast: [
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ],
+  precision: [
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ],
+};
 
+const DEFAULT_MODEL_CASCADE = TIER_MODELS.fast;
+const GUARANTEED_FALLBACKS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-
-/** Delay สั้นๆ ระหว่าง key ภายในโมเดลเดียวกันเพื่อลด burst (milliseconds) */
-const KEY_DELAY_MS = 200;
 
 /**
  * สุ่มสลับลำดับ Array (Fisher-Yates Shuffle)
@@ -47,36 +57,16 @@ function shuffleArray(arr) {
 }
 
 /**
- * Sleep utility
- */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
  * สร้าง CORS Headers
  */
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Requested-With',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Requested-With, Authorization',
     'Access-Control-Expose-Headers': 'X-Resolved-Model, Retry-After',
     'Access-Control-Max-Age': '86400',
   };
-}
-
-/**
- * ดึง Retry-After จาก response header (ถ้ามี)
- */
-function getRetryAfterMs(response) {
-  const retryAfter = response.headers.get('Retry-After');
-  if (!retryAfter) return null;
-  const seconds = parseInt(retryAfter, 10);
-  if (!isNaN(seconds) && seconds > 0) {
-    return Math.min(seconds * 1000, 30000); // สูงสุดไม่เกิน 30s
-  }
-  return null;
 }
 
 export default {
@@ -114,14 +104,13 @@ export default {
       );
     }
 
-    // 4. รวบรวม API Keys จาก Environment (รองรับสูงสุด GEMINI_KEY_1 ถึง GEMINI_KEY_10)
+    // 4. รวบรวม API Keys จาก Environment (รองรับ GEMINI_KEY_1 ถึง GEMINI_KEY_10 และ Fallback)
     const keys = [];
     for (let i = 1; i <= 10; i++) {
       const key = env[`GEMINI_KEY_${i}`];
       if (key && key.trim()) keys.push(key.trim());
     }
 
-    // รองรับ fallback ตัวแปรเดี่ยว GEMINI_API_KEY หรือแบบ comma-separated
     if (env.GEMINI_API_KEY && !keys.includes(env.GEMINI_API_KEY.trim())) {
       keys.push(env.GEMINI_API_KEY.trim());
     }
@@ -146,36 +135,66 @@ export default {
       );
     }
 
-    // 5. กำหนดลำดับโมเดล Waterfall Cascade
-    let modelCascade = [...DEFAULT_MODEL_CASCADE];
-    if (Array.isArray(body.models) && body.models.length > 0) {
-      modelCascade = body.models;
+    // 5. กำหนดลำดับโมเดลตาม Routing Mode ('kpa' | 'fast' | 'precision')
+    const mode = (body.mode || '').toLowerCase().trim();
+    let modelCascade;
+
+    if (mode && TIER_MODELS[mode]) {
+      modelCascade = [...TIER_MODELS[mode]];
+    } else if (Array.isArray(body.models) && body.models.length > 0) {
+      modelCascade = [...body.models];
     } else if (typeof body.model === 'string' && body.model.trim()) {
       const preferred = body.model.trim();
-      modelCascade = [preferred, ...modelCascade.filter(m => m !== preferred)];
+      modelCascade = [preferred, ...DEFAULT_MODEL_CASCADE.filter(m => m !== preferred)];
+    } else {
+      modelCascade = [...DEFAULT_MODEL_CASCADE];
+    }
+
+    // รับประกันว่ามี Fallback Model ตัวสุดท้ายเสมอเพื่อป้องกัน HTTP 404
+    for (const fb of GUARANTEED_FALLBACKS) {
+      if (!modelCascade.includes(fb)) {
+        modelCascade.push(fb);
+      }
     }
 
     // 6. เตรียม Payload สำหรับ Gemini API
+    let contents = body.contents;
+    if (!contents && body.prompt) {
+      contents = [
+        {
+          role: 'user',
+          parts: [{ text: body.prompt }],
+        },
+      ];
+    }
+
     const geminiPayload = {
-      contents: body.contents || [],
+      contents: contents || [],
       generationConfig: body.generationConfig || {
-        temperature: 0.7,
+        temperature: mode === 'kpa' ? 0.2 : 0.7,
         topP: 0.95,
         topK: 40,
-        maxOutputTokens: 8192,
+        maxOutputTokens: mode === 'kpa' ? 1024 : 8192,
       },
     };
 
     if (body.systemInstruction) {
-      geminiPayload.systemInstruction = body.systemInstruction;
+      if (typeof body.systemInstruction === 'string') {
+        geminiPayload.systemInstruction = {
+          parts: [{ text: body.systemInstruction }],
+        };
+      } else {
+        geminiPayload.systemInstruction = body.systemInstruction;
+      }
     }
 
     const failureLogs = [];
     let attemptCount = 0;
 
     // ============================================================
-    // 7. Waterfall Cascading Execution
-    // วนลูปตามลำดับโมเดล -> ในแต่ละโมเดลวนลูปสลับคีย์
+    // 7. Waterfall Cascading Execution (Zero-Wait Failover)
+    // วนลูปโมเดล -> ในแต่ละโมเดลวนสลับคีย์
+    // หากเจอ 429 จะข้ามไปคีย์ถัดไปทันที (0ms wait)
     // ============================================================
     for (const model of modelCascade) {
       const shuffledKeys = shuffleArray(keys);
@@ -186,10 +205,6 @@ export default {
         const apiKey = shuffledKeys[keyIdx];
         const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
 
-        if (keyIdx > 0) {
-          await sleep(KEY_DELAY_MS);
-        }
-
         try {
           const response = await fetch(url, {
             method: 'POST',
@@ -197,12 +212,12 @@ export default {
             body: JSON.stringify(geminiPayload),
           });
 
-          // กรณีสำเร็จ (200 OK)
+          // สำเร็จ (200 OK)
           if (response.ok) {
             const data = await response.json();
-            // แนบ Metadata โมเดลที่สำเร็จเพื่อให้ Client แสดงผล
             data._resolvedModel = model;
             data._totalAttempts = attemptCount;
+            data._generationMode = mode || 'default';
 
             return new Response(JSON.stringify(data), {
               status: 200,
@@ -214,25 +229,19 @@ export default {
             });
           }
 
-          // กรณี 404 (Not Found) หรือ 400 (Bad Request - Model Not Supported)
-          // แสดงว่าโมเดลนี้ยังไม่มี/ไม่รองรับบน Google API -> ข้ามโมเดลนี้ทันที!
+          // กรณี 404 (Not Found) หรือ 400 (Model not available or unsupported)
+          // โมเดลนี้ไม่รองรับบน Google API -> ข้ามโมเดลนี้ทันที!
           if (response.status === 404 || response.status === 400) {
-            const errSnippet = await response.text().catch(() => '');
-            failureLogs.push(`[${model}] HTTP ${response.status} (Model not available or unsupported)`);
+            failureLogs.push(`[${model}] HTTP ${response.status} (Model unavailable)`);
             modelUnavailable = true;
-            break; // ออกจาก loop คีย์ ข้ามไปโมเดลถัดไปใน Cascade ทันที
+            break; // ข้ามไปโมเดลถัดไปใน Cascade ทันที
           }
 
-          // กรณี 429 (Rate Limit / Quota Exceeded) หรือ 503 (Service Unavailable)
+          // กรณี 429 (Rate Limit / Quota Exceeded) หรือ 503
+          // ZERO-WAIT FAILOVER: ข้ามไปลอง Key ถัดไปทันที 0ms wait!
           if (response.status === 429 || response.status === 503) {
-            const retryMs = getRetryAfterMs(response);
             failureLogs.push(`[${model}][Key ${keyIdx + 1}] HTTP ${response.status}`);
-
-            // ถ้ามี Retry-After สั้นๆ และไม่ใช่คีย์สุดท้าย ให้รอนิดนึง
-            if (retryMs && retryMs <= 3000 && keyIdx < shuffledKeys.length - 1) {
-              await sleep(retryMs);
-            }
-            continue; // ลองคีย์ถัดไปของโมเดลนี้
+            continue; // ไม่ sleep ข้ามไปคีย์ถัดไปทันที 0ms!
           }
 
           // กรณี Error อื่นๆ
@@ -241,10 +250,11 @@ export default {
 
         } catch (fetchErr) {
           failureLogs.push(`[${model}][Key ${keyIdx + 1}] Network error: ${fetchErr?.message || fetchErr}`);
+          // ข้ามไปคีย์ถัดไปทันที
+          continue;
         }
       }
 
-      // ถ้าโมเดลนี้ใช้ไม่ได้ ให้ขยับไปโมเดลถัดไป
       if (modelUnavailable) {
         continue;
       }
@@ -255,7 +265,7 @@ export default {
     // ============================================================
     return new Response(
       JSON.stringify({
-        error: 'ระบบไม่สามารถประมวลผลได้ในขณะนี้ เนื่องจาก API ทุกคีย์และทุกโมเดลถูกจำกัดอัตราการใช้งาน กรุณารอสักครู่แล้วลองใหม่อีกครั้ง',
+        error: 'ระบบไม่สามารถประมวลผลได้ในขณะนี้ เนื่องจาก API ทุกคีย์และทุกโมเดลถูกจำกัดอัตราการใช้งาน กรุณารอสักครู่แล้วลองใหม่อีกครั้ง หรือใช้งาน Gemini API Key ส่วนตัว (BYOK) ผ่านเมนูตั้งค่า ⚙️',
         details: failureLogs,
         retryAfterSeconds: 30,
       }),

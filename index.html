@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -74,6 +74,12 @@
         <button id="btn-reset-form" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors cursor-pointer" title="ล้างข้อมูลและเริ่มต้นใหม่">
           เริ่มใหม่
         </button>
+        <button id="btn-open-settings" class="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer flex items-center justify-center" title="ตั้งค่าระบบ & Gemini API Key (BYOK)">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
       </div>
     </div>
   </header>
@@ -89,10 +95,10 @@
     <section id="mode-choice-section" class="py-6 sm:py-12 animate-fade-in">
       <div class="text-center max-w-xl mx-auto mb-10">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium mb-3">
-          เริ่มต้นเตรียมข้อมูล
+          เริ่มต้นเตรียมแผนการสอน
         </div>
         <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
-          ได้เลย คุณอยากเตรียมข้อมูลแบบไหนดี?
+          คุณอยากเตรียมข้อมูลแบบไหนดี?
         </h1>
         <p class="text-slate-600 text-sm sm:text-base">
           เลือกลักษณะการกรอกข้อมูลที่ท่านสะดวก เพื่อให้ระบบสร้างแผนการสอนที่ตรงตามความต้องการ
@@ -575,10 +581,16 @@
             </div>
           </div>
 
-          <div class="text-center flex items-center justify-center">
-            <button id="btn-generate-wizard" class="btn-primary text-lg py-3.5 px-10 shadow-lg font-bold">
-              ⚡ สร้างแผนด้วย AI
+          <div class="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-xl mx-auto">
+            <button id="btn-generate-wizard-fast" class="btn-fast-mode flex-1 w-full text-sm sm:text-base py-3.5 px-4 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all">
+              <span>⚡ สร้างแผนการสอน<br>(โหมดด่วน)</span>
             </button>
+            <div class="flex-1 w-full flex flex-col items-center">
+              <button id="btn-generate-wizard-precision" class="btn-precision-mode w-full text-sm sm:text-base py-3.5 px-4 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all">
+                <span>🎯 สร้างแผนการสอน<br>(เน้นความละเอียดสูง)</span>
+              </button>
+              <span id="wizard-precision-badge" class="precision-badge hidden mt-1.5 text-xs text-amber-600 font-medium">คุณใช้สิทธิ์โหมดละเอียดของวันนี้แล้ว (รีเซ็ตเที่ยงคืน)</span>
+            </div>
           </div>
         </div>
 
@@ -814,10 +826,16 @@
           </div>
         </div>
 
-        <div class="text-center pt-2 flex items-center justify-center">
-          <button id="btn-generate-aio" class="btn-primary text-lg py-3.5 px-10 shadow-lg font-bold">
-            ⚡ สร้างแผนด้วย AI
+        <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-xl mx-auto">
+          <button id="btn-generate-aio-fast" class="btn-fast-mode flex-1 w-full text-sm sm:text-base py-3.5 px-4 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all">
+            <span>⚡ สร้างแผนการสอน (โหมดด่วน)</span>
           </button>
+          <div class="flex-1 w-full flex flex-col items-center">
+            <button id="btn-generate-aio-precision" class="btn-precision-mode w-full text-sm sm:text-base py-3.5 px-4 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all">
+              <span>🎯 สร้างแผนการสอน (เน้นความละเอียดสูง วPA)</span>
+            </button>
+            <span id="aio-precision-badge" class="precision-badge hidden mt-1.5 text-xs text-amber-600 font-medium">คุณใช้สิทธิ์โหมดละเอียดของวันนี้แล้ว (รีเซ็ตเที่ยงคืน)</span>
+          </div>
         </div>
       </div>
     </section>
@@ -923,39 +941,172 @@
   </div>
 
   <!-- ============================================================ -->
-  <!-- MODAL: Worker Proxy Settings -->
+  <!-- MODAL: Settings & BYOK (Bring Your Own Key) -->
   <!-- ============================================================ -->
   <div id="settings-modal-overlay" class="modal-overlay hidden" style="display: none;">
     <div class="modal-content max-w-lg">
       <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-        <h3 class="text-lg font-bold text-slate-900">
-          ตั้งค่า Cloudflare Worker Proxy
-        </h3>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">⚙️</span>
+          <h3 class="text-lg font-bold text-slate-900">ตั้งค่าระบบ & Gemini API Key</h3>
+        </div>
         <button id="settings-close-btn" class="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">✕</button>
       </div>
-      <p class="text-sm text-slate-600 mb-4 leading-relaxed">
-        ระบบใช้สถาปัตยกรรม <strong>Zero Frontend Keys</strong> โดยคำขอ AI ทั้งหมดจะส่งผ่าน Cloudflare Worker เพื่อจัดการ Key Rotation สลับ 3 Gemini API Keys อัตโนมัติ
-      </p>
-      <div class="mb-4">
-        <label class="block text-xs font-semibold text-slate-700 mb-1">Worker Endpoint URL</label>
-        <input id="worker-endpoint-input" type="url" class="form-input-clean text-sm" placeholder="https://eduplan-proxy.your-worker.workers.dev" />
-        <p class="text-xs text-slate-400 mt-1">สามารถเปลี่ยนเป็น URL ของ Cloudflare Worker ที่ท่าน Deploy ไว้ (บันทึกในบราวเซอร์นี้)</p>
+
+      <!-- BYOK Section -->
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <label for="byok-toggle" class="font-bold text-slate-900 text-sm cursor-pointer select-none">
+            ใช้งาน Gemini API Key ส่วนตัว (BYOK)
+          </label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="byok-toggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <p class="text-xs text-slate-500 mb-3 leading-relaxed">
+          นำ API Key ส่วนตัวมาเชื่อมต่อ เพื่อยิงตรงไปยัง Google โดยไม่ผ่านโควต้ากลาง รองรับการใช้งานต่อเนื่องเสถียร 100%
+        </p>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">API Key (AIzaSy...)</label>
+            <div class="flex gap-2">
+              <input id="byok-key-input" type="password" class="form-input-clean text-sm flex-1 font-mono" placeholder="AIzaSy..." />
+              <button id="byok-check-btn" type="button" class="btn-secondary text-xs px-3 whitespace-nowrap font-semibold">
+                ตรวจสอบคีย์
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Badge & Warning Message -->
+          <div id="byok-status-container" class="hidden flex items-center justify-between pt-1">
+            <div id="byok-status-badge" class="text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5">
+              <!-- Rendered status badge -->
+            </div>
+          </div>
+          <div id="byok-warning-info" class="hidden p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 leading-relaxed">
+            <!-- Warning text when quota exceeded -->
+          </div>
+
+          <div class="pt-2">
+            <button id="byok-guide-btn" type="button" class="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer flex items-center gap-1">
+              <span>❓ วิธีขอ API Key ฟรีของ Google (3 ขั้นตอน)</span>
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="flex justify-end gap-2 pt-2">
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
         <button id="settings-reset-btn" class="btn-secondary text-sm">ใช้ค่าเริ่มต้น</button>
-        <button id="settings-save-btn" class="btn-primary text-sm">บันทึก</button>
+        <button id="settings-save-btn" class="btn-primary text-sm">บันทึกการตั้งค่า</button>
       </div>
     </div>
   </div>
 
   <!-- ============================================================ -->
-  <!-- Loading Overlay -->
+  <!-- MODAL: Sub-Modal วิธีขอ Gemini API Key ฟรี -->
+  <!-- ============================================================ -->
+  <div id="byok-guide-modal" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-md">
+      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <span>🔑 วิธีขอ Gemini API Key ฟรี</span>
+        </h3>
+        <button id="byok-guide-close-btn" class="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">✕</button>
+      </div>
+
+      <div class="space-y-4 text-sm text-slate-700">
+        <div class="flex gap-3">
+          <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">1</div>
+          <div>
+            <p class="font-semibold text-slate-900">เข้าสู่ระบบ Google AI Studio</p>
+            <p class="text-xs text-slate-600 mt-1">
+              เข้าไปที่ <a href="https://aistudio.google.com" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline font-semibold inline-flex items-center gap-0.5">aistudio.google.com ↗</a> แล้วล็อกอินด้วยบัญชี Google ของท่าน
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">2</div>
+          <div>
+            <p class="font-semibold text-slate-900">คลิกสร้าง API Key</p>
+            <p class="text-xs text-slate-600 mt-1">
+              คลิกเมนู <strong>"Get API key"</strong> ที่แถบด้านซ้าย จากนั้นกดปุ่ม <strong>"Create API key"</strong>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">3</div>
+          <div>
+            <p class="font-semibold text-slate-900">คัดลอกรหัสมาวางในระบบ</p>
+            <p class="text-xs text-slate-600 mt-1">
+              คัดลอกรหัสที่ได้รับ (ขึ้นต้นด้วย <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-800 font-mono text-[11px]">AIzaSy...</code>) มาวางในช่อง API Key (ฟรี 100% ไม่ต้องผูกบัตรเครดิต)
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-3 border-t border-slate-100 flex justify-end">
+        <button id="byok-guide-ok-btn" class="btn-primary text-sm">เข้าใจแล้ว</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MODAL: ยืนยันการใช้งานโหมดละเอียดสูง (Precision Quota Guard) -->
+  <!-- ============================================================ -->
+  <div id="precision-confirm-modal" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-md">
+      <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center text-2xl mb-3 shadow-xs">
+        🎯
+      </div>
+      <h3 class="text-lg font-bold text-slate-900 mb-2">ยืนยันการใช้โหมดความละเอียดสูง (วPA)</h3>
+      <p class="text-slate-600 text-sm mb-6 leading-relaxed">
+        โหมดนี้ใช้โมเดลวิเคราะห์ขั้นสูง ระบบจะใช้เวลาประมวลผลนานกว่าตัวปกติ และจำกัดวันละ 1 ครั้ง ต้องการดำเนินการต่อหรือไม่?
+      </p>
+      <div class="flex justify-end gap-2">
+        <button id="btn-precision-cancel" class="btn-secondary text-sm">ยกเลิก</button>
+        <button id="btn-precision-confirm" class="btn-precision-mode text-sm px-4 py-2 rounded-lg font-bold">ยืนยันสร้างแผน</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MODAL: Retry Error Dialog (พร้อมปุ่ม [🔄 ลองใหม่อีกครั้ง]) -->
+  <!-- ============================================================ -->
+  <div id="error-retry-modal" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-md">
+      <div class="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-xl mb-3">
+        ⚠️
+      </div>
+      <h3 id="error-retry-title" class="text-lg font-bold text-slate-900 mb-2">ไม่สามารถประมวลผลได้</h3>
+      <p id="error-retry-message" class="text-slate-600 text-sm mb-6 leading-relaxed"></p>
+      <div class="flex justify-end gap-2">
+        <button id="error-retry-cancel" class="btn-secondary text-sm">ปิด</button>
+        <button id="error-retry-action" class="btn-primary text-sm flex items-center gap-1.5 font-bold">
+          <span>🔄 ลองใหม่อีกครั้ง</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Loading Overlay with Live Stopwatch & Steps Indicator -->
   <!-- ============================================================ -->
   <div id="loading-overlay" class="loading-overlay hidden" style="display: none;">
-    <div class="loading-card">
-      <div class="loading-spinner"></div>
-      <p id="loading-text" class="text-base font-semibold text-slate-800">กำลังสร้างแผนการจัดการเรียนรู้...</p>
-      <p class="text-xs text-slate-400 mt-1">กรุณารอสักครู่ ระบบกำลังจัดสรรเนื้อหาตามมาตรฐาน วPA</p>
+    <div class="loading-card text-center p-6 max-w-sm mx-auto shadow-2xl">
+      <div class="loading-spinner mb-4"></div>
+      <div id="loading-stopwatch" class="text-base sm:text-lg font-bold text-slate-900 mb-2">
+        ⏱️ กำลังจัดทำแผนการจัดการเรียนรู้... 0 วินาที
+      </div>
+      <p id="loading-step-text" class="text-sm text-blue-600 font-medium min-h-[44px] flex items-center justify-center px-2 leading-relaxed">
+        กำลังวิเคราะห์มาตรฐานการเรียนรู้และตัวชี้วัด...
+      </p>
+      <p class="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-100">
+        ระบบกำลังจัดสรรเนื้อหาตามเกณฑ์ วPA
+      </p>
     </div>
   </div>
 

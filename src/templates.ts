@@ -182,9 +182,15 @@ export function buildSystemInstruction(): string {
 กฎเหล็ก:
 1. evaluation_rows ต้องเป็น Array ที่มีอย่างน้อย 3 แถว (ด้านความรู้ (K), ด้านทักษะและกระบวนการ (P), ด้านคุณลักษณะอันพึงประสงค์ (A))
 2. ใช้ภาษาไทยทางการ สละสลวย ถูกต้องตามแบบแผนราชการ
-3. ข้อ 1 มาตรฐานการเรียนรู้ ต้องระบุรหัสและคำอธิบายมาตรฐานฉบับเต็มเสมอ ในรูปแบบ '[รหัส]: [คำอธิบาย]' เช่น 'ว 4.2: เข้าใจและใช้...' ห้ามย่อเหลือเพียงรหัสสั้นเด็ดขาด
-4. กิจกรรมการเรียนรู้ (activities) ต้องจัดขั้นตอนตามรูปแบบการสอนที่กำหนดอย่างเคร่งครัด ครบถ้วนทุกขั้น
-5. ห้ามสุ่มเปลี่ยนรหัสมาตรฐาน/ตัวชี้วัดที่ครูระบุ`;
+3. ข้อ 1 มาตรฐานการเรียนรู้ ต้องระบุรหัสและคำอธิบายมาตรฐานฉบับเต็มเสมอ ในรูปแบบ '[รหัส]: [คำอธิบาย]' หากมีหลายมาตรฐาน ต้องขึ้นบรรทัดใหม่แยกบรรทัดละข้อ ห้ามใช้คำว่า 'และ' คั่นเด็ดขาด
+4. ข้อ 2 ตัวชี้วัด หากมีหลายตัวชี้วัด ต้องขึ้นบรรทัดใหม่แยกบรรทัดละข้อ ห้ามใช้เครื่องหมายจุลภาค (,) หรือคำว่า 'และ' คั่นระหว่างตัวชี้วัดเด็ดขาด
+5. ข้อ 6 สมรรถนะสำคัญของผู้เรียน ต้องขึ้นบรรทัดใหม่แยกบรรทัดละข้ออย่างเด็ดขาด (1. ... \n 2. ...)
+6. ในข้อกิจกรรมการเรียนรู้ (activities):
+   - หัวข้อขั้นหลัก (เช่น '1. ขั้นนำ...', '2. ขั้นสอน...', '3. ขั้นสรุป...') ต้องขึ้นบรรทัดใหม่เสมอ ชิดซ้ายสุด ห้ามใส่ช่องว่าง ย่อหน้า หรือแท็บนำหน้าเด็ดขาด
+   - ข้อย่อย (เช่น '1.1', '2.1', '3.1') ให้ขึ้นบรรทัดใหม่และเคาะย่อหน้าเข้ามาอย่างชัดเจน
+   - ห้ามนำข้อขั้นหลักไปต่อท้ายบรรทัดของข้อย่อยเด็ดขาด
+   - ต้องแจกแจงตามขั้นตอนของรูปแบบการสอนที่กำหนดอย่างเคร่งครัด ครบถ้วนทุกขั้น
+7. ห้ามสุ่มเปลี่ยนรหัสมาตรฐาน/ตัวชี้วัดที่ครูระบุ`;
 }
 
 /**
@@ -248,11 +254,13 @@ ${indicatorsText || '  (ไม่ได้เลือกตัวชี้ว�
 ${objectiveSection}
 
 ตอบกลับเป็น JSON ที่มี Key ครบถ้วนตาม System Instruction เท่านั้น:
-- ฟิลด์ "standards": ต้องระบุรหัสมาตรฐานและคำอธิบายฉบับเต็มเสมอ ในรูปแบบ "[รหัสมาตรฐาน]: [คำอธิบายมาตรฐานฉบับเต็ม]" เช่น "ว 4.2: เข้าใจและใช้แนวคิดเชิงคำนวณในการแก้ปัญหาที่พบในชีวิตจริงอย่างเป็นขั้นตอนและเป็นระบบ ใช้เทคโนโลยีสารสนเทศและการสื่อสารในการเรียนรู้ การทำงาน และการแก้ปัญหาได้อย่างมีประสิทธิภาพ รู้เท่าทัน และมีจริยธรรม" (ห้ามใส่เฉพาะรหัสย่อสั้นๆ โดยไม่มีคำอธิบายเด็ดขาด)
+- ฟิลด์ "standards": หากมีหลายมาตรฐาน ต้องขึ้นบรรทัดใหม่แยกบรรทัดละข้ออย่างเด็ดขาด ห้ามใช้คำว่า "และ" หรือเครื่องหมายใดๆ มาเชื่อมระหว่างมาตรฐานเด็ดขาด
+- ฟิลด์ "indicators": หากมีหลายตัวชี้วัด ต้องขึ้นบรรทัดใหม่แยกบรรทัดละข้ออย่างเด็ดขาด ห้ามใช้เครื่องหมายจุลภาค (,) หรือคำว่า "และ" มาคั่นระหว่างตัวชี้วัดเด็ดขาด
+- ฟิลด์ "competencies": ต้องขึ้นบรรทัดใหม่แยกบรรทัดละข้ออย่างเด็ดขาด เช่น "1. ความสามารถในการสื่อสาร\n2. ความสามารถในการคิด\n3. ความสามารถในการแก้ปัญหา"
 - ฟิลด์ "activities": ต้องออกแบบกิจกรรมการเรียนรู้ให้สอดคล้องกับ "${input.teachingMethod}" ตามขั้นตอนต่อไปนี้อย่างเคร่งครัด:
 ${methodGuidelines}
 
-ในแต่ละขั้นตอนหลัก ให้ระบุหัวข้อพร้อมกำกับเวลา เช่น "1. ขั้นสร้างความสนใจ (Engagement) (10 นาที)" แล้วขึ้นบรรทัดใหม่แจกแจงกิจกรรมย่อย "1.1 ...", "1.2 ..." อย่างละเอียด ชัดเจน เห็นบทบาทครูและนักเรียน
+ในแต่ละขั้นตอนหลัก ให้ระบุหัวข้อพร้อมกำกับเวลา เช่น "1. ขั้นสร้างความสนใจ (Engagement) (10 นาที)" โดยหัวข้อขั้นหลักต้องขึ้นบรรทัดใหม่เสมอ ชิดซ้ายสุด ห้ามใส่ช่องว่างหรือแท็บนำหน้า แล้วขึ้นบรรทัดใหม่แจกแจงกิจกรรมย่อย "1.1 ...", "1.2 ..." อย่างละเอียด ชัดเจน เห็นบทบาทครูและนักเรียน ห้ามนำหัวข้อขั้นหลักไปต่อท้ายบรรทัดข้อย่อยเด็ดขาด
 `.trim();
 }
 
@@ -364,6 +372,94 @@ function normalizeString(val: any, fallback = ''): string {
 /**
  * แกะข้อมูล JSON หรือ Markdown จาก AI ให้อยู่ในรูป LessonPlanData 11 หัวข้อ
  */
+/**
+ * จัดรูปแบบมาตรฐานการเรียนรู้: แต่ละมาตรฐานต้องขึ้นบรรทัดใหม่ และไม่ใช้คำว่า 'และ' คั่น
+ */
+export function cleanAndFormatStandardsText(text: string, input?: LessonPlanInput): string {
+  if (input?.selectedStandards && input.selectedStandards.length > 0) {
+    return buildDefaultStandardsText(input);
+  }
+  if (!text) return '';
+  let cleaned = text
+    .replace(/\s*(?:,\s*|และ\s+)+(?=(?:มาตรฐาน\s*)?[ก-๙A-Za-z]\s*[\d\.]+\s*:)/g, '\n')
+    .replace(/\s+และ\s+([ก-๙A-Za-z]\s*[\d\.]+[\s\S]*?:)/g, '\n$1')
+    .replace(/[,،]\s*([ก-๙A-Za-z]\s*[\d\.]+[\s\S]*?:)/g, '\n$1');
+
+  const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+  const result: string[] = [];
+  for (const line of lines) {
+    let l = line.replace(/^(?:และ\s*|-|\*|\d+[\.\)]\s*|มาตรฐาน\s*)/, '').trim();
+    l = l.replace(/^และ\s+/, '').trim();
+    l = l.replace(/[,،]\s*$/, '').trim();
+    if (l) result.push(l);
+  }
+  return result.join('\n');
+}
+
+/**
+ * จัดรูปแบบตัวชี้วัด: แต่ละตัวชี้วัดต้องขึ้นบรรทัดใหม่ และไม่ใช้เครื่องหมาย ',' หรือคำว่า 'และ' คั่น
+ */
+export function cleanAndFormatIndicatorsText(text: string, input?: LessonPlanInput): string {
+  if (input?.selectedIndicators && input.selectedIndicators.length > 0) {
+    return buildDefaultIndicatorsText(input);
+  }
+  if (!text) return '';
+  let cleaned = text
+    .replace(/\s*(?:,\s*|และ\s+)+(?=(?:ตัวชี้วัด\s*)?[ก-๙A-Za-z]\s*[\d\.]+\s*(?:ม|ป|\([^\)]+\)|\d+\/\d+))/g, '\n')
+    .replace(/\s*,\s*([ก-๙A-Za-z]\s*[\d\.]+\s*(?:ม\.\s*\d+\/\d+|ป\.\s*\d+\/\d+|\d+\/\d+|\([^\)]+\))?\s*:)/g, '\n$1')
+    .replace(/\s+และ\s+([ก-๙A-Za-z]\s*[\d\.]+\s*(?:ม\.\s*\d+\/\d+|ป\.\s*\d+\/\d+|\d+\/\d+|\([^\)]+\))?\s*:)/g, '\n$1');
+
+  const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+  const result: string[] = [];
+  for (const line of lines) {
+    let l = line.replace(/^(?:และ\s*|-|\*|\d+[\.\)]\s*|ตัวชี้วัด\s*)/, '').trim();
+    l = l.replace(/^และ\s+/, '').trim();
+    l = l.replace(/[,،]\s*$/, '').trim();
+    if (l) result.push(l);
+  }
+  return result.join('\n');
+}
+
+/**
+ * จัดรูปแบบสมรรถนะสำคัญของผู้เรียน: ต้องขึ้นบรรทัดใหม่แยกบรรทัดละข้อ
+ */
+export function formatCompetenciesText(val: any, inputCompetencies: string[] = []): string {
+  let items: string[] = [];
+  if (Array.isArray(val)) {
+    items = val.map(v => String(v).trim()).filter(Boolean);
+  } else if (typeof val === 'string' && val.trim()) {
+    if (val.includes('\n')) {
+      items = val.split('\n').map(l => l.trim()).filter(Boolean);
+    } else {
+      const splitByNumbered = val.split(/(?=\d+[\.\)])/).map(l => l.trim()).filter(Boolean);
+      if (splitByNumbered.length > 1) {
+        items = splitByNumbered;
+      } else {
+        items = val.split(/[,،]/).map(l => l.trim()).filter(Boolean);
+      }
+    }
+  }
+
+  if (items.length === 0 && inputCompetencies && inputCompetencies.length > 0) {
+    items = [...inputCompetencies];
+  }
+
+  if (items.length === 0) {
+    items = [
+      'ความสามารถในการสื่อสาร',
+      'ความสามารถในการคิด',
+      'ความสามารถในการแก้ปัญหา',
+      'ความสามารถในการใช้ทักษะชีวิต',
+      'ความสามารถในการใช้เทคโนโลยี',
+    ];
+  }
+
+  return items.map((item, idx) => {
+    const clean = item.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*•]\s*/, '').trim();
+    return `${idx + 1}. ${clean}`;
+  }).join('\n');
+}
+
 export function parseLessonPlanResponse(rawText: string, input: LessonPlanInput): LessonPlanData {
   const now = getCurrentThaiDate();
   const school = input.school || '……………………………………………………';
@@ -417,22 +513,27 @@ export function parseLessonPlanResponse(rawText: string, input: LessonPlanInput)
       buddhist_year,
       school,
       standards: (() => {
-        let stdStr = normalizeString(parsed.standards, buildDefaultStandardsText(input));
-        stdStr = enrichStandardsString(stdStr);
-        if (stdStr.length < 35 && input.selectedStandards && input.selectedStandards.length > 0) {
-          stdStr = buildDefaultStandardsText(input);
+        if (input.selectedStandards && input.selectedStandards.length > 0) {
+          return buildDefaultStandardsText(input);
         }
-        return enrichStandardsString(stdStr);
+        let stdStr = normalizeString(parsed.standards, buildDefaultStandardsText(input));
+        return cleanAndFormatStandardsText(enrichStandardsString(stdStr), input);
       })(),
-      indicators: normalizeString(parsed.indicators, buildDefaultIndicatorsText(input)),
+      indicators: (() => {
+        if (input.selectedIndicators && input.selectedIndicators.length > 0) {
+          return buildDefaultIndicatorsText(input);
+        }
+        let indStr = normalizeString(parsed.indicators, buildDefaultIndicatorsText(input));
+        return cleanAndFormatIndicatorsText(indStr, input);
+      })(),
       concept: normalizeString(parsed.concept, `การจัดการเรียนรู้เรื่อง ${input.topic} มุ่งเน้นให้ผู้เรียนเกิดความเข้าใจและทักษะตามมาตรฐานการเรียนรู้`),
       k_objective: normalizeString(parsed.k_objective, input.kpaK || 'ผู้เรียนมีความรู้ความเข้าใจในเนื้อหาบทเรียน'),
       p_objective: normalizeString(parsed.p_objective, input.kpaP || 'ผู้เรียนสามารถปฏิบัติกิจกรรมและฝึกทักษะการเรียนรู้ได้'),
       a_objective: normalizeString(parsed.a_objective, input.kpaA || 'ผู้เรียนมีวินัย ใฝ่เรียนรู้ และมุ่งมั่นในการทำงาน'),
       learning_content: normalizeString(parsed.learning_content, `เนื้อหาสาระการเรียนรู้เรื่อง ${input.topic}`),
-      competencies: normalizeString(parsed.competencies, input.competencies.join(', ') || '1. ความสามารถในการสื่อสาร\n2. ความสามารถในการคิด\n3. ความสามารถในการแก้ปัญหา'),
+      competencies: formatCompetenciesText(parsed.competencies, input.competencies),
       teaching_model: normalizeString(parsed.teaching_model, input.teachingMethod || 'Active Learning'),
-      activities: normalizeString(parsed.activities, 'ขั้นนำเข้าสู่บทเรียน (10 นาที)\n1. ครูทักทายและแจ้งจุดประสงค์การเรียนรู้\nขั้นจัดกิจกรรมการเรียนรู้ (30 นาที)\n1. ผู้เรียนลงมือปฏิบัติกิจกรรมตามขั้นตอน\nขั้นสรุปบทเรียนและประเมินผล (10 นาที)\n1. ผู้เรียนร่วมกันสรุปความรู้และสะท้อนคิด'),
+      activities: normalizeString(parsed.activities, '1. ขั้นนำเข้าสู่บทเรียน (10 นาที)\n1.1 ครูทักทายและแจ้งจุดประสงค์การเรียนรู้\n2. ขั้นจัดกิจกรรมการเรียนรู้ (30 นาที)\n2.1 ผู้เรียนลงมือปฏิบัติกิจกรรมตามขั้นตอน\n3. ขั้นสรุปบทเรียนและประเมินผล (10 นาที)\n3.1 ผู้เรียนร่วมกันสรุปความรู้และสะท้อนคิด'),
       media_resources: normalizeString(parsed.media_resources, '1. สื่อการสอนและใบความรู้\n2. ใบงานแบบฝึกหัด\n3. แหล่งเรียนรู้ดิจิทัล'),
       evaluation_rows: evalRows,
       suggestions: normalizeString(parsed.suggestions, 'ครูผู้สอนควรจัดเตรียมสื่อและอุปกรณ์ให้พร้อม และเปิดโอกาสให้นักเรียนทุกคนได้มีส่วนร่วม'),
@@ -564,20 +665,18 @@ export function generateStandardLessonPlan(input: LessonPlanInput): LessonPlanDa
     ? input.competencies.map((c, idx) => `${idx + 1}. ${c}`).join('\n')
     : '1. ความสามารถในการสื่อสาร\n2. ความสามารถในการคิด\n3. ความสามารถในการแก้ปัญหา\n4. ความสามารถในการใช้ทักษะชีวิต\n5. ความสามารถในการใช้เทคโนโลยี';
 
-  const activities = `ขั้นนำเข้าสู่บทเรียน (ประมาณ 10 นาที)
-   1. ครูทักทายผู้เรียนและกระตุ้นความสนใจด้วยคำถามกระตุ้นความคิดเกี่ยวกับ ${input.topic}
-   2. เชื่อมโยงประสบการณ์เดิมของผู้เรียนเข้าสู่หัวข้อใหม่ และแจ้งจุดประสงค์การเรียนรู้ให้ผู้เรียนทราบ
-
-ขั้นจัดกิจกรรมการเรียนรู้ (รูปแบบ ${input.teachingMethod || 'Active Learning'}) (ประมาณ 30-70 นาที)
-   1. ผู้เรียนศึกษาข้อมูลหรือสถานการณ์ตัวอย่างเกี่ยวกับ ${input.topic}
-   2. ผู้เรียนร่วมกันลงมือปฏิบัติกิจกรรมกลุ่มหรือเดี่ยว มีการแลกเปลี่ยนความคิดเห็นและร่วมกันแก้ปัญหา
-   3. ครูคอยอำนวยความสะดวก ให้คำแนะนำ และกระตุ้นให้ผู้เรียนสรุปความรู้ด้วยตนเอง
-   4. ตัวแทนผู้เรียนนำเสนอผลงานหรือแนวคิดหน้าชั้นเรียน และร่วมกันวิพากษ์เชิงสร้างสรรค์
-
-ขั้นสรุปบทเรียนและประเมินผล (ประมาณ 10-20 นาที)
-   1. ครูและผู้เรียนร่วมกันอภิปรายสรุปสาระสำคัญของเรื่อง ${input.topic}
-   2. ผู้เรียนทำแบบฝึกหัด/ใบงาน เพื่อตรวจสอบความเข้าใจ
-   3. ครูมอบหมายงานเพิ่มเติมและเปิดโอกาสให้ผู้เรียนสอบถามข้อสงสัย`;
+  const activities = `1. ขั้นนำเข้าสู่บทเรียน (ประมาณ 10 นาที)
+1.1 ครูทักทายผู้เรียนและกระตุ้นความสนใจด้วยคำถามกระตุ้นความคิดเกี่ยวกับ ${input.topic}
+1.2 เชื่อมโยงประสบการณ์เดิมของผู้เรียนเข้าสู่หัวข้อใหม่ และแจ้งจุดประสงค์การเรียนรู้ให้ผู้เรียนทราบ
+2. ขั้นจัดกิจกรรมการเรียนรู้ (รูปแบบ ${input.teachingMethod || 'Active Learning'}) (ประมาณ 30-70 นาที)
+2.1 ผู้เรียนศึกษาข้อมูลหรือสถานการณ์ตัวอย่างเกี่ยวกับ ${input.topic}
+2.2 ผู้เรียนร่วมกันลงมือปฏิบัติกิจกรรมกลุ่มหรือเดี่ยว มีการแลกเปลี่ยนความคิดเห็นและร่วมกันแก้ปัญหา
+2.3 ครูคอยอำนวยความสะดวก ให้คำแนะนำ และกระตุ้นให้ผู้เรียนสรุปความรู้ด้วยตนเอง
+2.4 ตัวแทนผู้เรียนนำเสนอผลงานหรือแนวคิดหน้าชั้นเรียน และร่วมกันวิพากษ์เชิงสร้างสรรค์
+3. ขั้นสรุปบทเรียนและประเมินผล (ประมาณ 10-20 นาที)
+3.1 ครูและผู้เรียนร่วมกันอภิปรายสรุปสาระสำคัญของเรื่อง ${input.topic}
+3.2 ผู้เรียนทำแบบฝึกหัด/ใบงาน เพื่อตรวจสอบความเข้าใจ
+3.3 ครูมอบหมายงานเพิ่มเติมและเปิดโอกาสให้ผู้เรียนสอบถามข้อสงสัย`;
 
   return {
     course_name: input.subjectName || '',
@@ -610,4 +709,30 @@ export function generateStandardLessonPlan(input: LessonPlanInput): LessonPlanDa
     teacher_name,
     teacher_position,
   };
+}
+
+
+/**
+ * จัดรูปแบบกิจกรรมการเรียนรู้เป็น HTML สำหรับหน้าพรีวิว (Line-by-line parsing ตามระเบียบสารบรรณ)
+ */
+export function formatActivitiesToHtml(text: string): string {
+  if (!text) return '<div class="pl-0 text-gray-700 my-0.5 text-left">-</div>';
+  const lines = text.split('\n');
+  return lines.map(rawLine => {
+    const line = rawLine.trim().replace(/^[\t\s#*-]+/, '').replace(/[*_]+$/, '').trim();
+    if (!line) return '';
+
+    // ตรวจจับขั้นหลัก เช่น "1. ขั้น...", "2. ขั้น...", "3. ขั้น..."
+    if (/^[1-9]\.\s*ขั้น/.test(line) || /^[1-9]\.\s+[^\d]/.test(line)) {
+      return `<div class="font-bold text-gray-900 mt-4 mb-1 pl-0 text-left text-base">${line}</div>`;
+    }
+
+    // ตรวจจับข้อย่อย เช่น "1.1", "2.1", "3.2"
+    if (/^[1-9]\.[0-9]+/.test(line)) {
+      return `<div class="pl-6 md:pl-8 text-gray-800 my-1 leading-relaxed text-left" style="text-indent: -1.5rem; margin-left: 1.5rem;">${line}</div>`;
+    }
+
+    // บรรทัดอธิบายทั่วไป
+    return `<div class="pl-8 text-gray-700 my-0.5 text-left">${line}</div>`;
+  }).join('');
 }

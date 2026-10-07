@@ -36,19 +36,50 @@ export function setWorkerEndpoint(endpoint: string): void {
 
 export const WORKER_ENDPOINT = DEFAULT_WORKER_ENDPOINT;
 
-/** ลำดับ Waterfall Cascading (อ้างอิงเพื่อแสดงผล — Worker เป็นตัวจัดการจริง) */
-export const MODEL_CASCADE = [
+/** Google Apps Script Web App URL สำหรับส่งข้อมูลการวิจัย (Telemetry) */
+export const GOOGLE_SHEET_WEBAPP_URL: string = 'https://script.google.com/macros/s/AKfycbwT1ECr-NEmI6BUqDG3DT6LhzJSjqLSHNtLckfvNsfPPvT65P_vtdHEQKtzjQIH6cbG/exec';
+
+/** ลำดับ Cascade สำหรับโหมดต่างๆ */
+export const KPA_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+] as const;
+
+export const FAST_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+] as const;
+
+export const PRECISION_MODELS = [
   'gemini-3.8-flash',
   'gemini-3.7-flash',
   'gemini-3.6-flash',
   'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
 ] as const;
 
+/** ลำดับ Waterfall Cascading ทั่วไป */
+export const MODEL_CASCADE = FAST_MODELS;
+
 /** ชื่อโมเดลเริ่มต้น (แสดงผลก่อนได้ response จาก Worker) */
-export const GEMINI_MODEL = MODEL_CASCADE[0];
+export const GEMINI_MODEL = FAST_MODELS[0];
+
+/** LocalStorage keys */
+export const STORAGE_KEYS = {
+  BYOK_KEY: 'eduplan_user_api_key',
+  BYOK_ENABLED: 'eduplan_use_byok',
+  PRECISION_QUOTA: 'eduplan_precision_quota',
+  WORKER_ENDPOINT: 'eduplan_worker_endpoint',
+} as const;
 
 /** จำนวนชั่วโมงเรียนต่อคาบเริ่มต้น */
 export const DEFAULT_DURATION_HOURS = 1;

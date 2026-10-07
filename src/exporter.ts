@@ -135,15 +135,13 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   if (lines.length === 0) return [createBodyParagraph('-', { indent: true })];
 
-  const stageRegex = /^(?:(?:\d+[\.\)]\s*)?ขั้น(?:นำ|จัดกิจกรรม|กิจกรรม|สอน|สรุป|ปฏิบัติ|ประเมิน|สร้างความสนใจ|สำรวจ|อธิบาย|ขยายความ|สะท้อนคิด|การเรียนรู้|ฝึกทักษะ|สังเกต|คิดวิเคราะห์|สื่อสาร|กำหนดปัญหา|ทำความเข้าใจ|ดำเนิน|ทดสอบ|เข้าใจปัญหา|ระดมความคิด|สร้างต้นแบบ)|ขั้นที่\s*\d+|ช่วงที่\s*\d+|\d+\.\s*(?:สร้างความสนใจ|สำรวจและค้นหา|อธิบายและลงข้อสรุป|ขยายความรู้|ประเมินผล|ขั้น|สังเกต|คิดวิเคราะห์|ปฏิบัติ|สื่อสาร|กำหนดปัญหา|ทำความเข้าใจ|ดำเนินการ|สรุปและ|เข้าใจปัญหา|ระดมความคิด|สร้างต้นแบบ|เตรียมความพร้อม|ระบุปัญหา))/i;
-
   return lines.map(line => {
-    const cleanLine = line.replace(/^[\t\s]+/, '');
-    if (stageRegex.test(cleanLine)) {
-      // ขั้นการสอน: ย่อหน้า 1 Tab (0.4 นิ้ว) + ตัวหนา
+    const cleanLine = line.replace(/^[\t\s#*-]+/, '').replace(/[*_]+$/, '').trim();
+    // ตรวจจับขั้นหลัก เช่น "1. ขั้น...", "2. ขั้น...", "3. ขั้น..."
+    if (/^[1-9]\.\s*ขั้น/.test(cleanLine) || /^[1-9]\.\s+[^\d]/.test(cleanLine)) {
       return new Paragraph({
-        spacing: { before: 120, after: 40, line: 280 },
-        indent: { left: convertInchesToTwip(0.4) },
+        spacing: { before: 180, after: 60, line: 280 },
+        indent: { left: 0 },
         children: [
           new TextRun({
             text: cleanLine,
@@ -153,11 +151,25 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
           }),
         ],
       });
-    } else {
-      // กิจกรรมย่อย: ย่อหน้า 2 Tabs (0.8 นิ้ว) + ตัวปกติ
+    } else if (/^[1-9]\.[0-9]+/.test(cleanLine)) {
+      // ข้อย่อย เช่น "1.1", "2.1", "3.2"
       return new Paragraph({
         spacing: { before: 40, after: 40, line: 280 },
-        indent: { left: convertInchesToTwip(0.8) },
+        indent: { left: convertInchesToTwip(0.5), hanging: convertInchesToTwip(0.25) },
+        children: [
+          new TextRun({
+            text: cleanLine,
+            font: FONT_FAMILY,
+            size: 32,
+            bold: false,
+          }),
+        ],
+      });
+    } else {
+      // บรรทัดอธิบายทั่วไป
+      return new Paragraph({
+        spacing: { before: 40, after: 40, line: 280 },
+        indent: { left: convertInchesToTwip(0.5) },
         children: [
           new TextRun({
             text: cleanLine,
@@ -171,9 +183,6 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
   });
 }
 
-/**
- * คำนวณและจัดรูปแบบข้อความส่วนหัวแผนการสอน 5 แถว 2 คอลัมน์ พร้อมจุดไข่ปลาเมื่อไม่ได้กรอกข้อมูล
- */
 export function getHeaderDisplayValues(data: LessonPlanData) {
   // แถว 1 ซ้าย: [รายวิชา {ชื่อรายวิชา}]
   let courseText = 'รายวิชา ........................................';
@@ -837,14 +846,16 @@ function buildEvaluationHtmlTable(data: LessonPlanData): string {
 function formatActivitiesHtml(text: string): string {
   if (!text) return '<p style="padding-left: 24pt;">-</p>';
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  const stageRegex = /^(?:(?:\d+[\.\)]\s*)?ขั้น(?:นำ|จัดกิจกรรม|กิจกรรม|สอน|สรุป|ปฏิบัติ|ประเมิน|สร้างความสนใจ|สำรวจ|อธิบาย|ขยายความ|สะท้อนคิด|การเรียนรู้|ฝึกทักษะ)|ขั้นที่\s*\d+|ช่วงที่\s*\d+)/i;
 
   return lines.map(line => {
-    const clean = escapeHtml(line.replace(/^[\t\s]+/, ''));
-    if (stageRegex.test(clean)) {
-      return `<p style="margin: 6pt 0 2pt 0; padding-left: 24pt; font-weight: bold; font-family: 'TH SarabunPSK', Sarabun; font-size: 16pt;">${clean}</p>`;
+    const rawClean = line.replace(/^[\t\s#*-]+/, '').replace(/[*_]+$/, '').trim();
+    const clean = escapeHtml(rawClean);
+    if (/^[1-9]\.\s*ขั้น/.test(rawClean) || /^[1-9]\.\s+[^\d]/.test(rawClean)) {
+      return `<p style="margin: 8pt 0 2pt 0; padding-left: 0; font-weight: bold; font-family: 'TH SarabunPSK', Sarabun; font-size: 16pt;">${clean}</p>`;
+    } else if (/^[1-9]\.[0-9]+/.test(rawClean)) {
+      return `<p style="margin: 2pt 0; padding-left: 24pt; font-family: 'TH SarabunPSK', Sarabun; font-size: 16pt;">${clean}</p>`;
     } else {
-      return `<p style="margin: 2pt 0; padding-left: 48pt; font-family: 'TH SarabunPSK', Sarabun; font-size: 16pt;">${clean}</p>`;
+      return `<p style="margin: 2pt 0; padding-left: 24pt; font-family: 'TH SarabunPSK', Sarabun; font-size: 16pt;">${clean}</p>`;
     }
   }).join('\n');
 }
@@ -853,23 +864,21 @@ function formatActivitiesHtml(text: string): string {
  * จัดรูปแบบกิจกรรมการเรียนรู้สำหรับ Plain Text (Tab สำหรับขั้น และ Tab Tab สำหรับกิจกรรมย่อย)
  */
 function formatActivitiesPlainText(text: string): string {
-  if (!text) return '\t-';
+  if (!text) return '-';
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  const stageRegex = /^(?:(?:\d+[\.\)]\s*)?ขั้น(?:นำ|จัดกิจกรรม|กิจกรรม|สอน|สรุป|ปฏิบัติ|ประเมิน|สร้างความสนใจ|สำรวจ|อธิบาย|ขยายความ|สะท้อนคิด|การเรียนรู้|ฝึกทักษะ)|ขั้นที่\s*\d+|ช่วงที่\s*\d+)/i;
 
   return lines.map(line => {
-    const clean = line.replace(/^[\t\s]+/, '');
-    if (stageRegex.test(clean)) {
+    const clean = line.replace(/^[\t\s#*-]+/, '').replace(/[*_]+$/, '').trim();
+    if (/^[1-9]\.\s*ขั้น/.test(clean) || /^[1-9]\.\s+[^\d]/.test(clean)) {
+      return clean;
+    } else if (/^[1-9]\.[0-9]+/.test(clean)) {
       return `\t${clean}`;
     } else {
-      return `\t\t${clean}`;
+      return `\t${clean}`;
     }
   }).join('\n');
 }
 
-/**
- * สร้าง HTML ทั้งแผนสำหรับคัดลอกลง Microsoft Word
- */
 export function buildFullPlanHtml(data: LessonPlanData): string {
   const teacherName = data.teacher_name || '……………………………………………………';
   const teacherPos = data.teacher_position || 'ครูผู้ช่วย / ครู';
