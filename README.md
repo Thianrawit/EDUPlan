@@ -64,6 +64,19 @@
 
 ---
 
+## 🌐 การใช้งานออนไลน์ (Live Demo / GitHub Pages)
+
+- **URL เว็บไซต์**: [https://thianrawit.github.io/EDUPlan/](https://thianrawit.github.io/EDUPlan/)
+
+### การตั้งค่าเปิดใช้งานบน GitHub Pages
+หากต้องการเปิดใช้งานหรืออัปเดต ให้ไปที่เมนู **Settings** ของ Repository บน GitHub:
+1. ไปที่แท็บ **Settings** -> **Pages** (เมนูด้านซ้าย)
+2. ที่หัวข้อ **Build and deployment**:
+   - **ตัวเลือกที่ 1 (แนะนำ - สำเร็จรูปทันที)**: เลือก Source เป็น **Deploy from a branch** -> Branch: **`gh-pages`** -> โฟลเดอร์ **`/ (root)`** -> กด **Save**
+   - **ตัวเลือกที่ 2 (Auto CI/CD)**: เลือก Source เป็น **GitHub Actions** (ระบบจะรัน Workflow `.github/workflows/deploy.yml` เพื่อ Build และ Deploy อัตโนมัติทุกครั้งที่มีการ Push โค้ดเข้า branch `main`)
+
+---
+
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
 
 ```text
