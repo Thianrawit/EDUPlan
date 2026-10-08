@@ -168,13 +168,13 @@ async function callGeminiDirectBYOK(
   maxTokens: number = 8192,
   mode: 'kpa' | 'fast' | 'precision' = 'fast'
 ): Promise<GeminiResult> {
-  // เลือกลำดับโมเดลสำหรับ Direct API
+  // เลือกลำดับโมเดลสำหรับ Direct API (รองรับโมเดลล่าสุด Gemini 3.x / Flash-latest และ Fallback ครอบคลุม)
   const candidateModels =
     mode === 'kpa'
-      ? ['gemini-2.0-flash', 'gemini-1.5-flash']
+      ? ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
       : mode === 'precision'
-      ? ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
-      : ['gemini-2.0-flash', 'gemini-1.5-flash'];
+      ? ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-pro-latest', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro']
+      : ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
   const geminiPayload: any = {
     contents: [
@@ -222,20 +222,18 @@ async function callGeminiDirectBYOK(
         }
       }
 
-      if (response.status === 429) {
-        // โควต้า BYOK เต็ม โยน error เพื่อให้ Fallback กลับสู่ Worker ส่วนกลาง
-        throw new Error('BYOK_429');
-      }
-
-      // หากติด 404/400 ให้ลองโมเดลถัดไป
-      if (response.status === 404 || response.status === 400) {
+      // หากติด 404 (โมเดลเลิกใช้), 400, 503 (โหลดเกินชั่วคราว), หรือ 429 (โควต้าเฉพาะโมเดล) ให้ลองโมเดลถัดไป
+      if (response.status === 404 || response.status === 400 || response.status === 503 || response.status === 429) {
         continue;
       }
     } catch (err: any) {
-      if (err?.message === 'BYOK_429') throw err;
+      // ลองโมเดลถัดไป
     }
   }
 
+  if (lastStatus === 429) {
+    throw new Error('BYOK_429');
+  }
   throw new Error(`BYOK_FAILED_${lastStatus}`);
 }
 
