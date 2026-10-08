@@ -23,7 +23,9 @@ import {
   TabStopType,
 } from 'docx';
 import { saveAs } from 'file-saver';
-import type { LessonPlanData } from './types';
+import type { LessonPlanData, RubricData } from './types';
+import { getRubricScaleInfo } from './templates';
+export * from './rubricExporter';
 
 const FONT_FAMILY = 'TH SarabunPSK';
 

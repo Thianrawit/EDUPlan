@@ -6,7 +6,7 @@
  */
 
 import { type Indicator, enrichStandardsString, findStandardByCode } from './curriculum';
-import type { LessonPlanData, EvaluationRow } from './types';
+import type { LessonPlanData, EvaluationRow, RubricData, RubricCriterion } from './types';
 
 export interface LessonPlanInput {
   planName: string;
@@ -735,4 +735,215 @@ export function formatActivitiesToHtml(text: string): string {
     // บรรทัดอธิบายทั่วไป
     return `<div class="pl-8 text-gray-700 my-0.5 text-left">${line}</div>`;
   }).join('');
+}
+
+// ============================================================
+// Rubric Score Generator — Templates & Parser
+// ============================================================
+
+export function getRubricScaleInfo(levelCount: number): {
+  scaleLabels: string[];
+  keys: string[];
+  guideEntries: { score: number; label: string }[];
+} {
+  if (levelCount === 3) {
+    return {
+      scaleLabels: ['ดี (3)', 'พอใช้ (2)', 'ปรับปรุง (1)'],
+      keys: ['level_3', 'level_2', 'level_1'],
+      guideEntries: [
+        { score: 3, label: 'ดี' },
+        { score: 2, label: 'พอใช้' },
+        { score: 1, label: 'ปรับปรุง' },
+      ],
+    };
+  }
+  if (levelCount === 5) {
+    return {
+      scaleLabels: ['ยอดเยี่ยม (5)', 'ดีมาก (4)', 'ดี (3)', 'พอใช้ (2)', 'ปรับปรุง (1)'],
+      keys: ['level_5', 'level_4', 'level_3', 'level_2', 'level_1'],
+      guideEntries: [
+        { score: 5, label: 'ยอดเยี่ยม' },
+        { score: 4, label: 'ดีมาก' },
+        { score: 3, label: 'ดี' },
+        { score: 2, label: 'พอใช้' },
+        { score: 1, label: 'ปรับปรุง' },
+      ],
+    };
+  }
+  // Default: 4 levels (recommended)
+  return {
+    scaleLabels: ['ดีมาก (4)', 'ดี (3)', 'พอใช้ (2)', 'ปรับปรุง (1)'],
+    keys: ['level_4', 'level_3', 'level_2', 'level_1'],
+    guideEntries: [
+      { score: 4, label: 'ดีมาก' },
+      { score: 3, label: 'ดี' },
+      { score: 2, label: 'พอใช้' },
+      { score: 1, label: 'ปรับปรุง' },
+    ],
+  };
+}
+
+export function buildRubricSystemInstruction(): string {
+  return `คุณคือผู้เชี่ยวชาญระดับสูงด้านการวัดและประเมินผลการเรียนรู้ และการจัดทำเกณฑ์การประเมินรูบริกสกอร์ (Scoring Rubrics) ตามหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน (วPA) ของกระทรวงศึกษาธิการ ประเทศไทย
+
+หน้าที่สำคัญ:
+1. วิเคราะห์แผนการจัดการเรียนรู้ที่ได้รับ โดยเฉพาะจุดประสงค์การเรียนรู้ (K-P-A), สาระสำคัญ, กิจกรรมการเรียนรู้ และชิ้นงาน/ภาระงาน
+2. หากในแผนไม่ได้ระบุ K-P-A ไว้อย่างชัดเจน ให้คุณสังเคราะห์จุดประสงค์ K, P, A จากเนื้อหาบทเรียนและกิจกรรมการเรียนรู้ที่ปรากฏในแผนขึ้นมาอย่างสมบูรณ์
+3. สังเคราะห์เกณฑ์การประเมินรูบริกแบบมาตรวัดคุณภาพ (Analytical Rubric) ครอบคลุม 3 มิติหลัก:
+   - 1. ด้านความรู้ (Knowledge: K)
+   - 2. ด้านทักษะกระบวนการ (Process/Skill: P)
+   - 3. ด้านเจตคติและคุณลักษณะ (Attitude: A)
+4. เขียนคำอธิบายระดับคุณภาพ (Performance Descriptors) ในแต่ละระดับคะแนนให้เป็นรูปธรรม สอดคล้องกับกิจกรรมในแผน วัดพฤติกรรมได้จริง ชัดเจน และไม่กำกวม
+5. คุณต้องตอบกลับเป็น Compact JSON Object เท่านั้น ห้ามใส่ข้อความเกริ่นนำหรือคำลงท้ายใดๆ นอกก้อน JSON เด็ดขาด`;
+}
+
+export function buildRubricPrompt(planText: string, levelCount: number = 4): string {
+  const scaleInfo = getRubricScaleInfo(levelCount);
+  const sampleKeys = scaleInfo.keys.map(k => `"${k}": "คำอธิบายพฤติกรรมหรือคุณภาพในระดับนี้..."`).join(',\n          ');
+
+  return `
+กรุณาวิเคราะห์ข้อความแผนการจัดการเรียนรู้ต่อไปนี้ และสังเคราะห์เกณฑ์การประเมินรูบริกสกอร์ (Rubric Assessment) จำนวน ${levelCount} ระดับ:
+
+ระดับคะแนนที่ต้องประเมิน:
+${scaleInfo.scaleLabels.map((lbl, idx) => `- ระดับ ${scaleInfo.keys[idx]}: ${lbl}`).join('\n')}
+
+ข้อความแผนการจัดการเรียนรู้:
+---
+${planText.substring(0, 15000)}
+---
+
+โครงสร้าง JSON ที่ต้องตอบกลับ (ห้ามเปลี่ยนแปลง Key เด็ดขาด):
+{
+  "title": "เกณฑ์การประเมินการเรียนรู้ (Rubric Assessment)",
+  "levelCount": ${levelCount},
+  "scaleLabels": ${JSON.stringify(scaleInfo.scaleLabels)},
+  "criteria": [
+    {
+      "aspect": "1. ด้านความรู้ (Knowledge: K)",
+      "target": "สรุปจุดประสงค์การเรียนรู้ด้านความรู้จากแผน...",
+      "descriptors": {
+        ${sampleKeys}
+      }
+    },
+    {
+      "aspect": "2. ด้านทักษะกระบวนการ (Process/Skill: P)",
+      "target": "สรุปจุดประสงค์การเรียนรู้ด้านทักษะ/กระบวนการจากแผน...",
+      "descriptors": {
+        ${sampleKeys}
+      }
+    },
+    {
+      "aspect": "3. ด้านเจตคติและคุณลักษณะ (Attitude: A)",
+      "target": "สรุปจุดประสงค์การเรียนรู้ด้านเจตคติ/คุณลักษณะจากแผน...",
+      "descriptors": {
+        ${sampleKeys}
+      }
+    }
+  ]
+}
+`.trim();
+}
+
+export function parseRubricResponse(rawText: string, levelCount: number = 4): RubricData {
+  const scaleInfo = getRubricScaleInfo(levelCount);
+
+  let parsed: any = null;
+  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      try {
+        const cleaned = jsonMatch[0]
+          .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+          .replace(/\\'/g, "'");
+        parsed = JSON.parse(cleaned);
+      } catch (err) {
+        console.warn('Failed to parse rubric JSON:', err);
+      }
+    }
+  }
+
+  if (!parsed || !Array.isArray(parsed.criteria) || parsed.criteria.length === 0) {
+    return generateStandardRubric(rawText, levelCount);
+  }
+
+  const defaultAspects = [
+    '1. ด้านความรู้ (Knowledge: K)',
+    '2. ด้านทักษะกระบวนการ (Process/Skill: P)',
+    '3. ด้านเจตคติและคุณลักษณะ (Attitude: A)',
+  ];
+
+  const criteria: RubricCriterion[] = parsed.criteria.map((c: any, idx: number) => {
+    const aspect = typeof c.aspect === 'string' && c.aspect.trim() ? c.aspect.trim() : (defaultAspects[idx] || `ด้านที่ ${idx + 1}`);
+    const target = typeof c.target === 'string' && c.target.trim() ? c.target.trim() : '';
+    const descriptors: Record<string, string> = {};
+
+    scaleInfo.keys.forEach(k => {
+      if (c.descriptors && typeof c.descriptors[k] === 'string' && c.descriptors[k].trim()) {
+        descriptors[k] = c.descriptors[k].trim();
+      } else {
+        descriptors[k] = '-';
+      }
+    });
+
+    return { aspect, target, descriptors };
+  });
+
+  return {
+    title: typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : 'เกณฑ์การประเมินการเรียนรู้ (Rubric Assessment)',
+    levelCount,
+    scaleLabels: scaleInfo.scaleLabels,
+    criteria,
+  };
+}
+
+export function generateStandardRubric(planText: string, levelCount: number = 4): RubricData {
+  const scaleInfo = getRubricScaleInfo(levelCount);
+  const topicMatch = planText.match(/(?:เรื่อง|หน่วยการเรียนรู้ที่|แผนการจัดการเรียนรู้ที่)\s*[:\s]*([^\n\r]+)/i);
+  const topic = topicMatch ? topicMatch[1].trim().substring(0, 50) : 'เนื้อหาบทเรียน';
+
+  const makeDescriptors = (dim: string) => {
+    const desc: Record<string, string> = {};
+    if (levelCount === 3) {
+      desc.level_3 = `สามารถปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้อย่างถูกต้องครบถ้วน ชัดเจน และตรงประเด็น`;
+      desc.level_2 = `สามารถปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้ถูกต้องเป็นส่วนใหญ่ แต่ยังขาดรายละเอียดบางส่วน`;
+      desc.level_1 = `สามารถปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้เพียงเล็กน้อย ต้องได้รับคำแนะนำช่วยเหลือ`;
+    } else if (levelCount === 5) {
+      desc.level_5 = `มีความเชี่ยวชาญสูง ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้อย่างถูกต้องสมบูรณ์ และประยุกต์ใช้ได้อย่างสร้างสรรค์`;
+      desc.level_4 = `ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้อย่างถูกต้อง ชัดเจน และตรงประเด็นเป็นอย่างดี`;
+      desc.level_3 = `ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้ถูกต้องตามเกณฑ์มาตรฐานเป็นส่วนใหญ่`;
+      desc.level_2 = `ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้บางส่วน ต้องได้รับการกระตุ้นหรือชี้แนะเพิ่มเติม`;
+      desc.level_1 = `ไม่สามารถปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้อย่างถูกต้อง หรือต้องได้รับคำแนะนำอย่างใกล้ชิด`;
+    } else {
+      desc.level_4 = `ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้อย่างถูกต้องครบถ้วน ชัดเจน และสามารถเชื่อมโยงได้อย่างมีเหตุผล`;
+      desc.level_3 = `ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้อย่างถูกต้องเป็นส่วนใหญ่ ชัดเจนตามเกณฑ์ที่กำหนด`;
+      desc.level_2 = `ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้บางส่วน แต่ยังมีข้อผิดพลาดหรือขาดความสมบูรณ์`;
+      desc.level_1 = `ปฏิบัติ/อธิบาย${dim}เรื่อง ${topic} ได้น้อยมาก ต้องได้รับคำแนะนำและการดูแลอย่างใกล้ชิด`;
+    }
+    return desc;
+  };
+
+  return {
+    title: `เกณฑ์การประเมินการเรียนรู้ (Rubric Assessment) — ${topic}`,
+    levelCount,
+    scaleLabels: scaleInfo.scaleLabels,
+    criteria: [
+      {
+        aspect: '1. ด้านความรู้ (Knowledge: K)',
+        target: `มีความรู้ความเข้าใจในหลักการและเนื้อหาเรื่อง ${topic}`,
+        descriptors: makeDescriptors('ความรู้และหลักการ'),
+      },
+      {
+        aspect: '2. ด้านทักษะกระบวนการ (Process/Skill: P)',
+        target: `มีทักษะการปฏิบัติ การคิดวิเคราะห์ และการแก้ปัญหาเรื่อง ${topic}`,
+        descriptors: makeDescriptors('ทักษะกระบวนการปฏิบัติ'),
+      },
+      {
+        aspect: '3. ด้านเจตคติและคุณลักษณะ (Attitude: A)',
+        target: `มีความมุ่งมั่น ใฝ่เรียนรู้ และมีส่วนร่วมในกิจกรรมการเรียนรู้อย่างสม่ำเสมอ`,
+        descriptors: makeDescriptors('ความกระตือรือร้นและคุณลักษณะ'),
+      },
+    ],
+  };
 }

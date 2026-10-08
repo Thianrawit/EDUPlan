@@ -45,8 +45,13 @@ import {
   formatCompetenciesText,
   formatActivitiesToHtml,
   type LessonPlanInput,
+  buildRubricSystemInstruction,
+  buildRubricPrompt,
+  parseRubricResponse,
+  getRubricScaleInfo,
+  generateStandardRubric,
 } from './templates';
-import type { LessonPlanData, EvaluationRow } from './types';
+import type { LessonPlanData, EvaluationRow, RubricData, RubricCriterion } from './types';
 import {
   callGemini,
   refineWithGemini,
@@ -65,12 +70,16 @@ import {
   getHeaderDisplayValues,
   copyRichText,
   getSectionCopyContent,
+  exportRubricToDocx,
+  copyRubricToClipboard,
 } from './exporter';
+import mammoth from 'mammoth';
 
 // ============================================================
 // State
 // ============================================================
 interface AppState {
+  mainView: 'home' | 'lesson-plan' | 'rubric';
   view: 'choice' | 'wizard' | 'allinone';
   currentStep: number; // 1 to 10
   gradeId: string;
@@ -116,9 +125,30 @@ interface AppState {
   loadingMessage: string;
 }
 
+interface RubricState {
+  levelCount: 3 | 4 | 5;
+  file: File | null;
+  extractedText: string;
+  fileName: string;
+  fileSize: number;
+  rubricData: RubricData | null;
+  isGenerating: boolean;
+}
+
+const rubricState: RubricState = {
+  levelCount: 4,
+  file: null,
+  extractedText: '',
+  fileName: '',
+  fileSize: 0,
+  rubricData: null,
+  isGenerating: false,
+};
+
 const thaiDateNow = getCurrentThaiDate();
 
 const state: AppState = {
+  mainView: 'home',
   view: 'choice',
   currentStep: 1,
   gradeId: '',
@@ -201,7 +231,7 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
 let stopwatchInterval: any = null;
 let stopwatchStartTime = 0;
 
-function startStopwatch() {
+function startStopwatch(customTitle?: string, customSteps?: string[]) {
   state.isLoading = true;
   stopwatchStartTime = Date.now();
   const overlay = document.getElementById('loading-overlay');
@@ -213,20 +243,27 @@ function startStopwatch() {
     overlay.classList.remove('hidden');
   }
 
+  const titlePrefix = customTitle || 'กำลังจัดทำแผนการจัดการเรียนรู้...';
+
   const updateDisplay = () => {
     const elapsedSec = Math.floor((Date.now() - stopwatchStartTime) / 1000);
     if (stopwatchEl) {
-      stopwatchEl.innerHTML = `กำลังจัดทำแผนการจัดการเรียนรู้...<br><span class="text-sm font-semibold text-slate-500">${elapsedSec} วินาที</span>`;
+      stopwatchEl.innerHTML = `${titlePrefix}<br><span class="text-sm font-semibold text-slate-500">${elapsedSec} วินาที</span>`;
     }
     if (stepTextEl) {
-      if (elapsedSec <= 5) {
-        stepTextEl.textContent = 'กำลังวิเคราะห์มาตรฐานการเรียนรู้และตัวชี้วัด...';
-      } else if (elapsedSec <= 15) {
-        stepTextEl.textContent = 'กำลังออกแบบกิจกรรมการเรียนรู้ Active Learning...';
-      } else if (elapsedSec <= 25) {
-        stepTextEl.textContent = 'กำลังจัดทำตารางวัดและประเมินผล 4 คอลัมน์...';
+      if (customSteps && customSteps.length > 0) {
+        const stepIdx = Math.min(Math.floor(elapsedSec / 4), customSteps.length - 1);
+        stepTextEl.textContent = customSteps[stepIdx];
       } else {
-        stepTextEl.textContent = 'กำลังจัดรูปเล่มสารบรรณและบันทึกหลังสอน...';
+        if (elapsedSec <= 5) {
+          stepTextEl.textContent = 'กำลังวิเคราะห์มาตรฐานการเรียนรู้และตัวชี้วัด...';
+        } else if (elapsedSec <= 15) {
+          stepTextEl.textContent = 'กำลังออกแบบกิจกรรมการเรียนรู้ Active Learning...';
+        } else if (elapsedSec <= 25) {
+          stepTextEl.textContent = 'กำลังจัดทำตารางวัดและประเมินผล 4 คอลัมน์...';
+        } else {
+          stepTextEl.textContent = 'กำลังจัดรูปเล่มสารบรรณและบันทึกหลังสอน...';
+        }
       }
     }
   };
@@ -435,6 +472,45 @@ function showModal(title: string, message: string, onYes: () => void, onNo: () =
 // ============================================================
 // Navigation & Views
 // ============================================================
+function switchMainView(view: 'home' | 'lesson-plan' | 'rubric') {
+  state.mainView = view;
+  const homeEl = document.getElementById('home-section');
+  const lessonPlanEl = document.getElementById('lesson-plan-section');
+  const rubricEl = document.getElementById('rubric-section');
+  const backHomeBtn = document.getElementById('btn-back-home');
+  const navBadge = document.getElementById('nav-mode-badge');
+  const navSubtitle = document.getElementById('nav-mode-subtitle');
+
+  if (homeEl) homeEl.classList.toggle('hidden', view !== 'home');
+  if (lessonPlanEl) lessonPlanEl.classList.toggle('hidden', view !== 'lesson-plan');
+  if (rubricEl) rubricEl.classList.toggle('hidden', view !== 'rubric');
+
+  if (backHomeBtn) {
+    if (view === 'home') {
+      backHomeBtn.classList.add('hidden');
+      backHomeBtn.classList.remove('inline-flex');
+    } else {
+      backHomeBtn.classList.remove('hidden');
+      backHomeBtn.classList.add('inline-flex');
+    }
+  }
+
+  if (view === 'home') {
+    if (navBadge) navBadge.textContent = 'มาตรฐาน วPA';
+    if (navSubtitle) navSubtitle.textContent = 'ระบบช่วยจัดการเรียนรู้อัจฉริยะ';
+    scrollToTarget(0, 0);
+  } else if (view === 'lesson-plan') {
+    if (navBadge) navBadge.textContent = 'สร้างแผนการสอน';
+    if (navSubtitle) navSubtitle.textContent = 'ระบบสร้างแผนการจัดการเรียนรู้อัจฉริยะ';
+    switchView(state.view || 'choice');
+    scrollToTarget(0, 0);
+  } else if (view === 'rubric') {
+    if (navBadge) navBadge.textContent = 'เกณฑ์รูบริกสกอร์';
+    if (navSubtitle) navSubtitle.textContent = 'ระบบสร้างเกณฑ์รูบริกสกอร์อัจฉริยะ';
+    scrollToTarget(0, 0);
+  }
+}
+
 function switchView(view: 'choice' | 'wizard' | 'allinone') {
   state.view = view;
   const choiceEl = document.getElementById('mode-choice-section');
@@ -2667,6 +2743,7 @@ function applyPreset(presetKey: string) {
   state.currentStep = 10;
   syncAllFormInputsFromState();
   scheduleSaveDraft();
+  switchMainView('lesson-plan');
   showToast(`โหลดตัวอย่าง "${state.planName}" เรียบร้อยแล้ว`, 'success');
 }
 
@@ -2833,6 +2910,379 @@ function bindInput(selector: string, stateKey: keyof AppState) {
 }
 
 // ============================================================
+// Rubric Score Generator Module
+// ============================================================
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function renderRubricPreview(data: RubricData) {
+  const titleEl = document.getElementById('rubric-preview-title');
+  if (titleEl) {
+    titleEl.textContent = data.title || 'เกณฑ์การประเมินการเรียนรู้ (Rubric Assessment)';
+  }
+
+  const scaleInfo = getRubricScaleInfo(data.levelCount);
+  const tableWrapper = document.getElementById('rubric-table-wrapper');
+  if (tableWrapper) {
+    const headerCols = [
+      '<th class="border border-slate-900 bg-slate-50 px-3 py-2 text-center font-bold text-sm text-slate-900 w-1/4">ประเด็นการประเมิน</th>',
+      ...data.scaleLabels.map(lbl => `<th class="border border-slate-900 bg-slate-50 px-3 py-2 text-center font-bold text-sm text-slate-900">${lbl}</th>`)
+    ].join('');
+
+    const bodyRows = data.criteria.map((crit, idx) => {
+      const descCells = scaleInfo.keys.map(k => {
+        const desc = crit.descriptors[k] || '-';
+        return `<td class="rubric-cell border border-slate-900 p-2.5 text-xs sm:text-sm text-slate-800 align-top focus:bg-amber-50 focus:outline-none" contenteditable="true" data-row="${idx}" data-key="${k}">${desc}</td>`;
+      }).join('');
+
+      return `
+        <tr>
+          <td class="rubric-cell-aspect border border-slate-900 p-2.5 text-xs sm:text-sm text-slate-900 align-top focus:bg-amber-50 focus:outline-none" contenteditable="true" data-row="${idx}">
+            <div class="font-bold text-slate-900">${crit.aspect}</div>
+            ${crit.target ? `<div class="text-xs text-slate-600 italic mt-1 font-normal">${crit.target}</div>` : ''}
+          </td>
+          ${descCells}
+        </tr>
+      `;
+    }).join('');
+
+    tableWrapper.innerHTML = `
+      <table class="w-full border-collapse border border-slate-900 text-left" style="font-family: 'TH SarabunPSK', Sarabun, sans-serif;">
+        <thead>
+          <tr>${headerCols}</tr>
+        </thead>
+        <tbody>
+          ${bodyRows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // Scoring Guide Table (Borderless Table)
+  const guideWrapper = document.getElementById('rubric-guide-wrapper');
+  if (guideWrapper) {
+    const guideRows = scaleInfo.guideEntries.map(entry => {
+      return `
+        <tr class="text-sm">
+          <td class="py-1 pr-4 text-slate-800 font-medium whitespace-nowrap">คะแนน ${entry.score}</td>
+          <td class="py-1 px-4 text-slate-500 whitespace-nowrap">หมายถึง</td>
+          <td class="py-1 pl-4 text-slate-900 font-bold">${entry.label}</td>
+        </tr>
+      `;
+    }).join('');
+
+    guideWrapper.innerHTML = `
+      <div class="max-w-md" style="font-family: 'TH SarabunPSK', Sarabun, sans-serif;">
+        <h4 class="font-bold text-slate-900 text-base mb-2">เกณฑ์การให้คะแนน</h4>
+        <table class="w-auto border-none">
+          <tbody>
+            ${guideRows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+function getRubricDataFromDOM(): RubricData {
+  if (!rubricState.rubricData) {
+    rubricState.rubricData = generateStandardRubric(rubricState.extractedText || '', rubricState.levelCount);
+  }
+  const current = rubricState.rubricData;
+  const titleEl = document.getElementById('rubric-preview-title');
+  if (titleEl && titleEl.textContent) {
+    current.title = titleEl.textContent.trim();
+  }
+
+  // Sync aspect & targets from DOM
+  const aspectCells = document.querySelectorAll('.rubric-cell-aspect');
+  aspectCells.forEach((cell, idx) => {
+    if (current.criteria[idx]) {
+      const aspectDiv = cell.querySelector('.font-bold');
+      const targetDiv = cell.querySelector('.italic');
+      if (aspectDiv && aspectDiv.textContent) {
+        current.criteria[idx].aspect = aspectDiv.textContent.trim();
+      } else if (cell.textContent) {
+        current.criteria[idx].aspect = cell.textContent.trim();
+      }
+      if (targetDiv && targetDiv.textContent) {
+        current.criteria[idx].target = targetDiv.textContent.trim();
+      }
+    }
+  });
+
+  // Sync descriptors from DOM
+  const descCells = document.querySelectorAll('.rubric-cell');
+  descCells.forEach(cell => {
+    const rowIdx = parseInt((cell as HTMLElement).dataset.row || '-1', 10);
+    const key = (cell as HTMLElement).dataset.key;
+    if (rowIdx >= 0 && key && current.criteria[rowIdx]) {
+      current.criteria[rowIdx].descriptors[key] = (cell.textContent || '').trim();
+    }
+  });
+
+  return current;
+}
+
+function setupRubricModule() {
+  // 1. Radio Level Selection Cards
+  document.querySelectorAll('.rubric-level-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const levelStr = (card as HTMLElement).dataset.level;
+      const level = parseInt(levelStr || '4', 10) as 3 | 4 | 5;
+      rubricState.levelCount = level;
+
+      document.querySelectorAll('.rubric-level-card').forEach(c => {
+        const isCurrent = c === card;
+        c.classList.toggle('active', isCurrent);
+        c.classList.toggle('border-purple-600', isCurrent);
+        c.classList.toggle('bg-purple-50/40', isCurrent);
+        c.classList.toggle('shadow-xs', isCurrent);
+        c.classList.toggle('border-slate-200', !isCurrent);
+        c.classList.toggle('bg-white', !isCurrent);
+
+        const radio = c.querySelector('input[type="radio"]') as HTMLInputElement | null;
+        if (radio) radio.checked = isCurrent;
+
+        const dot = c.querySelector('.level-radio-dot');
+        if (dot) {
+          if (isCurrent) {
+            dot.className = 'level-radio-dot w-4 h-4 rounded-full border-2 border-purple-600 bg-purple-600 flex items-center justify-center text-white text-[10px]';
+            dot.textContent = '✓';
+          } else {
+            dot.className = 'level-radio-dot w-4 h-4 rounded-full border-2 border-slate-300';
+            dot.textContent = '';
+          }
+        }
+      });
+    });
+  });
+
+  // 2. Drag & Drop and File Input
+  const dropzone = document.getElementById('rubric-dropzone');
+  const fileInput = document.getElementById('rubric-file-input') as HTMLInputElement | null;
+  const fileInfoBox = document.getElementById('rubric-file-info');
+  const fileNameEl = document.getElementById('rubric-filename');
+  const fileDetailsEl = document.getElementById('rubric-filedetails');
+  const removeFileBtn = document.getElementById('btn-rubric-remove-file');
+
+  async function handleDocxFile(file: File) {
+    const isDocx = file.name.toLowerCase().endsWith('.docx') ||
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+    if (!isDocx) {
+      showToast('กรุณาอัปโหลดเฉพาะไฟล์เอกสาร Word (.docx) เท่านั้น', 'info');
+      return;
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      const extractedText = (result.value || '').trim();
+
+      if (extractedText.length < 100) {
+        showToast('ไม่พบเนื้อหาแผนการสอนในเอกสาร กรุณาตรวจสอบไฟล์', 'error');
+        return;
+      }
+
+      rubricState.file = file;
+      rubricState.fileName = file.name;
+      rubricState.fileSize = file.size;
+      rubricState.extractedText = extractedText;
+
+      if (fileNameEl) fileNameEl.textContent = file.name;
+      if (fileDetailsEl) {
+        fileDetailsEl.textContent = `${formatFileSize(file.size)} • ความยาว ${extractedText.length.toLocaleString()} ตัวอักษร`;
+      }
+
+      if (dropzone) dropzone.classList.add('hidden');
+      if (fileInfoBox) fileInfoBox.classList.remove('hidden');
+
+      showToast(`โหลดไฟล์ ${file.name} สำเร็จ (${extractedText.length.toLocaleString()} ตัวอักษร)`, 'success');
+    } catch (err: any) {
+      console.error('Error extracting text from docx:', err);
+      showToast('ไม่สามารถอ่านไฟล์ .docx ได้: ' + (err?.message || 'รูปแบบไฟล์ไม่ถูกต้อง'), 'error');
+    }
+  }
+
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('border-purple-600', 'bg-purple-50/40');
+    });
+
+    dropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('border-purple-600', 'bg-purple-50/40');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('border-purple-600', 'bg-purple-50/40');
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        handleDocxFile(files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length > 0) {
+        handleDocxFile(fileInput.files[0]);
+      }
+    });
+  }
+
+  if (removeFileBtn) {
+    removeFileBtn.addEventListener('click', () => {
+      rubricState.file = null;
+      rubricState.extractedText = '';
+      rubricState.fileName = '';
+      rubricState.fileSize = 0;
+      if (fileInput) fileInput.value = '';
+      if (fileInfoBox) fileInfoBox.classList.add('hidden');
+      if (dropzone) dropzone.classList.remove('hidden');
+    });
+  }
+
+  // 3. Generate Rubric Button
+  const generateRubricBtn = document.getElementById('btn-generate-rubric');
+  if (generateRubricBtn) {
+    generateRubricBtn.addEventListener('click', async () => {
+      if (!rubricState.extractedText || rubricState.extractedText.length < 100) {
+        showToast('กรุณาอัปโหลดไฟล์แผนการสอน (.docx) ที่มีเนื้อหาก่อนสร้างเกณฑ์รูบริก', 'info');
+        return;
+      }
+
+      if (rubricState.isGenerating) return;
+      rubricState.isGenerating = true;
+      const startTime = Date.now();
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      startStopwatch(
+        'กำลังวิเคราะห์แผนการสอนและสังเคราะห์เกณฑ์การประเมิน...',
+        [
+          'อ่านและถอดบทเรียนจากแผนการสอน',
+          'วิเคราะห์จุดประสงค์ K-P-A และกิจกรรมการเรียนรู้',
+          'สังเคราะห์เกณฑ์ระดับคุณภาพ (Descriptors)',
+          'จัดทำตารางเกณฑ์รูบริกสกอร์ตามมาตรฐาน'
+        ]
+      );
+
+      try {
+        const prompt = buildRubricPrompt(rubricState.extractedText, rubricState.levelCount);
+        const systemInstruction = buildRubricSystemInstruction();
+        const result = await callGemini(prompt, systemInstruction, 4096, 'fast');
+
+        let rubricData: RubricData;
+        if (result && result.text) {
+          const parsed = parseRubricResponse(result.text, rubricState.levelCount);
+          if (parsed) {
+            rubricData = parsed;
+          } else {
+            rubricData = generateStandardRubric(rubricState.extractedText, rubricState.levelCount);
+          }
+        } else {
+          rubricData = generateStandardRubric(rubricState.extractedText, rubricState.levelCount);
+        }
+
+        rubricState.rubricData = rubricData;
+        renderRubricPreview(rubricData);
+
+        const previewSection = document.getElementById('rubric-preview-section');
+        if (previewSection) {
+          previewSection.classList.remove('hidden');
+          scrollToTarget('#rubric-preview-section', 40);
+        }
+
+        const durationSeconds = (Date.now() - startTime) / 1000;
+        sendTelemetry({
+          subject_id: 'rubric_assessment',
+          grade_level: `${rubricState.levelCount}_levels`,
+          generation_mode: 'rubric',
+          key_type: result?.keyType || (isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared'),
+          resolved_model: result?.resolvedModel || 'gemini',
+          duration_seconds: durationSeconds,
+        });
+
+        showToast('สร้างเกณฑ์รูบริกสกอร์สำเร็จ!', 'success');
+      } catch (err: any) {
+        console.error('Error generating rubric:', err);
+        showToast('เกิดข้อผิดพลาดในการสร้างรูบริก: ' + (err?.message || 'กรุณาลองใหม่อีกครั้ง'), 'error');
+      } finally {
+        rubricState.isGenerating = false;
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        stopStopwatch();
+      }
+    });
+  }
+
+  // 4. Copy Rubric Button
+  const copyRubricBtn = document.getElementById('btn-copy-rubric');
+  if (copyRubricBtn) {
+    copyRubricBtn.addEventListener('click', async () => {
+      const data = getRubricDataFromDOM();
+      const success = await copyRubricToClipboard(data);
+      if (success) {
+        showToast('คัดลอกตารางรูบริกลง Clipboard เรียบร้อย! สามารถกด Paste ใน Word ได้ทันที', 'success');
+        sendTelemetry({
+          subject_id: 'rubric_assessment',
+          grade_level: `${rubricState.levelCount}_levels`,
+          generation_mode: 'rubric',
+          key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
+          resolved_model: 'client_clipboard',
+          duration_seconds: 0,
+          export_action: 'copy_rubric',
+        });
+      } else {
+        showToast('ไม่สามารถคัดลอกลง Clipboard ได้', 'error');
+      }
+    });
+  }
+
+  // 5. Download Word (.docx) Button
+  const exportRubricDocxBtn = document.getElementById('btn-export-rubric-docx');
+  if (exportRubricDocxBtn) {
+    exportRubricDocxBtn.addEventListener('click', async () => {
+      try {
+        const data = getRubricDataFromDOM();
+        await exportRubricToDocx(data);
+        showToast('ส่งออกเอกสาร Word (.docx) เรียบร้อยแล้ว', 'success');
+        sendTelemetry({
+          subject_id: 'rubric_assessment',
+          grade_level: `${rubricState.levelCount}_levels`,
+          generation_mode: 'rubric',
+          key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
+          resolved_model: 'client_docx',
+          duration_seconds: 0,
+          export_action: 'export_rubric_docx',
+        });
+      } catch (err: any) {
+        console.error('Error exporting rubric docx:', err);
+        showToast('ไม่สามารถส่งออกไฟล์ Word ได้: ' + (err?.message || 'เกิดข้อผิดพลาด'), 'error');
+      }
+    });
+  }
+
+  // 6. Navigation Hub Buttons
+  document.getElementById('btn-nav-lesson-plan')?.addEventListener('click', () => {
+    switchMainView('lesson-plan');
+  });
+
+  document.getElementById('btn-nav-rubric')?.addEventListener('click', () => {
+    switchMainView('rubric');
+  });
+
+  document.getElementById('btn-back-home')?.addEventListener('click', () => {
+    switchMainView('home');
+  });
+}
+
+// ============================================================
 // Initialization
 // ============================================================
 async function init() {
@@ -2990,14 +3440,20 @@ async function init() {
   // Settings Modal
   setupSettingsModal();
 
+  // Rubric Module Setup
+  setupRubricModule();
+
   // Restore Draft if exists
   const hasDraft = loadDraftFromLocalStorage();
   if (hasDraft) {
     syncAllFormInputsFromState();
     showToast('โหลดข้อมูลร่างเดิมที่บันทึกไว้อัตโนมัติ', 'info');
   } else {
-    switchView('choice');
+    state.view = 'choice';
   }
+
+  // Initial View
+  switchMainView('home');
 }
 
 function populateAllInOneGrades() {

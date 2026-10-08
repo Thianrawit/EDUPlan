@@ -50,15 +50,23 @@
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
+        <!-- Back to Home Button -->
+        <button id="btn-back-home" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-blue-600 transition-all shadow-xs cursor-pointer" title="กลับไปยังหน้าหลัก Hub">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>กลับหน้าหลัก</span>
+        </button>
+
         <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
           EP
         </div>
         <div>
           <div class="flex items-center gap-2">
             <span class="font-bold text-slate-900 text-lg leading-tight">EduPlan AI</span>
-            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">มาตรฐาน วPA</span>
+            <span id="nav-mode-badge" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">มาตรฐาน วPA</span>
           </div>
-          <p class="text-xs text-slate-500 hidden sm:block">ระบบสร้างแผนการจัดการเรียนรู้อัจฉริยะ</p>
+          <p id="nav-mode-subtitle" class="text-xs text-slate-500 hidden sm:block">ระบบสร้างแผนการจัดการเรียนรู้อัจฉริยะ</p>
         </div>
       </div>
 
@@ -90,9 +98,92 @@
   <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 sm:py-10">
 
     <!-- ============================================================ -->
-    <!-- VIEW 1: MODE CHOICE SCREEN (Image 1) -->
+    <!-- VIEW: MAIN NAVIGATION HUB (Home Screen) -->
     <!-- ============================================================ -->
-    <section id="mode-choice-section" class="py-6 sm:py-12 animate-fade-in">
+    <section id="home-section" class="py-6 sm:py-10 animate-fade-in">
+      <!-- Hero Header -->
+      <div class="text-center max-w-2xl mx-auto mb-10 sm:mb-12">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-4 border border-blue-200/80 shadow-xs">
+          <span>✨</span>
+          <span>ระบบผู้ช่วยครูมืออาชีพยุคใหม่ — มาตรฐาน วPA</span>
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
+          ยินดีต้อนรับสู่ <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">EduPlan AI</span>
+        </h1>
+        <p class="text-slate-600 text-sm sm:text-base leading-relaxed">
+          ระบบช่วยจัดการเรียนรู้อัจฉริยะ ออกแบบแผนการสอนและเกณฑ์การวัดผลด้วย AI ครบวงจร
+        </p>
+      </div>
+
+      <!-- Main Navigation Cards (2 Cards Layout) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <!-- Card 1: Lesson Plan Generator -->
+        <div class="mode-card group hover:border-blue-500 hover:shadow-lg transition-all flex flex-col justify-between p-6 sm:p-7 bg-white rounded-2xl border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between mb-5">
+              <div class="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-xs group-hover:scale-105 transition-transform">
+                <span class="text-2xl">📝</span>
+              </div>
+              <span class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-1 rounded-full">
+                มาตรฐาน 11 หัวข้อ
+              </span>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors">
+              สร้างแผนการจัดการเรียนรู้
+            </h2>
+            <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mb-4">
+              สร้างแผนการสอนมาตรฐาน 11 หัวข้อ อิงหลักสูตรแกนกลาง 2551/2560 ครอบคลุม ป.1 - ม.6 และปฐมวัย พร้อมส่งออกไฟล์ Word (.docx)
+            </p>
+            <ul class="text-xs text-slate-500 space-y-1.5 mb-6">
+              <li class="flex items-center gap-1.5"><span class="text-emerald-500 font-bold">✓</span> ดึงตัวชี้วัดจากฐานข้อมูลหลักสูตรอัตโนมัติ</li>
+              <li class="flex items-center gap-1.5"><span class="text-emerald-500 font-bold">✓</span> ร่าง K-P-A และกิจกรรม Active Learning สมบูรณ์</li>
+              <li class="flex items-center gap-1.5"><span class="text-emerald-500 font-bold">✓</span> ส่งออกเอกสาร Word ถูกต้องตามระเบียบ</li>
+            </ul>
+          </div>
+          <button id="btn-nav-lesson-plan" class="w-full bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm group-hover:shadow-md transition-all">
+            <span>เริ่มสร้างแผนจัดการเรียนรู้</span>
+          </button>
+        </div>
+
+        <!-- Card 2: Rubric Score Generator -->
+        <div class="mode-card group hover:border-purple-500 hover:shadow-lg transition-all flex flex-col justify-between p-6 sm:p-7 bg-white rounded-2xl border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between mb-5">
+              <div class="w-14 h-14 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shadow-xs group-hover:scale-105 transition-transform">
+                <span class="text-2xl">📊</span>
+              </div>
+              <span class="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200/80 px-2.5 py-1 rounded-full">
+                โมดูลใหม่ (New)
+              </span>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2 group-hover:text-purple-600 transition-colors">
+              สร้างเกณฑ์รูบริกสกอร์
+            </h2>
+            <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mb-4">
+              อัปโหลดแผนการสอน (.docx) เพื่อให้ AI วิเคราะห์สังเคราะห์เกณฑ์การประเมินรูบริกตาม K-P-A อัตโนมัติ เลือกระดับคะแนนได้ 3, 4 หรือ 5 ระดับ
+            </p>
+            <ul class="text-xs text-slate-500 space-y-1.5 mb-6">
+              <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> นำเข้าไฟล์ Word (.docx) ลากและวางง่ายดาย</li>
+              <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> สังเคราะห์คำอธิบายระดับคุณภาพ (Descriptors) ชัดเจน</li>
+              <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> ส่งออกตารางเกณฑ์รูบริกและเกณฑ์คะแนนลง Word ทันที</li>
+            </ul>
+          </div>
+          <button id="btn-nav-rubric" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm group-hover:shadow-md transition-all">
+            <span>เริ่มสร้างรูบริกสกอร์</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- VIEW: LESSON PLAN GENERATOR WRAPPER -->
+    <!-- ============================================================ -->
+    <div id="lesson-plan-section" class="hidden">
+
+      <!-- ============================================================ -->
+      <!-- VIEW 1: MODE CHOICE SCREEN (Image 1) -->
+      <!-- ============================================================ -->
+      <section id="mode-choice-section" class="py-6 sm:py-12 animate-fade-in">
       <div class="text-center max-w-xl mx-auto mb-10">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium mb-3">
           เริ่มต้นเตรียมแผนการสอน
@@ -828,11 +919,11 @@
 
         <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-xl mx-auto">
           <button id="btn-generate-aio-fast" class="btn-fast-mode flex-1 w-full text-sm sm:text-base py-3.5 px-4 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all">
-            <span>⚡ สร้างแผนการสอน (โหมดด่วน)</span>
+            <span>⚡ สร้างแผนการสอน<br>(โหมดด่วน)</span>
           </button>
           <div class="flex-1 w-full flex flex-col items-center">
             <button id="btn-generate-aio-precision" class="btn-precision-mode w-full text-sm sm:text-base py-3.5 px-4 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all">
-              <span>🎯 สร้างแผนการสอน (เน้นความละเอียดสูง วPA)</span>
+              <span>🎯 สร้างแผนการสอน<br>(เน้นความละเอียดสูง)</span>
             </button>
             <span id="aio-precision-badge" class="precision-badge hidden mt-1.5 text-xs text-amber-600 font-medium">คุณใช้สิทธิ์โหมดละเอียดของวันนี้แล้ว (รีเซ็ตเที่ยงคืน)</span>
           </div>
@@ -882,6 +973,175 @@
           <button id="btn-refine" class="btn-primary text-sm px-5 whitespace-nowrap">
             ปรับปรุงแผน
           </button>
+        </div>
+      </div>
+    </section>
+    </div> <!-- End of #lesson-plan-section -->
+
+    <!-- ============================================================ -->
+    <!-- VIEW: RUBRIC SCORE GENERATOR -->
+    <!-- ============================================================ -->
+    <section id="rubric-section" class="hidden animate-fade-in py-6 sm:py-8 max-w-4xl mx-auto">
+      <div id="rubric-container">
+        <!-- Rubric Header -->
+        <div class="text-center max-w-xl mx-auto mb-8">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-semibold mb-3 border border-purple-200">
+            <span>📊</span>
+            <span>Rubric Score Generator</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-2">
+            ระบบสร้างเกณฑ์รูบริกสกอร์อัจฉริยะ
+          </h1>
+          <p class="text-slate-600 text-sm">
+            วิเคราะห์แผนการจัดการเรียนรู้เดิม (.docx) และสังเคราะห์เกณฑ์การประเมินคุณภาพตาม K-P-A พร้อมส่งออกตารางลง Word
+          </p>
+        </div>
+
+        <!-- Form Card Container -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-8">
+          <!-- ขั้นตอนที่ 1: เลือกระดับเกณฑ์การประเมิน -->
+          <div>
+            <div class="flex items-center gap-2.5 mb-3">
+              <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs shrink-0">1</span>
+              <h3 class="font-bold text-slate-900 text-base">เลือกระดับเกณฑ์การประเมิน</h3>
+            </div>
+            <p class="text-xs text-slate-500 mb-4 ml-8">เลือกระดับคะแนนที่ท่านต้องการใช้ในการวัดผลผู้เรียน</p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 ml-0 sm:ml-8">
+              <!-- Radio Card: 3 Levels -->
+              <label class="rubric-level-card relative flex flex-col p-4 rounded-xl border-2 border-slate-200 hover:border-purple-300 cursor-pointer transition-all bg-white" data-level="3">
+                <input type="radio" name="rubric-level" value="3" class="sr-only" />
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-bold text-slate-900 text-sm">เกณฑ์แบบ 3 ระดับ</span>
+                  <span class="level-radio-dot w-4 h-4 rounded-full border-2 border-slate-300"></span>
+                </div>
+                <p class="text-xs text-slate-500">ดี (3) → พอใช้ (2) → ปรับปรุง (1)</p>
+              </label>
+
+              <!-- Radio Card: 4 Levels (Recommended) -->
+              <label class="rubric-level-card active relative flex flex-col p-4 rounded-xl border-2 border-purple-600 bg-purple-50/40 cursor-pointer transition-all shadow-xs" data-level="4">
+                <input type="radio" name="rubric-level" value="4" class="sr-only" checked />
+                <div class="flex items-center justify-between mb-1">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-bold text-slate-900 text-sm">เกณฑ์แบบ 4 ระดับ</span>
+                    <span class="text-[10px] font-bold bg-purple-600 text-white px-1.5 py-0.5 rounded">แนะนำ</span>
+                  </div>
+                  <span class="level-radio-dot w-4 h-4 rounded-full border-2 border-purple-600 bg-purple-600 flex items-center justify-center text-white text-[10px]">✓</span>
+                </div>
+                <p class="text-xs text-slate-500">ดีมาก (4) → ดี (3) → พอใช้ (2) → ปรับปรุง (1)</p>
+              </label>
+
+              <!-- Radio Card: 5 Levels -->
+              <label class="rubric-level-card relative flex flex-col p-4 rounded-xl border-2 border-slate-200 hover:border-purple-300 cursor-pointer transition-all bg-white" data-level="5">
+                <input type="radio" name="rubric-level" value="5" class="sr-only" />
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-bold text-slate-900 text-sm">เกณฑ์แบบ 5 ระดับ</span>
+                  <span class="level-radio-dot w-4 h-4 rounded-full border-2 border-slate-300"></span>
+                </div>
+                <p class="text-xs text-slate-500">ยอดเยี่ยม (5) → ดีมาก (4) → ดี (3) → พอใช้ (2) → ปรับปรุง (1)</p>
+              </label>
+            </div>
+          </div>
+
+          <hr class="border-slate-100" />
+
+          <!-- ขั้นตอนที่ 2: อัปโหลดไฟล์แผนการสอน (.docx) -->
+          <div>
+            <div class="flex items-center gap-2.5 mb-3">
+              <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs shrink-0">2</span>
+              <h3 class="font-bold text-slate-900 text-base">อัปโหลดไฟล์แผนการสอน (.docx)</h3>
+            </div>
+            <p class="text-xs text-slate-500 mb-4 ml-8">นำเข้าไฟล์เอกสาร Word เพื่อให้ AI วิเคราะห์เนื้อหาและกิจกรรม</p>
+
+            <div class="ml-0 sm:ml-8 space-y-3">
+              <!-- Drag & Drop Zone -->
+              <div id="rubric-dropzone" class="border-2 border-dashed border-slate-300 hover:border-purple-500 rounded-2xl p-6 sm:p-8 text-center bg-slate-50/60 hover:bg-purple-50/20 transition-all cursor-pointer">
+                <input type="file" id="rubric-file-input" accept=".docx" class="hidden" />
+                <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 mx-auto flex items-center justify-center text-2xl mb-3">
+                  📄
+                </div>
+                <p class="text-sm font-bold text-slate-800 mb-1">
+                  ลากไฟล์ .docx แผนการสอนมาวางที่นี่ หรือ <span class="text-purple-600 underline cursor-pointer">คลิกเพื่ออัปโหลด</span>
+                </p>
+                <p class="text-xs text-slate-400">รองรับเฉพาะไฟล์เอกสาร Word (.docx) เท่านั้น</p>
+              </div>
+
+              <!-- File Info Box (Shown when file is selected) -->
+              <div id="rubric-file-info" class="hidden p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 animate-fade-in">
+                <div class="flex items-center gap-3 overflow-hidden">
+                  <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base shrink-0">
+                    ✓
+                  </div>
+                  <div class="truncate">
+                    <p id="rubric-filename" class="text-sm font-bold text-slate-900 truncate">document.docx</p>
+                    <p id="rubric-filedetails" class="text-xs text-slate-500">120 KB • ความยาว 2,450 ตัวอักษร</p>
+                  </div>
+                </div>
+                <button id="btn-rubric-remove-file" class="px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors shrink-0 cursor-pointer">
+                  เปลี่ยนไฟล์
+                </button>
+              </div>
+
+              <!-- Notice Box -->
+              <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 leading-relaxed flex items-start gap-2">
+                <span class="text-amber-600 text-base shrink-0">ℹ️</span>
+                <span><strong>หมายเหตุ:</strong> หากในไฟล์แผนไม่ได้ระบุ K-P-A หรือระบุไม่ชัดเจน AI จะสังเคราะห์เกณฑ์จากเนื้อหาบทเรียนและกิจกรรมที่ปรากฏขึ้นมาให้อัตโนมัติ</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="border-slate-100" />
+
+          <!-- ขั้นตอนที่ 3: สั่งประมวลผล AI -->
+          <div>
+            <div class="flex items-center gap-2.5 mb-4">
+              <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs shrink-0">3</span>
+              <h3 class="font-bold text-slate-900 text-base">ประมวลผลสร้างรูบริก</h3>
+            </div>
+
+            <div class="ml-0 sm:ml-8">
+              <button id="btn-generate-rubric" class="w-full sm:w-auto min-w-[280px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-base py-3.5 px-6 rounded-xl font-bold shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                <span>⚡ สร้างเกณฑ์รูบริก (Rubric Score)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rubric Preview Section -->
+        <div id="rubric-preview-section" class="hidden mt-8 animate-fade-in">
+          <!-- Toolbar -->
+          <div class="bg-white rounded-xl border border-slate-200 p-4 mb-6 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="font-bold text-slate-900 text-base">ตัวอย่างเกณฑ์รูบริกสกอร์</h3>
+              <p class="text-xs text-slate-500">สามารถคลิกแก้ไขข้อความในตารางได้โดยตรงก่อนส่งออก</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button id="btn-copy-rubric" class="btn-secondary text-xs sm:text-sm py-2 px-3.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>📋 คัดลอกตาราง</span>
+              </button>
+              <button id="btn-export-rubric-docx" class="btn-primary text-xs sm:text-sm py-2 px-3.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>💾 ดาวน์โหลดรูบริก (.docx)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Virtual A4 Paper Card -->
+          <div class="a4-sheet bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-10">
+            <!-- Header Title (Editable) -->
+            <h2 id="rubric-preview-title" contenteditable="true" class="text-xl sm:text-2xl font-bold text-center text-slate-900 mb-6 pb-2 border-b border-slate-200 focus:outline-none focus:bg-amber-50 rounded" style="font-family: 'TH SarabunPSK', sans-serif;">
+              เกณฑ์การประเมินการเรียนรู้ (Rubric Assessment)
+            </h2>
+
+            <!-- Rubric Table Container -->
+            <div id="rubric-table-wrapper" class="overflow-x-auto mb-8">
+              <!-- Rendered via renderRubricPreview() -->
+            </div>
+
+            <!-- Scoring Guide Table -->
+            <div id="rubric-guide-wrapper" class="mt-6 pt-4 border-t border-slate-100">
+              <!-- Rendered via renderRubricPreview() -->
+            </div>
+          </div>
         </div>
       </div>
     </section>

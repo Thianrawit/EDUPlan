@@ -156,3 +156,17 @@ export interface LessonPlanData {
   teacher_name?: string;
   teacher_position?: string;
 }
+
+/** โครงสร้างข้อมูลเกณฑ์การประเมินรูบริกสกอร์ (Rubric Score Generator) */
+export interface RubricCriterion {
+  aspect: string; // เช่น "1. ด้านความรู้ (Knowledge: K)"
+  target: string; // เช่น "สรุปจุดประสงค์ K จากแผน..."
+  descriptors: Record<string, string>; // เช่น { "level_3": "...", "level_2": "...", "level_1": "..." }
+}
+
+export interface RubricData {
+  title: string;
+  levelCount: number; // 3 | 4 | 5
+  scaleLabels: string[]; // เช่น ["ดีมาก (4)", "ดี (3)", "พอใช้ (2)", "ปรับปรุง (1)"]
+  criteria: RubricCriterion[];
+}
