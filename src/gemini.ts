@@ -168,13 +168,13 @@ async function callGeminiDirectBYOK(
   maxTokens: number = 8192,
   mode: 'kpa' | 'fast' | 'precision' = 'fast'
 ): Promise<GeminiResult> {
-  // เลือกลำดับโมเดลสำหรับ Direct API (รองรับโมเดลล่าสุด Gemini 3.x / Flash-latest และ Fallback ครอบคลุม)
-  const candidateModels =
-    mode === 'kpa'
-      ? ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-      : mode === 'precision'
-      ? ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-pro-latest', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro']
-      : ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  // เลือกลำดับโมเดลสำหรับ Direct API (4 ตัวหลักตามที่กำหนด)
+  const candidateModels = [
+    'gemini-3.5-flash',
+    'gemini-flash-latest',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+  ];
 
   const geminiPayload: any = {
     contents: [
@@ -222,18 +222,39 @@ async function callGeminiDirectBYOK(
         }
       }
 
-      // หากติด 404 (โมเดลเลิกใช้), 400, 503 (โหลดเกินชั่วคราว), หรือ 429 (โควต้าเฉพาะโมเดล) ให้ลองโมเดลถัดไป
-      if (response.status === 404 || response.status === 400 || response.status === 503 || response.status === 429) {
+      // หากเจอ 400 หรือ 403 ให้หยุดทันทีและแจ้ง Error (ห้ามวนต่อ)
+      if (response.status === 400 || response.status === 403) {
+        const errorData = await response.json().catch(() => ({}));
+        const serverMsg = (errorData as any)?.error?.message || `BYOK Error (HTTP ${response.status})`;
+        const fatalErr = new Error(serverMsg);
+        (fatalErr as any).isFatal = true;
+        throw fatalErr;
+      }
+
+      // หากเจอ 429 ให้สลับไปใช้ Shared Worker ทันทีโดยไม่ต้องวนโมเดลอื่น
+      if (response.status === 429) {
+        throw new Error('BYOK_429');
+      }
+
+      // ให้วนลองโมเดลถัดไปเฉพาะเมื่อ status เป็น 404 หรือ 503 เท่านั้น
+      if (response.status === 404 || response.status === 503) {
         continue;
       }
+
+      // สถานะอื่นๆ ที่ไม่คาดคิด ให้หยุดทันทีและแจ้ง Error
+      const otherErrJson = await response.json().catch(() => ({}));
+      const otherMsg = (otherErrJson as any)?.error?.message || `BYOK Error (HTTP ${response.status})`;
+      const fatalErr = new Error(otherMsg);
+      (fatalErr as any).isFatal = true;
+      throw fatalErr;
     } catch (err: any) {
-      // ลองโมเดลถัดไป
+      if ((err as any)?.isFatal || err?.message === 'BYOK_429') {
+        throw err;
+      }
+      // หากเกิด Network Error ขณะลองโมเดล ให้วนลองโมเดลถัดไป
     }
   }
 
-  if (lastStatus === 429) {
-    throw new Error('BYOK_429');
-  }
   throw new Error(`BYOK_FAILED_${lastStatus}`);
 }
 
@@ -261,6 +282,10 @@ export async function callGemini(
     try {
       return await callGeminiDirectBYOK(userKey, prompt, systemInstruction, maxTokens, mode);
     } catch (byokErr: any) {
+      if ((byokErr as any)?.isFatal) {
+        // หากเจอ 400 หรือ 403 ให้หยุดทันทีและแจ้ง Error (ห้ามวนต่อ / ไม่ต้อง fallback)
+        throw byokErr;
+      }
       console.warn('[Gemini Client] BYOK call failed or quota exceeded. Falling back to shared worker proxy...', byokErr);
       // Auto-fallback ไปที่ Worker กลางด้านล่าง
     }
