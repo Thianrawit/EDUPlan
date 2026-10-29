@@ -2868,7 +2868,7 @@ function setupSettingsModal() {
       stepImg.classList.add('hidden');
       placeholder.classList.remove('hidden');
       if (placeholderText) {
-        placeholderText.textContent = `🎬 ภาพตัวอย่างขั้นตอนที่ ${item.step}`;
+        placeholderText.textContent = `ภาพตัวอย่างขั้นตอนที่ ${item.step}`;
       }
 
       stepImg.onload = () => {
