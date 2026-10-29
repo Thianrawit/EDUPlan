@@ -1201,115 +1201,197 @@
   </div>
 
   <!-- ============================================================ -->
+  <!-- ============================================================ -->
   <!-- MODAL: Settings & BYOK (Bring Your Own Key) -->
   <!-- ============================================================ -->
   <div id="settings-modal-overlay" class="modal-overlay hidden" style="display: none;">
-    <div class="modal-content max-w-lg">
-      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+    <div class="modal-content max-w-xl w-full mx-4 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
         <div class="flex items-center gap-2">
           <span class="text-xl">⚙️</span>
-          <h3 class="text-lg font-bold text-slate-900">ตั้งค่าระบบ & Gemini API Key</h3>
+          <h3 class="text-base font-bold text-slate-900">ตั้งค่าระบบ & Gemini API Key</h3>
         </div>
         <button id="settings-close-btn" class="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">✕</button>
       </div>
 
-      <!-- BYOK Section -->
-      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
-        <div class="flex items-center justify-between mb-3">
-          <label for="byok-toggle" class="font-bold text-slate-900 text-sm cursor-pointer select-none">
-            ใช้งาน Gemini API Key ส่วนตัว (BYOK)
-          </label>
-          <label class="toggle-switch">
-            <input type="checkbox" id="byok-toggle" />
-            <span class="toggle-slider"></span>
-          </label>
+      <!-- Scrollable Modal Content -->
+      <div class="overflow-y-auto flex-1 pr-1 space-y-3.5">
+        <!-- BYOK Section -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2">
+            <label for="byok-toggle" class="font-bold text-slate-900 text-xs sm:text-sm cursor-pointer select-none">
+              ใช้งาน Gemini API Key ส่วนตัว (BYOK)
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="byok-toggle" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <p class="text-[11px] sm:text-xs text-slate-500 mb-3 leading-relaxed">
+            นำ API Key ส่วนตัวมาเชื่อมต่อ เพื่อยิงตรงไปยัง Google โดยไม่ผ่านโควต้ากลาง รองรับการใช้งานต่อเนื่องเสถียร 100%
+          </p>
+
+          <div class="space-y-2.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">API Key (AIzaSy... หรือ AQ...)</label>
+              <div class="flex gap-2">
+                <input id="byok-key-input" type="password" class="form-input-clean text-xs sm:text-sm flex-1 font-mono" placeholder="AIzaSy... หรือ AQ..." />
+                <button id="byok-check-btn" type="button" class="btn-primary text-xs px-3 sm:px-3.5 py-2 whitespace-nowrap font-semibold cursor-pointer">
+                  ตรวจสอบและบันทึกคีย์
+                </button>
+              </div>
+            </div>
+
+            <!-- Status Badge & Warning Message -->
+            <div id="byok-status-container" class="hidden flex items-center justify-between pt-1">
+              <div id="byok-status-badge" class="text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5">
+                <!-- Rendered status badge -->
+              </div>
+            </div>
+            <div id="byok-warning-info" class="hidden p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 leading-relaxed">
+              <!-- Warning text when quota exceeded -->
+            </div>
+          </div>
         </div>
-        <p class="text-xs text-slate-500 mb-3 leading-relaxed">
-          นำ API Key ส่วนตัวมาเชื่อมต่อ เพื่อยิงตรงไปยัง Google โดยไม่ผ่านโควต้ากลาง รองรับการใช้งานต่อเนื่องเสถียร 100%
-        </p>
 
-        <div class="space-y-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">API Key (AIzaSy...)</label>
-            <div class="flex gap-2">
-              <input id="byok-key-input" type="password" class="form-input-clean text-sm flex-1 font-mono" placeholder="AQ... หรือ AIzaSy..." />
-              <button id="byok-check-btn" type="button" class="btn-secondary text-xs px-3 whitespace-nowrap font-semibold">
-                ตรวจสอบคีย์
-              </button>
+        <!-- Interactive Step-by-Step Card Carousel -->
+        <div id="byok-guide-carousel" class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 sm:p-4">
+          <!-- Carousel Header: Title & Step Dots -->
+          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/80">
+            <div class="flex items-center gap-1.5">
+              <span class="text-sm">💡</span>
+              <span class="text-xs font-bold text-slate-800">วิธีขอ Gemini API Key ฟรี (4 ขั้นตอน)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="carousel-step-counter" class="text-[11px] font-semibold text-slate-500">ขั้นตอนที่ 1 จาก 4</span>
+              <div id="carousel-dots-container" class="flex items-center gap-1">
+                <!-- Step dots rendered dynamically -->
+              </div>
             </div>
           </div>
 
-          <!-- Status Badge & Warning Message -->
-          <div id="byok-status-container" class="hidden flex items-center justify-between pt-1">
-            <div id="byok-status-badge" class="text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5">
-              <!-- Rendered status badge -->
+          <!-- Media Container (16:9 Aspect Ratio) -->
+          <div class="aspect-video w-full rounded-lg overflow-hidden bg-slate-200 border border-slate-200/80 flex items-center justify-center relative mb-3 select-none">
+            <img id="carousel-step-img" src="./guides/step-1.gif" alt="ขั้นตอนที่ 1" class="w-full h-full object-cover hidden" />
+            <!-- Fallback Placeholder when image is missing / loading -->
+            <div id="carousel-placeholder" class="flex flex-col items-center justify-center text-center p-4 text-slate-400 w-full h-full">
+              <div class="w-11 h-11 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 shadow-2xs">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div id="carousel-placeholder-text" class="text-xs font-medium text-slate-600">
+                🎬 ภาพตัวอย่างขั้นตอนที่ 1
+              </div>
+              <div class="text-[11px] text-slate-400 mt-0.5">
+                (วางไฟล์ที่ public/guides/step-1.gif)
+              </div>
             </div>
           </div>
-          <div id="byok-warning-info" class="hidden p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 leading-relaxed">
-            <!-- Warning text when quota exceeded -->
+
+          <!-- Step Content: Title, Desc, Action -->
+          <div class="space-y-1.5 mb-3">
+            <h4 id="carousel-step-title" class="font-bold text-slate-900 text-xs sm:text-sm">
+              1. เข้าสู่ระบบ Google AI Studio
+            </h4>
+            <p id="carousel-step-desc" class="text-xs text-slate-600 leading-relaxed">
+              เปิดเว็บไซต์ aistudio.google.com แล้วล็อกอินด้วยบัญชี Google ของท่าน
+            </p>
+            <div id="carousel-step-action" class="pt-1">
+              <a href="https://aistudio.google.com" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200 transition-colors">
+                <span>↗️ ไปที่ Google AI Studio</span>
+              </a>
+            </div>
           </div>
 
-          <div class="pt-2">
-            <button id="byok-guide-btn" type="button" class="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer flex items-center gap-1">
-              <span>❓ วิธีขอ API Key ฟรีของ Google (3 ขั้นตอน)</span>
+          <!-- Navigation Controls (Prev / Next Buttons) -->
+          <div class="flex items-center justify-between pt-2 border-t border-slate-200/80">
+            <button id="carousel-prev-btn" type="button" class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+              ย้อนกลับ
+            </button>
+            <button id="carousel-next-btn" type="button" class="btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1 font-semibold cursor-pointer">
+              ขั้นตอนถัดไป
             </button>
           </div>
         </div>
       </div>
 
-      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
-        <button id="settings-reset-btn" class="btn-secondary text-sm">ใช้ค่าเริ่มต้น</button>
-        <button id="settings-save-btn" class="btn-primary text-sm">บันทึกการตั้งค่า</button>
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+        <button id="settings-reset-btn" type="button" class="btn-secondary text-xs px-3 py-1.5 text-slate-500 hover:text-red-600 cursor-pointer">
+          ล้างการตั้งค่า
+        </button>
+        <button id="settings-close-bottom-btn" type="button" class="btn-secondary text-xs px-4 py-1.5 cursor-pointer">
+          ปิดหน้าต่าง
+        </button>
       </div>
     </div>
   </div>
 
   <!-- ============================================================ -->
-  <!-- MODAL: Sub-Modal วิธีขอ Gemini API Key ฟรี -->
+  <!-- MODAL: Secret Admin Global Model Management (Cloudflare KV) -->
   <!-- ============================================================ -->
-  <div id="byok-guide-modal" class="modal-overlay hidden" style="display: none;">
-    <div class="modal-content max-w-md">
-      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-          <span>🔑 วิธีขอ Gemini API Key ฟรี</span>
-        </h3>
-        <button id="byok-guide-close-btn" class="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">✕</button>
+  <div id="admin-modal" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
+            ⚙️
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900 leading-tight">ระบบควบคุมและจัดสรรโมเดลเซิร์ฟเวอร์ส่วนกลาง (Global Admin Control)</h3>
+            <span class="inline-flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              ซิงก์ข้อมูลผ่าน Cloudflare KV (การเปลี่ยนแปลงจะมีผลต่อผู้ใช้งานทุกคน ทุกเครื่องทันที)
+            </span>
+          </div>
+        </div>
+        <button id="admin-close-btn" class="text-slate-400 hover:text-slate-600 text-xl cursor-pointer">✕</button>
       </div>
 
-      <div class="space-y-4 text-sm text-slate-700">
-        <div class="flex gap-3">
-          <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">1</div>
-          <div>
-            <p class="font-semibold text-slate-900">เข้าสู่ระบบ Google AI Studio</p>
-            <p class="text-xs text-slate-600 mt-1">
-              เข้าไปที่ <a href="https://aistudio.google.com" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline font-semibold inline-flex items-center gap-0.5">aistudio.google.com ↗</a> แล้วล็อกอินด้วยบัญชี Google ของท่าน
-            </p>
-          </div>
+      <div class="flex-1 overflow-y-auto space-y-3.5 pr-1">
+        <p class="text-xs text-slate-600 leading-relaxed">
+          เลือกและจัดกลุ่มโมเดลระบบส่วนกลางสำหรับการสร้างแผนการสอน (บันทึกลง Cloudflare KV: <code class="font-mono text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded">CONFIG_KV</code>)
+        </p>
+
+        <!-- Master List Table -->
+        <div class="overflow-x-auto max-h-[380px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead class="bg-slate-50 text-slate-700 sticky top-0 border-b border-slate-200 z-10 text-sm font-semibold">
+              <tr>
+                <th class="py-3 px-4 min-w-[220px] whitespace-nowrap text-left text-sm font-semibold">ชื่อโมเดลระบบ</th>
+                <th class="py-3 px-3 min-w-[130px] whitespace-nowrap text-center text-sm font-semibold">สถานะโมเดล</th>
+                <th class="py-3 px-3 w-20 whitespace-nowrap text-center text-sm font-semibold">KPA</th>
+                <th class="py-3 px-3 w-28 whitespace-nowrap text-center text-sm font-semibold">โหมดสร้างเร็ว</th>
+                <th class="py-3 px-3 w-36 whitespace-nowrap text-center text-sm font-semibold">โหมดสร้างละเอียดขั้นสูง</th>
+              </tr>
+            </thead>
+            <tbody id="admin-model-table-body" class="divide-y divide-slate-100 text-sm">
+              <!-- Rendered dynamically from master model list -->
+            </tbody>
+          </table>
         </div>
 
-        <div class="flex gap-3">
-          <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">2</div>
-          <div>
-            <p class="font-semibold text-slate-900">คลิกสร้าง API Key</p>
-            <p class="text-xs text-slate-600 mt-1">
-              คลิกเมนู <strong>"Get API key"</strong> ที่แถบด้านซ้าย จากนั้นกดปุ่ม <strong>"Create API key"</strong>
-            </p>
-          </div>
-        </div>
-
-        <div class="flex gap-3">
-          <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">3</div>
-          <div>
-            <p class="font-semibold text-slate-900">คัดลอกรหัสมาวางในระบบ</p>
-            <p class="text-xs text-slate-600 mt-1">
-              คัดลอกรหัสที่ได้รับ (ขึ้นต้นด้วย <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-800 font-mono text-[11px]">AQ...</code> หรือ <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-800 font-mono text-[11px]">AIzaSy...</code>) มาวางในช่อง API Key (ฟรี 100% ไม่ต้องผูกบัตรเครดิต)
-            </p>
-          </div>
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 space-y-1">
+          <div class="font-semibold text-slate-700">คำแนะนำ:</div>
+          <div>• สามารถเลือกหลายโมเดลในแต่ละหมวดเพื่อจัดเป็นลำดับ Waterfall Fallback ได้</div>
+          <div>• โมเดล <code class="font-mono text-slate-700">gemini-2.0-flash</code> และ <code class="font-mono text-slate-700">gemini-1.5-flash</code> จะถูกใช้เป็น Guaranteed Fallback เสมอโดยอัตโนมัติ</div>
         </div>
       </div>
 
-      <div class="mt-6 pt-3 border-t border-slate-100 flex justify-end">
-        <button id="byok-guide-ok-btn" class="btn-primary text-sm">เข้าใจแล้ว</button>
+      <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-200">
+        <button id="admin-reset-btn" class="btn-secondary text-xs px-3 py-2 text-red-600 hover:bg-red-50 hover:border-red-200 cursor-pointer">
+          🔄 คืนค่าเริ่มต้นตาม Worker
+        </button>
+        <div class="flex items-center gap-2">
+          <button id="admin-cancel-btn" class="btn-secondary text-xs px-3 py-2 cursor-pointer">
+            ปิดหน้าต่าง
+          </button>
+          <button id="admin-save-btn" class="btn-primary text-xs px-4 py-2 font-bold bg-indigo-600 hover:bg-indigo-700 cursor-pointer">
+            💾 บันทึกการตั้งค่าระบบ (มีผลทุกเครื่อง)
+          </button>
+        </div>
       </div>
     </div>
   </div>

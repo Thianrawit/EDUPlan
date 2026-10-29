@@ -73,13 +73,68 @@ export const MODEL_CASCADE = FAST_MODELS;
 /** ชื่อโมเดลเริ่มต้น (แสดงผลก่อนได้ response จาก Worker) */
 export const GEMINI_MODEL = FAST_MODELS[0];
 
+/** Master List โมเดลระบบสำหรับหน้าต่าง Admin */
+export const MASTER_SYSTEM_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+] as const;
+
+/** SHA-256 Hash ของรหัสผ่านลับ Admin (ห้ามเก็บ Plaintext) */
+export const ADMIN_PASS_HASH = 'a2cb7058a9807fa56a6ec1ec1c05d76ad72a382e70c2a2b0d061ad1845423f66';
+export const ADMIN_PASS_HASH_ALT = 'b88a654795e69623cdbecbf44950edf90ef247410a5555417d4cb94d1b09fea5';
+export const ADMIN_VALID_HASHES = [ADMIN_PASS_HASH, ADMIN_PASS_HASH_ALT] as const;
+
+export function isValidAdminHash(hash: string): boolean {
+  return (ADMIN_VALID_HASHES as readonly string[]).includes((hash || '').trim());
+}
+
 /** LocalStorage keys */
 export const STORAGE_KEYS = {
   BYOK_KEY: 'eduplan_user_api_key',
   BYOK_ENABLED: 'eduplan_use_byok',
+  USER_BYOK_TIERS: 'eduplan_user_byok_tiers',
+  BYOK_FAST_MODEL: 'eduplan_byok_fast_model',
+  BYOK_PRECISION_MODEL: 'eduplan_byok_precision_model',
   PRECISION_QUOTA: 'eduplan_precision_quota',
   WORKER_ENDPOINT: 'eduplan_worker_endpoint',
+  ADMIN_TOKEN: 'eduplan_admin_token',
 } as const;
+
+/** ค่าเริ่มต้น System Tiers สำหรับเป็น Baseline ให้ BYOK และ Fallback */
+export const DEFAULT_SYSTEM_TIERS = {
+  kpa: [
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ],
+  fast: [
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ],
+  precision: [
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ],
+};
 
 /** จำนวนชั่วโมงเรียนต่อคาบเริ่มต้น */
 export const DEFAULT_DURATION_HOURS = 1;

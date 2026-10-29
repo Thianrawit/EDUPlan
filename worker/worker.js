@@ -2,14 +2,16 @@
  * EduPlan AI — Cloudflare Worker Proxy (Serverless Edge Gateway)
  * ============================================================
  * สถาปัตยกรรม Tiered AI Architecture & Zero-Wait Multi-Key Failover
+ * + Cloudflare KV Centralized Model Management & Admin Control
  * 
  * คุณสมบัติ:
- * 1. Tiered Routing: จัดการลำดับโมเดลตาม mode ('kpa' | 'fast' | 'precision')
- * 2. Zero-Wait Failover: หาก Key ติด HTTP 429 จะข้ามไป Key ถัดไปทันที (0ms wait)
- * 3. Smart Skip: หากติด 404/400 ข้ามไปโมเดลถัดไปทันที
- * 4. Fallback Model Safety Net: การันตีโมเดล gemini-2.0-flash / gemini-1.5-flash
+ * 1. Cloudflare KV Global Control: อ่าน/บันทึก SYSTEM_TIER_MODELS ผ่าน env.CONFIG_KV
+ * 2. Tiered Routing: จัดการลำดับโมเดลตาม mode ('kpa' | 'fast' | 'precision')
+ * 3. Zero-Wait Failover: หาก Key ติด HTTP 429 จะข้ามไป Key ถัดไปทันที (0ms wait)
+ * 4. Smart Skip: หากติด 404/400 ข้ามไปโมเดลถัดไปทันที
+ * 5. Fallback Model Safety Net: การันตีโมเดล gemini-2.0-flash / gemini-1.5-flash
  *    เป็น Fallback สุดท้ายเสมอเพื่อป้องกัน 404
- * 5. Metadata Headers: ส่งคืน X-Resolved-Model และแนบ _resolvedModel ใน body
+ * 6. Admin API: จัดการอัปเดตโมเดลระบบสากลผ่าน SHA-256 Auth Token
  * ============================================================
  */
 
@@ -43,6 +45,9 @@ const TIER_MODELS = {
 const DEFAULT_MODEL_CASCADE = TIER_MODELS.fast;
 const GUARANTEED_FALLBACKS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const ADMIN_HASH = 'a2cb7058a9807fa56a6ec1ec1c05d76ad72a382e70c2a2b0d061ad1845423f66';
+const ADMIN_HASH_ALT = 'b88a654795e69623cdbecbf44950edf90ef247410a5555417d4cb94d1b09fea5';
+const ADMIN_HASHES = [ADMIN_HASH, ADMIN_HASH_ALT];
 
 /**
  * สุ่มสลับลำดับ Array (Fisher-Yates Shuffle)
@@ -62,15 +67,28 @@ function shuffleArray(arr) {
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Requested-With, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Requested-With, Authorization, X-Admin-Token',
     'Access-Control-Expose-Headers': 'X-Resolved-Model, Retry-After',
     'Access-Control-Max-Age': '86400',
   };
 }
 
+/**
+ * ตรวจสอบความถูกต้องของ Admin Token
+ */
+function isAuthorizedAdmin(request, body) {
+  const tokenHeader = request.headers.get('X-Admin-Token');
+  if (tokenHeader && ADMIN_HASHES.includes(tokenHeader.trim())) return true;
+  if (body && (ADMIN_HASHES.includes(body.adminToken) || ADMIN_HASHES.includes(body.hash))) return true;
+  return false;
+}
+
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
     // 1. จัดการ CORS Preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -79,7 +97,119 @@ export default {
       });
     }
 
-    // 2. รับเฉพาะ POST Method
+    // ============================================================
+    // 2. ADMIN ENDPOINTS (Centralized Model Control via Cloudflare KV)
+    // ============================================================
+
+    // 2.1 GET /api/admin/config — ดึงคอนฟิกโมเดลระบบปัจจุบัน
+    if (path === '/api/admin/config' && request.method === 'GET') {
+      let effectiveTiers = { ...TIER_MODELS };
+      if (env.CONFIG_KV) {
+        try {
+          const savedTiers = await env.CONFIG_KV.get('SYSTEM_TIER_MODELS', { type: 'json' });
+          if (savedTiers && typeof savedTiers === 'object') {
+            effectiveTiers = savedTiers;
+          }
+        } catch (err) {
+          console.warn('KV read error, falling back to default:', err);
+        }
+      }
+      return new Response(JSON.stringify({ success: true, tiers: effectiveTiers }), {
+        status: 200,
+        headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 2.2 POST /api/admin/config — อัปเดตโมเดลระบบสากลลง KV
+    if (path === '/api/admin/config' && request.method === 'POST') {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+          status: 400,
+          headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!isAuthorizedAdmin(request, body)) {
+        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid Admin Token' }), {
+          status: 401,
+          headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!body.newTiers || typeof body.newTiers !== 'object') {
+        return new Response(JSON.stringify({ error: 'Missing or invalid newTiers object' }), {
+          status: 400,
+          headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (env.CONFIG_KV) {
+        try {
+          await env.CONFIG_KV.put('SYSTEM_TIER_MODELS', JSON.stringify(body.newTiers));
+        } catch (err) {
+          return new Response(JSON.stringify({ error: `KV write error: ${err.message}` }), {
+            status: 500,
+            headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+          });
+        }
+      } else {
+        console.warn('CONFIG_KV binding not configured on environment');
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'อัปเดตโมเดลระบบสากลสำเร็จ มีผลทุกเครื่องทันที',
+          tiers: body.newTiers,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // 2.3 POST /api/admin/reset — คืนค่าเริ่มต้นโมเดลระบบเดิม (ลบจาก KV)
+    if (path === '/api/admin/reset' && request.method === 'POST') {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch {}
+
+      if (!isAuthorizedAdmin(request, body)) {
+        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid Admin Token' }), {
+          status: 401,
+          headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (env.CONFIG_KV) {
+        try {
+          await env.CONFIG_KV.delete('SYSTEM_TIER_MODELS');
+        } catch (err) {
+          console.warn('KV delete error:', err);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'คืนค่าเริ่มต้นตาม Worker เรียบร้อย',
+          tiers: TIER_MODELS,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // ============================================================
+    // 3. GENERATION REQUESTS (POST / or Root)
+    // ============================================================
     if (request.method !== 'POST') {
       return new Response(
         JSON.stringify({ error: 'Method not allowed' }),
@@ -90,7 +220,6 @@ export default {
       );
     }
 
-    // 3. แปลง Request Body
     let body;
     try {
       body = await request.json();
@@ -135,19 +264,37 @@ export default {
       );
     }
 
-    // 5. กำหนดลำดับโมเดลตาม Routing Mode ('kpa' | 'fast' | 'precision')
+    // 5. อ่าน Effective Tiers จาก Cloudflare KV (Defensive Check ป้องกันแครช)
+    let effectiveTiers = { ...TIER_MODELS };
+    if (env.CONFIG_KV) {
+      try {
+        const savedTiers = await env.CONFIG_KV.get('SYSTEM_TIER_MODELS', { type: 'json' });
+        if (savedTiers && typeof savedTiers === 'object') {
+          effectiveTiers = {
+            kpa: Array.isArray(savedTiers.kpa) && savedTiers.kpa.length > 0 ? savedTiers.kpa : TIER_MODELS.kpa,
+            fast: Array.isArray(savedTiers.fast) && savedTiers.fast.length > 0 ? savedTiers.fast : TIER_MODELS.fast,
+            precision: Array.isArray(savedTiers.precision) && savedTiers.precision.length > 0 ? savedTiers.precision : TIER_MODELS.precision,
+          };
+        }
+      } catch (err) {
+        console.warn('KV read error, falling back to default:', err);
+      }
+    }
+
+    // 6. กำหนดลำดับโมเดลตาม Routing Mode ('kpa' | 'fast' | 'precision')
     const mode = (body.mode || '').toLowerCase().trim();
     let modelCascade;
 
-    if (mode && TIER_MODELS[mode]) {
-      modelCascade = [...TIER_MODELS[mode]];
+    if (mode && effectiveTiers[mode]) {
+      modelCascade = [...effectiveTiers[mode]];
     } else if (Array.isArray(body.models) && body.models.length > 0) {
       modelCascade = [...body.models];
     } else if (typeof body.model === 'string' && body.model.trim()) {
       const preferred = body.model.trim();
-      modelCascade = [preferred, ...DEFAULT_MODEL_CASCADE.filter(m => m !== preferred)];
+      const fallbackList = effectiveTiers.fast || DEFAULT_MODEL_CASCADE;
+      modelCascade = [preferred, ...fallbackList.filter(m => m !== preferred)];
     } else {
-      modelCascade = [...DEFAULT_MODEL_CASCADE];
+      modelCascade = [...(effectiveTiers.fast || DEFAULT_MODEL_CASCADE)];
     }
 
     // รับประกันว่ามี Fallback Model ตัวสุดท้ายเสมอเพื่อป้องกัน HTTP 404
@@ -157,7 +304,7 @@ export default {
       }
     }
 
-    // 6. เตรียม Payload สำหรับ Gemini API
+    // 7. เตรียม Payload สำหรับ Gemini API
     let contents = body.contents;
     if (!contents && body.prompt) {
       contents = [
@@ -192,7 +339,7 @@ export default {
     let attemptCount = 0;
 
     // ============================================================
-    // 7. Waterfall Cascading Execution (Zero-Wait Failover)
+    // 8. Waterfall Cascading Execution (Zero-Wait Failover)
     // วนลูปโมเดล -> ในแต่ละโมเดลวนสลับคีย์
     // หากเจอ 429 จะข้ามไปคีย์ถัดไปทันที (0ms wait)
     // ============================================================
@@ -203,10 +350,10 @@ export default {
       for (let keyIdx = 0; keyIdx < shuffledKeys.length; keyIdx++) {
         attemptCount++;
         const apiKey = shuffledKeys[keyIdx];
-        const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+        const apiUrl = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
 
         try {
-          const response = await fetch(url, {
+          const response = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(geminiPayload),
@@ -261,7 +408,7 @@ export default {
     }
 
     // ============================================================
-    // 8. ทุกโมเดลและทุกคีย์หมดโควต้า/ล้มเหลว
+    // 9. ทุกโมเดลและทุกคีย์หมดโควต้า/ล้มเหลว
     // ============================================================
     return new Response(
       JSON.stringify({

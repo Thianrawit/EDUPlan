@@ -30,8 +30,11 @@ import {
   PLAN_DIRECTIONS,
   DURATION_OPTIONS,
   type DurationOption,
-
   STORAGE_KEYS,
+  MASTER_SYSTEM_MODELS,
+  ADMIN_PASS_HASH,
+  isValidAdminHash,
+  DEFAULT_SYSTEM_TIERS,
 } from './config';
 import {
   buildSystemInstruction,
@@ -51,7 +54,7 @@ import {
   getRubricScaleInfo,
   generateStandardRubric,
 } from './templates';
-import type { LessonPlanData, EvaluationRow, RubricData, RubricCriterion } from './types';
+import type { LessonPlanData, EvaluationRow, RubricData, RubricCriterion, ByokModelItem, SystemTierModels } from './types';
 import {
   callGemini,
   refineWithGemini,
@@ -60,6 +63,13 @@ import {
   setStoredApiKey,
   isByokEnabled,
   sanitizeJsonString,
+  sha256,
+  fetchTextOutModels,
+  testSpecificModel,
+  onModelQuotaLimited,
+  fetchAdminConfig,
+  saveAdminConfig,
+  resetAdminConfig,
   type GeminiResult,
 } from './gemini';
 import { sendTelemetry } from './telemetry';
@@ -2253,7 +2263,7 @@ function renderPreview() {
           grade_level: state.gradeId,
           generation_mode: 'fast',
           key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
-          resolved_model: state.resolvedModel || 'gemini',
+          resolved_model: 'client_clipboard',
           duration_seconds: 0,
           export_action: 'copy_section',
         });
@@ -2324,7 +2334,7 @@ async function handleCopyAll() {
       grade_level: state.gradeId,
       generation_mode: 'fast',
       key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
-      resolved_model: state.resolvedModel || 'gemini',
+      resolved_model: 'client_clipboard',
       duration_seconds: 0,
       export_action: 'copy_full',
     });
@@ -2346,9 +2356,9 @@ async function handleExportDocx() {
       grade_level: state.gradeId,
       generation_mode: 'fast',
       key_type: isByokEnabled() && getStoredApiKey() ? 'user_byok' : 'system_shared',
-      resolved_model: state.resolvedModel || 'gemini',
+      resolved_model: 'client_docx',
       duration_seconds: 0,
-      export_action: 'docx',
+      export_action: 'export_docx',
     });
     showToast('ส่งออกไฟล์ Word (.docx) สำเร็จแล้ว', 'success');
   } catch (error) {
@@ -2748,28 +2758,175 @@ function applyPreset(presetKey: string) {
 }
 
 // ============================================================
-// Settings & BYOK (Bring Your Own Key) Modal
+// Settings & BYOK (Bring Your Own Key) Modal + Model Inspector
 // ============================================================
+
+let openAdminModalGlobal: () => void = () => {};
+
 function setupSettingsModal() {
   const modal = document.getElementById('settings-modal-overlay');
   const openBtn = document.getElementById('btn-open-settings');
   const closeBtn = document.getElementById('settings-close-btn');
-  const saveBtn = document.getElementById('settings-save-btn');
+  const closeBottomBtn = document.getElementById('settings-close-bottom-btn');
   const resetBtn = document.getElementById('settings-reset-btn');
 
-  const byokToggle = document.getElementById('byok-toggle') as HTMLInputElement;
-  const byokKeyInput = document.getElementById('byok-key-input') as HTMLInputElement;
-  const byokCheckBtn = document.getElementById('byok-check-btn') as HTMLButtonElement;
+  const byokToggle = document.getElementById('byok-toggle') as HTMLInputElement | null;
+  const byokKeyInput = document.getElementById('byok-key-input') as HTMLInputElement | null;
+  const byokCheckBtn = document.getElementById('byok-check-btn') as HTMLButtonElement | null;
   const statusContainer = document.getElementById('byok-status-container');
   const statusBadge = document.getElementById('byok-status-badge');
   const warningInfo = document.getElementById('byok-warning-info');
 
-  const guideBtn = document.getElementById('byok-guide-btn');
-  const guideModal = document.getElementById('byok-guide-modal');
-  const guideCloseBtn = document.getElementById('byok-guide-close-btn');
-  const guideOkBtn = document.getElementById('byok-guide-ok-btn');
+  // Carousel Elements
+  const stepCounter = document.getElementById('carousel-step-counter');
+  const dotsContainer = document.getElementById('carousel-dots-container');
+  const stepImg = document.getElementById('carousel-step-img') as HTMLImageElement | null;
+  const placeholder = document.getElementById('carousel-placeholder');
+  const placeholderText = document.getElementById('carousel-placeholder-text');
+  const stepTitle = document.getElementById('carousel-step-title');
+  const stepDesc = document.getElementById('carousel-step-desc');
+  const stepAction = document.getElementById('carousel-step-action');
+  const prevBtn = document.getElementById('carousel-prev-btn') as HTMLButtonElement | null;
+  const nextBtn = document.getElementById('carousel-next-btn') as HTMLButtonElement | null;
 
   if (!modal) return;
+
+  // 4-Step Interactive Guide Data
+  interface GuideStep {
+    step: number;
+    title: string;
+    desc: string;
+    img: string;
+    actionText?: string;
+    actionUrl?: string;
+  }
+
+  const GUIDE_STEPS: GuideStep[] = [
+    {
+      step: 1,
+      title: '1. เข้าสู่ระบบ Google AI Studio',
+      desc: 'เปิดเว็บไซต์ aistudio.google.com แล้วล็อกอินด้วยบัญชี Google ของท่าน',
+      img: './guides/step-1.gif',
+      actionText: '↗️ ไปที่ Google AI Studio',
+      actionUrl: 'https://aistudio.google.com',
+    },
+    {
+      step: 2,
+      title: '2. เข้าเมนูขอ API Key',
+      desc: 'คลิกที่เมนู "Get API key" บริเวณแถบเมนูด้านซ้ายมือ',
+      img: './guides/step-2.gif',
+    },
+    {
+      step: 3,
+      title: '3. สร้าง API Key ใหม่',
+      desc: 'คลิกปุ่มสีน้ำเงิน "Create API key" จากนั้นเลือกโปรเจกต์หรือสร้างโปรเจกต์ใหม่',
+      img: './guides/step-3.gif',
+    },
+    {
+      step: 4,
+      title: '4. คัดลอกและนำมาวาง',
+      desc: 'คัดลอกรหัส API Key (ขึ้นต้นด้วย AIzaSy... หรือ AQ...) นำมาวางในช่องด้านบนแล้วกดบันทึก',
+      img: './guides/step-4.gif',
+    },
+  ];
+
+  let currentStepIdx = 0;
+
+  const renderCarouselStep = (idx: number) => {
+    currentStepIdx = Math.max(0, Math.min(idx, GUIDE_STEPS.length - 1));
+    const item = GUIDE_STEPS[currentStepIdx];
+    if (!item) return;
+
+    if (stepCounter) {
+      stepCounter.textContent = `ขั้นตอนที่ ${item.step} จาก ${GUIDE_STEPS.length}`;
+    }
+
+    if (stepTitle) {
+      stepTitle.textContent = item.title;
+    }
+
+    if (stepDesc) {
+      stepDesc.textContent = item.desc;
+    }
+
+    if (stepAction) {
+      if (item.actionUrl) {
+        stepAction.classList.remove('hidden');
+        stepAction.innerHTML = `
+          <a href="${item.actionUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200 transition-colors">
+            <span>${item.actionText || 'เปิดลิงก์'}</span>
+          </a>
+        `;
+      } else {
+        stepAction.classList.add('hidden');
+        stepAction.innerHTML = '';
+      }
+    }
+
+    // Media & Fallback Placeholder
+    if (stepImg && placeholder) {
+      stepImg.classList.add('hidden');
+      placeholder.classList.remove('hidden');
+      if (placeholderText) {
+        placeholderText.textContent = `🎬 ภาพตัวอย่างขั้นตอนที่ ${item.step}`;
+      }
+
+      stepImg.onload = () => {
+        stepImg.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+      };
+
+      stepImg.onerror = () => {
+        stepImg.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+      };
+
+      stepImg.src = item.img;
+      stepImg.alt = item.title;
+    }
+
+    // Dots rendering
+    if (dotsContainer) {
+      dotsContainer.innerHTML = '';
+      GUIDE_STEPS.forEach((s, dIdx) => {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = dIdx === currentStepIdx ? 'carousel-dot active' : 'carousel-dot inactive';
+        dot.title = `ไปขั้นตอนที่ ${s.step}`;
+        dot.addEventListener('click', () => renderCarouselStep(dIdx));
+        dotsContainer.appendChild(dot);
+      });
+    }
+
+    // Prev / Next button state
+    if (prevBtn) {
+      prevBtn.disabled = currentStepIdx === 0;
+    }
+    if (nextBtn) {
+      if (currentStepIdx === GUIDE_STEPS.length - 1) {
+        nextBtn.innerHTML = 'เสร็จสิ้น ✓';
+        nextBtn.className = 'btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1 font-semibold cursor-pointer bg-emerald-600 hover:bg-emerald-700';
+      } else {
+        nextBtn.innerHTML = 'ขั้นตอนถัดไป';
+        nextBtn.className = 'btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1 font-semibold cursor-pointer';
+      }
+    }
+  };
+
+  prevBtn?.addEventListener('click', () => {
+    if (currentStepIdx > 0) {
+      renderCarouselStep(currentStepIdx - 1);
+    }
+  });
+
+  nextBtn?.addEventListener('click', () => {
+    if (currentStepIdx < GUIDE_STEPS.length - 1) {
+      renderCarouselStep(currentStepIdx + 1);
+    } else {
+      byokKeyInput?.focus();
+      showToast('นำ API Key ที่ได้มาวางในช่องด้านบนแล้วกดตรวจสอบและบันทึก', 'info');
+    }
+  });
 
   const updateStatusUI = (status: 'active' | 'quota_exceeded' | 'invalid' | 'none', msg?: string) => {
     if (!statusContainer || !statusBadge) return;
@@ -2783,7 +2940,7 @@ function setupSettingsModal() {
 
     if (status === 'active') {
       statusBadge.classList.add('badge-active');
-      statusBadge.textContent = msg || '🟢 พร้อมใช้งาน (Active)';
+      statusBadge.textContent = msg || '🟢 คีย์ถูกต้อง พร้อมใช้งาน';
       if (warningInfo) warningInfo.classList.add('hidden');
     } else if (status === 'quota_exceeded') {
       statusBadge.classList.add('badge-warning');
@@ -2794,15 +2951,24 @@ function setupSettingsModal() {
       }
     } else {
       statusBadge.classList.add('badge-error');
-      statusBadge.textContent = msg || '🔴 คีย์ไม่ถูกต้อง (Invalid Key - 400/403)';
+      statusBadge.textContent = msg || '🔴 คีย์ไม่ถูกต้อง / หมดอายุ';
       if (warningInfo) warningInfo.classList.add('hidden');
     }
   };
 
   const openModal = () => {
-    if (byokKeyInput) byokKeyInput.value = getStoredApiKey();
-    if (byokToggle) byokToggle.checked = isByokEnabled();
-    updateStatusUI('none');
+    const storedKey = getStoredApiKey();
+    const isEnabled = isByokEnabled();
+    if (byokKeyInput) byokKeyInput.value = storedKey;
+    if (byokToggle) byokToggle.checked = isEnabled;
+
+    if (storedKey && isEnabled) {
+      updateStatusUI('active', '🟢 คีย์ถูกต้อง พร้อมใช้งาน');
+    } else {
+      updateStatusUI('none');
+    }
+
+    renderCarouselStep(0);
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
   };
@@ -2814,6 +2980,7 @@ function setupSettingsModal() {
 
   openBtn?.addEventListener('click', openModal);
   closeBtn?.addEventListener('click', closeModal);
+  closeBottomBtn?.addEventListener('click', closeModal);
   modal.addEventListener('click', (e) => {
     if (e.target === modal) closeModal();
   });
@@ -2824,10 +2991,14 @@ function setupSettingsModal() {
   });
 
   byokToggle?.addEventListener('change', () => {
-    setStoredApiKey(byokKeyInput?.value || '', byokToggle.checked);
+    const key = byokKeyInput?.value?.trim() || '';
+    setStoredApiKey(key, byokToggle.checked);
+    if (byokToggle.checked && !key) {
+      showToast('กรุณาระบุ API Key เพื่อเปิดใช้งาน', 'info');
+    }
   });
 
-  // Check API Key
+  // Check & Save API Key Button
   byokCheckBtn?.addEventListener('click', async () => {
     const key = byokKeyInput?.value?.trim() || '';
     if (!key) {
@@ -2841,55 +3012,212 @@ function setupSettingsModal() {
     byokCheckBtn.textContent = 'กำลังตรวจสอบ...';
 
     try {
-      const res = await validateGeminiApiKey(key);
-      updateStatusUI(res.status, res.message);
+      // 1. ตรวจสอบ SHA-256 Passcode สำหรับ Admin Management (09032547)
+      const keyHash = await sha256(key);
+      if (isValidAdminHash(keyHash)) {
+        if (byokKeyInput) byokKeyInput.value = '';
+        sessionStorage.setItem(STORAGE_KEYS.ADMIN_TOKEN, ADMIN_PASS_HASH);
+        closeModal();
+        openAdminModalGlobal();
+        showToast('เข้าสู่ระบบ Admin สำเร็จ', 'info');
+        return;
+      }
 
-      if (res.status === 'quota_exceeded') {
-        if (byokToggle) byokToggle.checked = false;
+      // 2. ตรวจสอบ Google API Key ตามปกติ
+      const res = await validateGeminiApiKey(key);
+      if (res.status === 'active') {
+        if (byokToggle) byokToggle.checked = true;
+        setStoredApiKey(key, true);
+        updateStatusUI('active', '🟢 คีย์ถูกต้อง พร้อมใช้งาน');
+        showToast('บันทึก Gemini API Key เรียบร้อยแล้ว (เปิดใช้งาน BYOK)', 'success');
+      } else if (res.status === 'quota_exceeded') {
+        updateStatusUI('quota_exceeded', '🟡 โควต้าเต็มชั่วคราว (HTTP 429)');
         setStoredApiKey(key, false);
+        if (byokToggle) byokToggle.checked = false;
+        showToast('โควต้าคีย์เต็มชั่วคราว ระบบจะสลับไปใช้ระบบส่วนกลาง', 'info');
+      } else {
+        updateStatusUI('invalid', '🔴 คีย์ไม่ถูกต้อง / หมดอายุ');
+        setStoredApiKey(key, false);
+        if (byokToggle) byokToggle.checked = false;
+        showToast('API Key ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', 'error');
       }
     } catch {
       updateStatusUI('invalid', '🔴 ไม่สามารถเชื่อมต่อเพื่อตรวจสอบได้');
+      showToast('เกิดข้อผิดพลาดในการตรวจสอบคีย์', 'error');
     } finally {
       byokCheckBtn.disabled = false;
       byokCheckBtn.textContent = originalText;
     }
   });
 
-  // Guide Sub-Modal
-  const openGuide = () => {
-    if (guideModal) {
-      guideModal.style.display = 'flex';
-      guideModal.classList.remove('hidden');
-    }
-  };
-  const closeGuide = () => {
-    if (guideModal) {
-      guideModal.style.display = 'none';
-      guideModal.classList.add('hidden');
-    }
-  };
-  guideBtn?.addEventListener('click', openGuide);
-  guideCloseBtn?.addEventListener('click', closeGuide);
-  guideOkBtn?.addEventListener('click', closeGuide);
-  guideModal?.addEventListener('click', (e) => {
-    if (e.target === guideModal) closeGuide();
-  });
-
-  // Save Settings Button
-  saveBtn?.addEventListener('click', () => {
-    setStoredApiKey(byokKeyInput?.value || '', byokToggle?.checked ?? false);
-    showToast('บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
-    closeModal();
-  });
-
   // Reset Settings Button
   resetBtn?.addEventListener('click', () => {
     setStoredApiKey('', false);
+    localStorage.removeItem(STORAGE_KEYS.USER_BYOK_TIERS);
+    localStorage.removeItem(STORAGE_KEYS.BYOK_FAST_MODEL);
+    localStorage.removeItem(STORAGE_KEYS.BYOK_PRECISION_MODEL);
     if (byokKeyInput) byokKeyInput.value = '';
     if (byokToggle) byokToggle.checked = false;
     updateStatusUI('none');
-    showToast('รีเซ็ตเป็นค่าเริ่มต้นเรียบร้อยแล้ว', 'info');
+    renderCarouselStep(0);
+    showToast('ล้างการตั้งค่าเรียบร้อยแล้ว', 'info');
+  });
+}
+
+// ============================================================
+// Admin Management Modal (Global Central Control via Cloudflare KV)
+// ============================================================
+function setupAdminModal() {
+  const modal = document.getElementById('admin-modal');
+  const closeBtn = document.getElementById('admin-close-btn');
+  const cancelBtn = document.getElementById('admin-cancel-btn');
+  const saveBtn = document.getElementById('admin-save-btn') as HTMLButtonElement;
+  const resetBtn = document.getElementById('admin-reset-btn') as HTMLButtonElement;
+  const tableBody = document.getElementById('admin-model-table-body');
+
+  if (!modal) return;
+
+  let currentTiers: SystemTierModels = {
+    kpa: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'],
+    fast: ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'],
+    precision: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'],
+  };
+
+  const closeModal = () => {
+    modal.style.display = 'none';
+    modal.classList.add('hidden');
+  };
+
+  const renderAdminRows = () => {
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+
+    MASTER_SYSTEM_MODELS.forEach((model) => {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-slate-50 transition-colors';
+
+      const isKpa = currentTiers.kpa.includes(model);
+      const isFast = currentTiers.fast.includes(model);
+      const isPrecision = currentTiers.precision.includes(model);
+      const isFallback = model === 'gemini-2.0-flash' || model === 'gemini-1.5-flash';
+
+      tr.innerHTML = `
+        <td class="text-left font-mono text-sm font-medium text-slate-800 py-3 px-4 min-w-[220px]">
+          <div class="font-bold text-slate-900 leading-snug">${model}</div>
+          ${isFallback ? '<span class="inline-block text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full font-sans font-medium mt-1">Guaranteed Fallback</span>' : ''}
+        </td>
+        <td class="text-center py-3 px-3 min-w-[130px] whitespace-nowrap">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-sans font-medium whitespace-nowrap">
+            🟢 ${isFallback ? 'ระบบหลัก (Guaranteed)' : 'ระบบรองรับ'}
+          </span>
+        </td>
+        <td class="text-center py-3 px-3 w-20 whitespace-nowrap">
+          <input type="checkbox" class="tier-checkbox" data-tier="kpa" data-model="${model}" ${isKpa ? 'checked' : ''} title="ใช้งานกับ KPA" />
+        </td>
+        <td class="text-center py-3 px-3 w-28 whitespace-nowrap">
+          <input type="checkbox" class="tier-checkbox" data-tier="fast" data-model="${model}" ${isFast ? 'checked' : ''} title="ใช้งานกับโหมดสร้างเร็ว" />
+        </td>
+        <td class="text-center py-3 px-3 w-36 whitespace-nowrap">
+          <input type="checkbox" class="tier-checkbox" data-tier="precision" data-model="${model}" ${isPrecision ? 'checked' : ''} title="ใช้งานกับโหมดสร้างละเอียดขั้นสูง" />
+        </td>
+      `;
+
+      // Checkbox listener
+      tr.querySelectorAll('.tier-checkbox').forEach((cbEl) => {
+        cbEl.addEventListener('change', (e) => {
+          const target = e.target as HTMLInputElement;
+          const tier = target.getAttribute('data-tier') as keyof SystemTierModels;
+          const mod = target.getAttribute('data-model') || '';
+          if (!tier || !mod) return;
+
+          if (target.checked) {
+            if (!currentTiers[tier].includes(mod)) {
+              currentTiers[tier].push(mod);
+            }
+          } else {
+            currentTiers[tier] = currentTiers[tier].filter(m => m !== mod);
+          }
+        });
+      });
+
+      tableBody.appendChild(tr);
+    });
+  };
+
+  const openModal = async () => {
+    modal.style.display = 'flex';
+    modal.classList.remove('hidden');
+
+    if (tableBody) {
+      tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400 font-sans">กำลังดึงการตั้งค่าจาก Cloudflare KV...</td></tr>';
+    }
+
+    try {
+      const res = await fetchAdminConfig();
+      if (res && res.tiers) {
+        currentTiers = {
+          kpa: Array.isArray(res.tiers.kpa) && res.tiers.kpa.length > 0 ? [...res.tiers.kpa] : [...currentTiers.kpa],
+          fast: Array.isArray(res.tiers.fast) && res.tiers.fast.length > 0 ? [...res.tiers.fast] : [...currentTiers.fast],
+          precision: Array.isArray(res.tiers.precision) && res.tiers.precision.length > 0 ? [...res.tiers.precision] : [...currentTiers.precision],
+        };
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch admin config from KV:', err);
+    }
+    renderAdminRows();
+  };
+
+  openAdminModalGlobal = openModal;
+
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // Save admin config to KV
+  saveBtn?.addEventListener('click', async () => {
+    const token = sessionStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN) || ADMIN_PASS_HASH;
+    saveBtn.disabled = true;
+    const origText = saveBtn.textContent;
+    saveBtn.textContent = 'กำลังบันทึกลง KV...';
+
+    try {
+      await saveAdminConfig(token, currentTiers);
+      showToast('อัปเดตโมเดลระบบสำเร็จ ผู้ใช้งานทุกคนจะใช้งานตามโมเดลชุดใหม่นี้ทันที', 'success');
+      closeModal();
+    } catch (err: any) {
+      showToast(`เกิดข้อผิดพลาดในการบันทึก: ${err.message}`, 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = origText;
+    }
+  });
+
+  // Reset admin config to defaults
+  resetBtn?.addEventListener('click', async () => {
+    const token = sessionStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN) || ADMIN_PASS_HASH;
+    resetBtn.disabled = true;
+    const origText = resetBtn.textContent;
+    resetBtn.textContent = 'กำลังคืนค่า...';
+
+    try {
+      const res = await resetAdminConfig(token);
+      if (res && res.tiers) {
+        currentTiers = {
+          kpa: [...res.tiers.kpa],
+          fast: [...res.tiers.fast],
+          precision: [...res.tiers.precision],
+        };
+      }
+      renderAdminRows();
+      showToast('คืนค่าเริ่มต้นโมเดลระบบเรียบร้อย', 'info');
+    } catch (err: any) {
+      showToast(`เกิดข้อผิดพลาดในการคืนค่า: ${err.message}`, 'error');
+    } finally {
+      resetBtn.disabled = false;
+      resetBtn.textContent = origText;
+    }
   });
 }
 
@@ -3437,8 +3765,9 @@ async function init() {
     });
   });
 
-  // Settings Modal
+  // Settings Modal & Admin Global Management
   setupSettingsModal();
+  setupAdminModal();
 
   // Rubric Module Setup
   setupRubricModule();

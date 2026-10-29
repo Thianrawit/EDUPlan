@@ -170,3 +170,18 @@ export interface RubricData {
   scaleLabels: string[]; // เช่น ["ดีมาก (4)", "ดี (3)", "พอใช้ (2)", "ปรับปรุง (1)"]
   criteria: RubricCriterion[];
 }
+
+/** โครงสร้างข้อมูลโมเดล BYOK ที่ดึงมาจาก Google API */
+export interface ByokModelItem {
+  id: string; // เช่น 'gemini-2.5-flash'
+  displayName: string;
+  status: 'available' | 'limited' | 'error';
+}
+
+/** โครงสร้าง Tier Models ของระบบสากล (Cloudflare KV) */
+export interface SystemTierModels {
+  kpa: string[];
+  fast: string[];
+  precision: string[];
+}
+
