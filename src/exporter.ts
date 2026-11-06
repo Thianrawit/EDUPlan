@@ -29,16 +29,6 @@ export * from './rubricExporter';
 
 const FONT_FAMILY = 'TH SarabunPSK';
 
-/**
- * ล้างตัวอักษรล่องหน (Zero-Width Space) และอักขระแปลกปลอมจาก AI ที่ทำให้ Word ตัดคำพัง
- */
-function cleanThaiText(text: string): string {
-  if (!text) return '';
-  return String(text)
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .replace(/ {2,}/g, ' ');
-}
-
 // A4 Dimensions in DXA (Twips): 210mm x 297mm
 const A4_WIDTH_DXA = 11906;
 const A4_HEIGHT_DXA = 16838;
@@ -69,9 +59,8 @@ function createSectionTitle(title: string): Paragraph {
     spacing: { before: 180, after: 80, line: 280 },
     children: [
       new TextRun({
-        text: cleanThaiText(title),
+        text: title,
         font: FONT_FAMILY,
-        complexScriptFont: FONT_FAMILY,
         size: 32, // 16pt (half-points)
         bold: true,
       }),
@@ -88,9 +77,8 @@ function createBodyParagraph(text: string, options: { bold?: boolean; indent?: b
     indent: options.indent ? { left: convertInchesToTwip(0.4) } : undefined,
     children: [
       new TextRun({
-        text: cleanThaiText(text),
+        text: text,
         font: FONT_FAMILY,
-        complexScriptFont: FONT_FAMILY,
         size: 32, // 16pt
         bold: options.bold,
       }),
@@ -102,10 +90,14 @@ function createBodyParagraph(text: string, options: { bold?: boolean; indent?: b
  * ============================================================
  * [จุดแก้ไขการ TAB ในไฟล์ Word: exporter.ts]
  * ============================================================
+ * คุณครูสามารถปรับเปลี่ยนระยะ Tab ของบันทึกหลังสอน (ข้อ 11) ได้ตรงนี้:
+ * - firstTabInches: ระยะ [TAB] ด้านหน้าบรรทัด (เช่น 0.4 นิ้ว หรือ 0.5 นิ้ว)
+ * - secondTabInches: ตำแหน่ง [TAB] ตัวที่สอง กลางบรรทัด (เช่น ตรง "คิดเป็นร้อยละ")
+ * ============================================================
  */
 export const SECTION_11_TAB_CONFIG = {
-  firstTabInches: 0.4,
-  secondTabInches: 4.2,
+  firstTabInches: 0.4,   // [แก้ระยะ Tab หน้าบรรทัด Word ที่นี่] ค่าเริ่มต้น 0.4 นิ้ว (ประมาณ 1 Tab)
+  secondTabInches: 4.2,  // [แก้ตำแหน่ง Tab ตัวที่สอง Word ที่นี่] ค่าเริ่มต้น 4.2 นิ้ว (ตรงข้อความ "คิดเป็นร้อยละ")
 };
 
 function createSection11TabParagraph(text: string, hasSecondTab = false): Paragraph {
@@ -117,9 +109,8 @@ function createSection11TabParagraph(text: string, hasSecondTab = false): Paragr
     ] : undefined,
     children: [
       new TextRun({
-        text: cleanThaiText(text),
+        text,
         font: FONT_FAMILY,
-        complexScriptFont: FONT_FAMILY,
         size: 32, // 16pt
       }),
     ],
@@ -147,8 +138,7 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
   if (lines.length === 0) return [createBodyParagraph('-', { indent: true })];
 
   return lines.map(line => {
-    const rawClean = line.replace(/^[\t\s#*-]+/, '').replace(/[*_]+$/, '').trim();
-    const cleanLine = cleanThaiText(rawClean);
+    const cleanLine = line.replace(/^[\t\s#*-]+/, '').replace(/[*_]+$/, '').trim();
     // ตรวจจับขั้นหลัก เช่น "1. ขั้น...", "2. ขั้น...", "3. ขั้น..."
     if (/^[1-9]\.\s*ขั้น/.test(cleanLine) || /^[1-9]\.\s+[^\d]/.test(cleanLine)) {
       return new Paragraph({
@@ -158,7 +148,6 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
           new TextRun({
             text: cleanLine,
             font: FONT_FAMILY,
-            complexScriptFont: FONT_FAMILY,
             size: 32,
             bold: true,
           }),
@@ -173,7 +162,6 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
           new TextRun({
             text: cleanLine,
             font: FONT_FAMILY,
-            complexScriptFont: FONT_FAMILY,
             size: 32,
             bold: false,
           }),
@@ -188,7 +176,6 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
           new TextRun({
             text: cleanLine,
             font: FONT_FAMILY,
-            complexScriptFont: FONT_FAMILY,
             size: 32,
             bold: false,
           }),
@@ -199,24 +186,28 @@ function createActivitiesDocxParagraphs(text: string): Paragraph[] {
 }
 
 export function getHeaderDisplayValues(data: LessonPlanData) {
+  // แถว 1 ซ้าย: [รายวิชา {ชื่อรายวิชา}]
   let courseText = 'รายวิชา ........................................';
   if (data.course_name && data.course_name.trim()) {
     const raw = data.course_name.trim();
     courseText = raw.startsWith('รายวิชา') ? raw : `รายวิชา ${raw}`;
   }
 
+  // แถว 1 ขวา: [ชั้น{ระดับชั้น}]
   let gradeText = 'ชั้น........................';
   if (data.grade && data.grade.trim()) {
     const raw = data.grade.trim();
     gradeText = raw.startsWith('ชั้น') ? raw : `ชั้น${raw}`;
   }
 
+  // แถว 2 ซ้าย: [{หน่วยการเรียนรู้}]
   let unitText = 'หน่วยการเรียนรู้ ........................................';
   if (data.unit && data.unit.trim()) {
     const raw = data.unit.trim();
     unitText = raw.startsWith('หน่วย') ? raw : `หน่วยการเรียนรู้ ${raw}`;
   }
 
+  // แถว 3 ซ้าย: [{แผนการจัดการเรียนรู้}]
   let planText = 'แผนการจัดการเรียนรู้ ........................................';
   if (data.plan_name && data.plan_name.trim()) {
     const raw = data.plan_name.trim();
@@ -225,6 +216,7 @@ export function getHeaderDisplayValues(data: LessonPlanData) {
     planText = `แผนการจัดการเรียนรู้ เรื่อง ${data.topic.trim()}`;
   }
 
+  // แถว 3 ขวา: [จำนวน {จำนวนชั่วโมง} ชั่วโมง]
   let hoursText = 'จำนวน ...... ชั่วโมง';
   if (data.hours_text && data.hours_text.trim()) {
     const raw = data.hours_text.trim();
@@ -235,24 +227,28 @@ export function getHeaderDisplayValues(data: LessonPlanData) {
     }
   }
 
+  // แถว 4 ซ้าย: [กลุ่มสาระการเรียนรู้ {ชื่อกลุ่มสาระวิชา}]
   let subjectText = 'กลุ่มสาระการเรียนรู้ ........................................';
   if (data.subject && data.subject.trim()) {
     const raw = data.subject.trim();
     subjectText = raw.startsWith('กลุ่มสาระ') ? raw : `กลุ่มสาระการเรียนรู้ ${raw}`;
   }
 
+  // แถว 4 ขวา: [ภาคเรียนที่ {ภาคเรียน}]
   let semesterText = 'ภาคเรียนที่ ......';
   if (data.semester && data.semester.trim()) {
     const raw = data.semester.trim();
     semesterText = raw.startsWith('ภาคเรียนที่') ? raw : `ภาคเรียนที่ ${raw}`;
   }
 
+  // แถว 5 ซ้าย: [ปีการศึกษา {ปีการศึกษา} วันที่ {วันที่} {เดือน} พ.ศ. {ปี}]
   const yearPart = (data.year && data.year.trim()) ? data.year.trim() : '............';
   const datePart = (data.date && data.date.trim()) ? data.date.trim() : '......';
   const monthPart = (data.month && data.month.trim()) ? data.month.trim() : '..................';
   const byearPart = (data.buddhist_year && data.buddhist_year.trim()) ? data.buddhist_year.trim() : '............';
   const dateFullText = `ปีการศึกษา ${yearPart} วันที่ ${datePart} ${monthPart} พ.ศ. ${byearPart}`;
 
+  // แถว 5 ขวา: [{ชื่อโรงเรียน}]
   let schoolText = 'โรงเรียน........................................';
   if (data.school && data.school.trim()) {
     const raw = data.school.trim();
@@ -273,13 +269,16 @@ export function getHeaderDisplayValues(data: LessonPlanData) {
 }
 
 /**
- * สร้างตารางหัวแผนการสอน 5 แถว 2 คอลัมน์ ไร้ขอบ
+ * สร้างตารางหัวแผนการสอน 5 แถว 2 คอลัมน์ ไร้ขอบ (ความกว้างรวม 9,000 DXA)
+ * คอลัมน์ 1 ชิดซ้ายสุด (5,600 DXA)
+ * คอลัมน์ 2 ชิดขวาสุด (3,400 DXA)
  */
 function createHeaderDocxTable(data: LessonPlanData): Table {
   const h = getHeaderDisplayValues(data);
   const COL_WIDTHS = [5600, 3400];
 
   const rows = [
+    // แถวที่ 1: [รายวิชา {ชื่อรายวิชา}] | [ชั้น{ระดับชั้น}]
     new TableRow({
       children: [
         new TableCell({
@@ -289,7 +288,7 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.LEFT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.courseText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+              children: [new TextRun({ text: h.courseText, font: FONT_FAMILY, size: 32, bold: true })],
             }),
           ],
         }),
@@ -300,12 +299,13 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.gradeText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+              children: [new TextRun({ text: h.gradeText, font: FONT_FAMILY, size: 32, bold: true })],
             }),
           ],
         }),
       ],
     }),
+    // แถวที่ 2: [{หน่วยการเรียนรู้}] | ว่าง
     new TableRow({
       children: [
         new TableCell({
@@ -315,7 +315,7 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.LEFT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.unitText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+              children: [new TextRun({ text: h.unitText, font: FONT_FAMILY, size: 32, bold: true })],
             }),
           ],
         }),
@@ -326,12 +326,13 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: '', font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32 })],
+              children: [new TextRun({ text: '', font: FONT_FAMILY, size: 32 })],
             }),
           ],
         }),
       ],
     }),
+    // แถวที่ 3: [{แผนการจัดการเรียนรู้}] | [จำนวน {จำนวนชั่วโมง} ชั่วโมง]
     new TableRow({
       children: [
         new TableCell({
@@ -341,7 +342,7 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.LEFT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.planText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+              children: [new TextRun({ text: h.planText, font: FONT_FAMILY, size: 32, bold: true })],
             }),
           ],
         }),
@@ -352,12 +353,13 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.hoursText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+              children: [new TextRun({ text: h.hoursText, font: FONT_FAMILY, size: 32, bold: true })],
             }),
           ],
         }),
       ],
     }),
+    // แถวที่ 4: [กลุ่มสาระการเรียนรู้ {ชื่อกลุ่มสาระวิชา}] | [ภาคเรียนที่ {ภาคเรียน}]
     new TableRow({
       children: [
         new TableCell({
@@ -367,7 +369,7 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.LEFT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.subjectText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+              children: [new TextRun({ text: h.subjectText, font: FONT_FAMILY, size: 32, bold: true })],
             }),
           ],
         }),
@@ -378,12 +380,13 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.semesterText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+              children: [new TextRun({ text: h.semesterText, font: FONT_FAMILY, size: 32, bold: true })],
             }),
           ],
         }),
       ],
     }),
+    // แถวที่ 5: [ปีการศึกษา {ปีการศึกษา} วันที่ {วันที่} {เดือน} พ.ศ. {ปี}] | [{ชื่อโรงเรียน}]
     new TableRow({
       children: [
         new TableCell({
@@ -393,7 +396,7 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.LEFT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.dateFullText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32 })],
+              children: [new TextRun({ text: h.dateFullText, font: FONT_FAMILY, size: 32 })],
             }),
           ],
         }),
@@ -404,7 +407,7 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               spacing: { before: 20, after: 20, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(h.schoolText), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32 })],
+              children: [new TextRun({ text: h.schoolText, font: FONT_FAMILY, size: 32 })],
             }),
           ],
         }),
@@ -422,7 +425,12 @@ function createHeaderDocxTable(data: LessonPlanData): Table {
 }
 
 /**
- * สร้างตารางลงชื่อผู้เขียนแผน ไร้ขอบ
+ * สร้างตารางลงชื่อผู้เขียนแผน ไร้ขอบ จัดชิดขวาของเอกสาร แต่ละแถวกึ่งกลางในตาราง
+ * 4 แถว:
+ * 1. [..........] ไว้ใช้ในการเซ็น
+ * 2. [{ชื่อผู้สอน}]
+ * 3. [ตำแหน่ง {ตำแหน่งผู้สอน}]
+ * 4. [{วันที่}/{เดือน}/{ปี พ.ศ.}]
  */
 function createSignatureDocxTable(data: LessonPlanData): Table {
   const teacherName = data.teacher_name || '……………………………………………………';
@@ -431,7 +439,7 @@ function createSignatureDocxTable(data: LessonPlanData): Table {
     ? `วันที่ ${data.date} / ${data.month} / ${data.buddhist_year}`
     : 'วันที่ ............ / ............ / ............';
 
-  const SIGN_WIDTH = 4500;
+  const SIGN_WIDTH = 4500; // DXA
 
   const rows = [
     new TableRow({
@@ -443,7 +451,7 @@ function createSignatureDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.CENTER,
               spacing: { before: 140, after: 30, line: 280 },
-              children: [new TextRun({ text: 'ลงชื่อ.................................................................', font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32 })],
+              children: [new TextRun({ text: 'ลงชื่อ.................................................................', font: FONT_FAMILY, size: 32 })],
             }),
           ],
         }),
@@ -458,7 +466,7 @@ function createSignatureDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.CENTER,
               spacing: { before: 30, after: 30, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(`( ${teacherName} )`), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32 })],
+              children: [new TextRun({ text: `( ${teacherName} )`, font: FONT_FAMILY, size: 32 })],
             }),
           ],
         }),
@@ -473,7 +481,7 @@ function createSignatureDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.CENTER,
               spacing: { before: 30, after: 30, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(`ตำแหน่ง ${teacherPos}`), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32 })],
+              children: [new TextRun({ text: `ตำแหน่ง ${teacherPos}`, font: FONT_FAMILY, size: 32 })],
             }),
           ],
         }),
@@ -488,7 +496,7 @@ function createSignatureDocxTable(data: LessonPlanData): Table {
             new Paragraph({
               alignment: AlignmentType.CENTER,
               spacing: { before: 30, after: 80, line: 280 },
-              children: [new TextRun({ text: cleanThaiText(dateStr), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32 })],
+              children: [new TextRun({ text: dateStr, font: FONT_FAMILY, size: 32 })],
             }),
           ],
         }),
@@ -507,7 +515,9 @@ function createSignatureDocxTable(data: LessonPlanData): Table {
 }
 
 /**
- * สร้างตารางการวัดและประเมินผล 4 คอลัมน์ (ข้อ 9)
+ * สร้างตารางการวัดและประเมินผล 4 คอลัมน์ (ข้อ 9) ขนาด 9,000 DXA
+ * กำหนด columnWidths และ layout: TableLayoutType.FIXED ชัดเจน
+ * เพื่อล็อกขนาดไม่ให้ขยายเกินขอบกระดาษ A4 ใน Microsoft Word
  */
 function createEvaluationDocxTable(data: LessonPlanData): Table {
   const borderSpec = {
@@ -525,6 +535,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
     insideVertical: borderSpec,
   };
 
+  // รวม 9,000 DXA พอดีพิมพ์ A4 (ขอบ 1 นิ้ว = 9,026 DXA)
   const COL_WIDTHS = [2700, 2100, 2100, 2100];
 
   const headerRow = new TableRow({
@@ -537,7 +548,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { before: 60, after: 60, line: 260 },
-            children: [new TextRun({ text: 'จุดประสงค์การเรียนรู้', font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+            children: [new TextRun({ text: 'จุดประสงค์การเรียนรู้', font: FONT_FAMILY, size: 32, bold: true })],
           }),
         ],
       }),
@@ -548,7 +559,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { before: 60, after: 60, line: 260 },
-            children: [new TextRun({ text: 'วิธีการวัด', font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+            children: [new TextRun({ text: 'วิธีการวัด', font: FONT_FAMILY, size: 32, bold: true })],
           }),
         ],
       }),
@@ -559,7 +570,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { before: 60, after: 60, line: 260 },
-            children: [new TextRun({ text: 'เครื่องมือวัด', font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+            children: [new TextRun({ text: 'เครื่องมือวัด', font: FONT_FAMILY, size: 32, bold: true })],
           }),
         ],
       }),
@@ -570,7 +581,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { before: 60, after: 60, line: 260 },
-            children: [new TextRun({ text: 'เกณฑ์การวัด', font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 32, bold: true })],
+            children: [new TextRun({ text: 'เกณฑ์การวัด', font: FONT_FAMILY, size: 32, bold: true })],
           }),
         ],
       }),
@@ -597,8 +608,8 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
               new Paragraph({
                 spacing: { before: 60, after: 30, line: 260 },
                 children: [
-                  new TextRun({ text: cleanThaiText(r.dimension), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 30, bold: true }),
-                  new TextRun({ text: `\n${cleanThaiText(r.objective)}`, font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 30 }),
+                  new TextRun({ text: r.dimension, font: FONT_FAMILY, size: 30, bold: true }),
+                  new TextRun({ text: `\n${r.objective}`, font: FONT_FAMILY, size: 30 }),
                 ],
               }),
             ],
@@ -609,7 +620,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
             children: [
               new Paragraph({
                 spacing: { before: 60, after: 30, line: 260 },
-                children: [new TextRun({ text: cleanThaiText(r.method), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 30 })],
+                children: [new TextRun({ text: r.method, font: FONT_FAMILY, size: 30 })],
               }),
             ],
           }),
@@ -619,7 +630,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
             children: [
               new Paragraph({
                 spacing: { before: 60, after: 30, line: 260 },
-                children: [new TextRun({ text: cleanThaiText(r.tool), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 30 })],
+                children: [new TextRun({ text: r.tool, font: FONT_FAMILY, size: 30 })],
               }),
             ],
           }),
@@ -629,7 +640,7 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
             children: [
               new Paragraph({
                 spacing: { before: 60, after: 30, line: 260 },
-                children: [new TextRun({ text: cleanThaiText(r.criteria), font: FONT_FAMILY, complexScriptFont: FONT_FAMILY, size: 30 })],
+                children: [new TextRun({ text: r.criteria, font: FONT_FAMILY, size: 30 })],
               }),
             ],
           }),
@@ -652,17 +663,6 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
  */
 export async function exportToDocx(data: LessonPlanData): Promise<void> {
   const doc = new Document({
-    styles: {
-      default: {
-        document: {
-          run: {
-            font: FONT_FAMILY,
-            complexScriptFont: FONT_FAMILY,
-            size: 32,
-          },
-        },
-      },
-    },
     sections: [
       {
         properties: {
@@ -688,15 +688,16 @@ export async function exportToDocx(data: LessonPlanData): Promise<void> {
               new TextRun({
                 text: 'แผนจัดการเรียนรู้',
                 font: FONT_FAMILY,
-                complexScriptFont: FONT_FAMILY,
                 size: 40, // 20pt Bold
                 bold: true,
               }),
             ],
           }),
 
+          // หัวแผนการสอน ตาราง 3 แถว 2 คอลัมน์ ไร้ขอบ
           createHeaderDocxTable(data),
 
+          // เส้นคั่นประ
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { before: 60, after: 140, line: 240 },
@@ -704,22 +705,25 @@ export async function exportToDocx(data: LessonPlanData): Promise<void> {
               new TextRun({
                 text: '……………………………………………………………………………………………………………………………………………………',
                 font: FONT_FAMILY,
-                complexScriptFont: FONT_FAMILY,
                 size: 24,
                 color: '888888',
               }),
             ],
           }),
 
+          // 1. มาตรฐานการเรียนรู้
           createSectionTitle('1. มาตรฐานการเรียนรู้'),
           ...createMultiLineParagraphs(data.standards, { indent: true }),
 
+          // 2. ตัวชี้วัด
           createSectionTitle('2. ตัวชี้วัด'),
           ...createMultiLineParagraphs(data.indicators, { indent: true }),
 
+          // 3. สาระสำคัญ
           createSectionTitle('3. สาระสำคัญ'),
           ...createMultiLineParagraphs(data.concept, { indent: true }),
 
+          // 4. จุดประสงค์รายวิชา
           createSectionTitle('4. จุดประสงค์รายวิชา'),
           createBodyParagraph('ความรู้ (K):', { bold: true }),
           ...createMultiLineParagraphs(data.k_objective, { indent: true }),
@@ -728,27 +732,34 @@ export async function exportToDocx(data: LessonPlanData): Promise<void> {
           createBodyParagraph('คุณลักษณะอันพึงประสงค์ (A):', { bold: true }),
           ...createMultiLineParagraphs(data.a_objective, { indent: true }),
 
+          // 5. สาระการเรียนรู้
           createSectionTitle('5. สาระการเรียนรู้'),
           ...createMultiLineParagraphs(data.learning_content, { indent: true }),
 
+          // 6. สมรรถนะสำคัญของผู้เรียน
           createSectionTitle('6. สมรรถนะสำคัญของผู้เรียน'),
           ...createMultiLineParagraphs(data.competencies, { indent: true }),
 
+          // 7. กิจกรรมการเรียนรู้ (จัดย่อหน้า Tab ตามลำดับขั้น)
           createSectionTitle(`7. กิจกรรมการเรียนรู้ (รูปแบบการสอนแบบ ${data.teaching_model})`),
           ...createActivitiesDocxParagraphs(data.activities),
 
+          // 8. สื่อและแหล่งการเรียนรู้
           createSectionTitle('8. สื่อและแหล่งการเรียนรู้'),
           ...createMultiLineParagraphs(data.media_resources, { indent: true }),
 
+          // 9. การวัดผลประเมินผล (ตาราง 4 คอลัมน์)
           createSectionTitle('9. การวัดผลประเมินผล'),
           createEvaluationDocxTable(data),
 
+          // 10. กิจกรรมเสนอแนะ/งานที่มอบหมาย
           createSectionTitle('10. กิจกรรมเสนอแนะ/งานที่มอบหมาย'),
           createBodyParagraph('1. กิจกรรมเสนอแนะ:', { bold: true }),
           ...createMultiLineParagraphs(data.suggestions, { indent: true }),
           createBodyParagraph('2. งานที่มอบหมาย:', { bold: true }),
           ...createMultiLineParagraphs(data.assignments, { indent: true }),
 
+          // 11. บันทึกหลังกระบวนการจัดการเรียนรู้
           createSectionTitle('11. บันทึกหลังกระบวนการจัดการเรียนรู้'),
           createBodyParagraph('ผลการจัดการเรียนการสอน', { bold: true }),
           createSection11TabParagraph('นักเรียนจำนวน................คน'),
@@ -770,6 +781,7 @@ export async function exportToDocx(data: LessonPlanData): Promise<void> {
           createBodyParagraph('ข้อเสนอแนะ / แนวทางแก้ไข', { bold: true }),
           createSection11TabParagraph('............................................................................................................................................................................................................'),
 
+          // ตารางลงชื่อผู้เขียนแผนจัดขวาสุด กึ่งกลาง
           createSignatureDocxTable(data),
         ],
       },
@@ -851,7 +863,7 @@ function formatActivitiesHtml(text: string): string {
 }
 
 /**
- * จัดรูปแบบกิจกรรมการเรียนรู้สำหรับ Plain Text
+ * จัดรูปแบบกิจกรรมการเรียนรู้สำหรับ Plain Text (Tab สำหรับขั้น และ Tab Tab สำหรับกิจกรรมย่อย)
  */
 function formatActivitiesPlainText(text: string): string {
   if (!text) return '-';
@@ -872,6 +884,9 @@ function formatActivitiesPlainText(text: string): string {
 export function buildFullPlanHtml(data: LessonPlanData): string {
   const teacherName = data.teacher_name || '……………………………………………………';
   const teacherPos = data.teacher_position || 'ครูผู้ช่วย / ครู';
+  const hoursDisplay = data.hours_text.includes('ชั่วโมง') || data.hours_text.includes('นาที')
+    ? data.hours_text
+    : `${data.hours_text} ชั่วโมง`;
   const formatText = (t: string) => escapeHtml(t).replace(/\n/g, '<br/>');
 
   const signDateStr = (data.date && data.month && data.buddhist_year)
@@ -998,6 +1013,7 @@ export function buildFullPlanHtml(data: LessonPlanData): string {
   <p><strong>ข้อเสนอแนะ / แนวทางแก้ไข</strong></p>
   <p style="text-indent: 24pt; margin: 2pt 0;">............................................................................................................................................................................................................</p>
 
+  <!-- ตารางลงชื่อผู้เขียนแผน 4 แถว จัดกึ่งกลาง ชิดขวาสุด ไร้เส้น -->
   <table style="width:340px; margin-left:auto; margin-right:0; border:none; border-collapse:collapse; text-align:center; margin-top:20pt;">
     <tr>
       <td style="border:none; padding:3pt 0; text-align:center; font-family:'TH SarabunPSK',Sarabun; font-size:16pt;">
@@ -1031,6 +1047,9 @@ export function buildFullPlanHtml(data: LessonPlanData): string {
 export function buildFullPlanPlainText(data: LessonPlanData): string {
   const teacherName = data.teacher_name || '……………………………………………………';
   const teacherPos = data.teacher_position || 'ครูผู้ช่วย / ครู';
+  const hoursDisplay = data.hours_text.includes('ชั่วโมง') || data.hours_text.includes('นาที')
+    ? data.hours_text
+    : `${data.hours_text} ชั่วโมง`;
 
   const signDateStr = (data.date && data.month && data.buddhist_year)
     ? `วันที่ ${data.date} / ${data.month} / ${data.buddhist_year}`
@@ -1113,7 +1132,7 @@ ${data.assignments}
 }
 
 /**
- * คัดลอก Rich-Text ลง Clipboard
+ * คัดลอก Rich-Text ลง Clipboard (Word วางแล้วตารางและฟอนต์ไม่แตก)
  */
 export async function copyRichText(html: string, plainText: string): Promise<boolean> {
   try {
