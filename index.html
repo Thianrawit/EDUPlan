@@ -95,7 +95,7 @@
   <!-- ============================================================ -->
   <!-- Main Container -->
   <!-- ============================================================ -->
-  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 sm:py-10">
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-8 sm:py-10">
 
     <!-- ============================================================ -->
     <!-- VIEW: MAIN NAVIGATION HUB (Home Screen) -->
@@ -115,14 +115,16 @@
         </p>
       </div>
 
-      <!-- Main Navigation Cards (2 Cards Layout) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+      <!-- Main Navigation Cards (3 Cards Layout) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 max-w-5xl mx-auto">
         <!-- Card 1: Lesson Plan Generator -->
         <div class="mode-card group hover:border-blue-500 hover:shadow-lg transition-all flex flex-col justify-between p-6 sm:p-7 bg-white rounded-2xl border border-slate-200">
           <div>
             <div class="flex items-center justify-between mb-5">
               <div class="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-xs group-hover:scale-105 transition-transform">
-                <span class="text-2xl">📝</span>
+                <svg class="w-7 h-7 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
               </div>
               <span class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-1 rounded-full">
                 มาตรฐาน 11 หัวข้อ
@@ -150,10 +152,12 @@
           <div>
             <div class="flex items-center justify-between mb-5">
               <div class="w-14 h-14 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shadow-xs group-hover:scale-105 transition-transform">
-                <span class="text-2xl">📊</span>
+                <svg class="w-7 h-7 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
               </div>
               <span class="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200/80 px-2.5 py-1 rounded-full">
-                โมดูลใหม่ (New)
+                โมดูลรูบริก
               </span>
             </div>
             <h2 class="text-xl font-bold text-slate-900 mb-2 group-hover:text-purple-600 transition-colors">
@@ -164,12 +168,42 @@
             </p>
             <ul class="text-xs text-slate-500 space-y-1.5 mb-6">
               <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> นำเข้าไฟล์ Word (.docx) ลากและวางง่ายดาย</li>
-              <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> สังเคราะห์คำอธิบายระดับคุณภาพ (Descriptors) ชัดเจน</li>
-              <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> ส่งออกตารางเกณฑ์รูบริกและเกณฑ์คะแนนลง Word ทันที</li>
+              <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> สังเคราะห์คำอธิบายระดับคุณภาพชัดเจน</li>
+              <li class="flex items-center gap-1.5"><span class="text-purple-500 font-bold">✓</span> ส่งออกตารางเกณฑ์รูบริกลง Word ทันที</li>
             </ul>
           </div>
           <button id="btn-nav-rubric" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm group-hover:shadow-md transition-all">
             <span>เริ่มสร้างรูบริกสกอร์</span>
+          </button>
+        </div>
+
+        <!-- Card 3: Long-Term Plan Generator -->
+        <div class="mode-card group hover:border-emerald-500 hover:shadow-lg transition-all flex flex-col justify-between p-6 sm:p-7 bg-white rounded-2xl border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between mb-5">
+              <div class="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-xs group-hover:scale-105 transition-transform">
+                <svg class="w-7 h-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </div>
+              <span class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full">
+                แผนระยะยาว
+              </span>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2 group-hover:text-emerald-600 transition-colors">
+              สร้างโครงการจัดการเรียนรู้
+            </h2>
+            <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mb-4">
+              ออกแบบคำอธิบายรายวิชา โครงสร้างหน่วยการเรียนรู้ แผนรายสัปดาห์ตลอดภาคเรียน และเกณฑ์การเก็บคะแนนครบวงจร
+            </p>
+            <ul class="text-xs text-slate-500 space-y-1.5 mb-6">
+              <li class="flex items-center gap-1.5"><span class="text-emerald-500 font-bold">✓</span> ดึงและคำนวณชั่วโมง/หน่วยกิตอัตโนมัติ</li>
+              <li class="flex items-center gap-1.5"><span class="text-emerald-500 font-bold">✓</span> ตารางหน่วย 6 คอลัมน์ และแผนสัปดาห์ 8 คอลัมน์</li>
+              <li class="flex items-center gap-1.5"><span class="text-emerald-500 font-bold">✓</span> ส่งออก Word 5 ส่วนมาตรฐาน 9,000 DXA</li>
+            </ul>
+          </div>
+          <button id="btn-nav-longterm" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm group-hover:shadow-md transition-all">
+            <span>เริ่มสร้างโครงการจัดการเรียนรู้</span>
           </button>
         </div>
       </div>
@@ -1146,6 +1180,674 @@
       </div>
     </section>
 
+    <!-- ============================================================ -->
+    <!-- VIEW: LONG-TERM PLAN / COURSE SYLLABUS GENERATOR -->
+    <!-- ============================================================ -->
+    <section id="longterm-section" class="hidden animate-fade-in py-6 sm:py-8 max-w-4xl mx-auto">
+      <!-- Wizard View (10 Steps) -->
+      <div id="lt-wizard-view" class="space-y-6">
+        <!-- Header: Prominent Step Title & Subtitle -->
+        <div class="text-center max-w-2xl mx-auto mb-6">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold mb-2.5 border border-emerald-200">
+            <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span>โครงการจัดการเรียนรู้ (Course Syllabus)</span>
+          </div>
+          <h1 id="lt-wizard-step-title" class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
+            ขั้นตอนที่ 1: เลือกระดับชั้นการศึกษา (Grade Level)
+          </h1>
+          <p id="lt-wizard-step-subtitle" class="text-slate-600 text-xs sm:text-sm leading-relaxed">
+            เลือกระดับชั้นตั้งแต่ ปฐมวัย (อ.1 - อ.3), ประถมศึกษา (ป.1 - ป.6) ถึง มัธยมศึกษา (ม.1 - ม.6)
+          </p>
+        </div>
+
+        <!-- Form Panels Container -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+          <!-- Step 1: Grade Selection -->
+          <div id="lt-step-panel-1" class="lt-step-panel space-y-6">
+            <!-- Grade Categories -->
+            <div class="space-y-4">
+              <!-- ปฐมวัย -->
+              <div>
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระดับปฐมวัย (อนุบาล)</h4>
+                <div class="grid grid-cols-3 gap-2.5">
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="k1" data-grade-name="อนุบาล 1">
+                    <span class="block font-bold text-sm text-slate-900">อ.1</span>
+                    <span class="text-[11px] text-slate-500">อนุบาล 1</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="k2" data-grade-name="อนุบาล 2">
+                    <span class="block font-bold text-sm text-slate-900">อ.2</span>
+                    <span class="text-[11px] text-slate-500">อนุบาล 2</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="k3" data-grade-name="อนุบาล 3">
+                    <span class="block font-bold text-sm text-slate-900">อ.3</span>
+                    <span class="text-[11px] text-slate-500">อนุบาล 3</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- ประถม -->
+              <div>
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระดับประถมศึกษา (ป.1 - ป.6)</h4>
+                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  <button type="button" class="lt-grade-card p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="p1" data-grade-name="ประถมศึกษาปีที่ 1">
+                    <span class="block font-bold text-sm text-slate-900">ป.1</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="p2" data-grade-name="ประถมศึกษาปีที่ 2">
+                    <span class="block font-bold text-sm text-slate-900">ป.2</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="p3" data-grade-name="ประถมศึกษาปีที่ 3">
+                    <span class="block font-bold text-sm text-slate-900">ป.3</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="p4" data-grade-name="ประถมศึกษาปีที่ 4">
+                    <span class="block font-bold text-sm text-slate-900">ป.4</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="p5" data-grade-name="ประถมศึกษาปีที่ 5">
+                    <span class="block font-bold text-sm text-slate-900">ป.5</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="p6" data-grade-name="ประถมศึกษาปีที่ 6">
+                    <span class="block font-bold text-sm text-slate-900">ป.6</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- มัธยมต้น -->
+              <div>
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระดับมัธยมศึกษาตอนต้น (ม.1 - ม.3)</h4>
+                <div class="grid grid-cols-3 gap-2.5">
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="m1" data-grade-name="มัธยมศึกษาปีที่ 1">
+                    <span class="block font-bold text-sm text-slate-900">ม.1</span>
+                  </button>
+                  <button type="button" class="lt-grade-card active p-3 rounded-xl border-2 border-blue-600 bg-blue-50/50 text-center transition-all cursor-pointer shadow-xs" data-grade-id="m2" data-grade-name="มัธยมศึกษาปีที่ 2">
+                    <span class="block font-bold text-sm text-slate-900">ม.2</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="m3" data-grade-name="มัธยมศึกษาปีที่ 3">
+                    <span class="block font-bold text-sm text-slate-900">ม.3</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- มัธยมปลาย -->
+              <div>
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระดับมัธยมศึกษาตอนปลาย (ม.4 - ม.6)</h4>
+                <div class="grid grid-cols-3 gap-2.5">
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="m4" data-grade-name="มัธยมศึกษาปีที่ 4">
+                    <span class="block font-bold text-sm text-slate-900">ม.4</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="m5" data-grade-name="มัธยมศึกษาปีที่ 5">
+                    <span class="block font-bold text-sm text-slate-900">ม.5</span>
+                  </button>
+                  <button type="button" class="lt-grade-card p-3 rounded-xl border border-slate-200 hover:border-blue-400 text-center transition-all cursor-pointer bg-white" data-grade-id="m6" data-grade-name="มัธยมศึกษาปีที่ 6">
+                    <span class="block font-bold text-sm text-slate-900">ม.6</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Subject Cards & Course Info (Card Grid!) -->
+          <div id="lt-step-panel-2" class="lt-step-panel hidden space-y-5">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-2.5">
+                เลือกกลุ่มสาระการเรียนรู้ <span class="text-red-500">*</span>
+              </label>
+              <div id="lt-subject-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="thai" data-name="ภาษาไทย">
+                  <div class="font-bold text-slate-900 text-sm">ภาษาไทย</div>
+                  <div class="text-xs text-slate-500 mt-0.5">การอ่าน เขียน ฟัง ดู พูด</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="math" data-name="คณิตศาสตร์">
+                  <div class="font-bold text-slate-900 text-sm">คณิตศาสตร์</div>
+                  <div class="text-xs text-slate-500 mt-0.5">จำนวน การวัด เรขาคณิต</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card active text-left p-3.5 rounded-xl border-2 border-blue-600 bg-blue-50/50 shadow-xs transition-all cursor-pointer" data-subject="science" data-name="วิทยาศาสตร์และเทคโนโลยี">
+                  <div class="font-bold text-slate-900 text-sm">วิทยาศาสตร์และเทคโนโลยี</div>
+                  <div class="text-xs text-slate-500 mt-0.5">สิ่งมีชีวิต กายภาพ วิทยาการคำนวณ</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="foreign" data-name="ภาษาต่างประเทศ (อังกฤษ)">
+                  <div class="font-bold text-slate-900 text-sm">ภาษาต่างประเทศ (อังกฤษ)</div>
+                  <div class="text-xs text-slate-500 mt-0.5">การสื่อสารและภาษา</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="social" data-name="สังคมศึกษา ศาสนา และวัฒนธรรม">
+                  <div class="font-bold text-slate-900 text-sm">สังคมศึกษาฯ</div>
+                  <div class="text-xs text-slate-500 mt-0.5">ประวัติศาสตร์ ภูมิศาสตร์ หน้าที่พลเมือง</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="health" data-name="สุขศึกษาและพลศึกษา">
+                  <div class="font-bold text-slate-900 text-sm">สุขศึกษาและพลศึกษา</div>
+                  <div class="text-xs text-slate-500 mt-0.5">การดูแลสุขภาพและการเคลื่อนไหว</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="art" data-name="ศิลปะ">
+                  <div class="font-bold text-slate-900 text-sm">ศิลปะ ดนตรี นาฏศิลป์</div>
+                  <div class="text-xs text-slate-500 mt-0.5">ทัศนศิลป์ ดนตรี และการแสดง</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="career" data-name="การงานอาชีพ">
+                  <div class="font-bold text-slate-900 text-sm">การงานอาชีพ</div>
+                  <div class="text-xs text-slate-500 mt-0.5">ทักษะการทำงานและอาชีพ</div>
+                </button>
+                <button type="button" class="choice-card lt-subject-card text-left p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 transition-all cursor-pointer bg-white" data-subject="other" data-name="วิชาเพิ่มเติม / กำหนดเอง">
+                  <div class="font-bold text-slate-900 text-sm">วิชาเพิ่มเติม / กำหนดเอง</div>
+                  <div class="text-xs text-slate-500 mt-0.5">ระบุวิชาอื่นๆ ตามหลักสูตรสถานศึกษา</div>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">รหัสวิชา <span class="text-red-500">*</span></label>
+                <input type="text" id="lt-course-code" class="form-input-clean text-sm w-full py-2.5 px-3 rounded-xl border border-slate-200" placeholder="เช่น ว22101, ท21101, ค31101" value="ว22101" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">ชื่อรายวิชา <span class="text-red-500">*</span></label>
+                <input type="text" id="lt-course-name" class="form-input-clean text-sm w-full py-2.5 px-3 rounded-xl border border-slate-200" placeholder="เช่น วิทยาการคำนวณ 2, ภาษาไทยพื้นฐาน" value="วิทยาการคำนวณ 2" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Hours & Credits -->
+          <div id="lt-step-panel-3" class="lt-step-panel hidden space-y-5">
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-2">เลือกชั่วโมงเรียนยอดนิยม</label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <button type="button" class="lt-quick-hour-btn py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer" data-hours="20">
+                    20 ชั่วโมง (0.5 นก.)
+                  </button>
+                  <button type="button" class="lt-quick-hour-btn py-2.5 px-3 rounded-xl text-xs font-bold bg-blue-600 text-white transition-colors cursor-pointer" data-hours="40">
+                    40 ชั่วโมง (1.0 นก.)
+                  </button>
+                  <button type="button" class="lt-quick-hour-btn py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer" data-hours="60">
+                    60 ชั่วโมง (1.5 นก.)
+                  </button>
+                  <button type="button" class="lt-quick-hour-btn py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer" data-hours="80">
+                    80 ชั่วโมง (2.0 นก.)
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5">จำนวนชั่วโมงรวมตลอดภาคเรียน</label>
+                  <div class="flex items-center gap-2">
+                    <input type="number" id="lt-total-hours" min="1" max="200" class="form-input-clean text-sm w-full py-2.5 px-3 rounded-xl border border-slate-200 font-bold" value="40" />
+                    <span class="text-xs text-slate-500 shrink-0 font-medium">ชั่วโมง</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5">จำนวนหน่วยกิตรวม</label>
+                  <div class="flex items-center gap-2">
+                    <input type="number" id="lt-total-credits" step="0.5" min="0" max="10" class="form-input-clean text-sm w-full py-2.5 px-3 rounded-xl border border-slate-200 font-bold" value="1.0" />
+                    <span class="text-xs text-slate-500 shrink-0 font-medium">หน่วยกิต</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">คำนวณอัตโนมัติจาก ชั่วโมง / 40 หรือแก้ไขเองได้</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Units & Course Overview -->
+          <div id="lt-step-panel-4" class="lt-step-panel hidden space-y-5">
+            <div class="space-y-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <label class="text-xs font-bold text-slate-700 shrink-0">จำนวนหน่วยการเรียนรู้:</label>
+                  <input type="number" id="lt-total-units" min="2" max="10" class="form-input-clean text-sm w-20 py-1.5 px-2.5 rounded-xl border border-slate-200 font-bold text-center" value="4" />
+                  <span class="text-xs text-slate-500">หน่วย</span>
+                </div>
+                <button type="button" id="lt-btn-toggle-units" class="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors cursor-pointer flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  <span>กดอธิบายแยกหน่วยการเรียนรู้</span>
+                </button>
+              </div>
+
+              <!-- Container for per-unit brief inputs (shown when toggled) -->
+              <div id="lt-unit-cards-container" class="hidden space-y-3 p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                <!-- Rendered dynamically via renderUnitCards() -->
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                  คำอธิบายโครงการจัดการเรียนรู้ (ภาพรวม) <span class="text-red-500">*</span>
+                </label>
+                <textarea id="lt-course-overview" rows="4" class="form-textarea-clean text-xs sm:text-sm w-full p-3 rounded-xl border border-slate-200 leading-relaxed" placeholder="ระบุหัวข้อที่ต้องการสอนทั้งหมดในภาคเรียนนี้ เช่น 'พ.ร.บ.คอมพิวเตอร์, ลิขสิทธิ์และการใช้สื่ออย่างปลอดภัย, โปรแกรมออกแบบกราฟิก Canva, การตัดต่อคลิปด้วย CapCut, การสร้างโครงงานเทคโนโลยีสร้างสรรค์' หรือวางเนื้อหารายวิชาโดยย่อ"></textarea>
+                <p class="text-[11px] text-slate-400 mt-1">AI จะนำหัวข้อภาพรวมนี้ไปจัดสรรลงในแต่ละหน่วยและแผนการสอนรายสัปดาห์</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 5: Standards & Indicators (Card Grid + Popup Modal) -->
+          <div id="lt-step-panel-5" class="lt-step-panel hidden space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div>
+                <h3 class="font-bold text-slate-900 text-base">เลือกมาตรฐานการเรียนรู้</h3>
+                <p class="text-xs text-slate-500">คลิกที่การ์ดมาตรฐานเพื่อเปิดหน้าต่าง Popup เลือกตัวชี้วัดที่ต้องการ (เลือกได้หลายมาตรฐาน)</p>
+              </div>
+              <span id="lt-indicators-counter-badge" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 font-medium">
+                เลือกแล้ว 0 ตัวชี้วัด
+              </span>
+            </div>
+
+            <!-- Search bar & Custom Adder -->
+            <div class="flex items-center gap-2">
+              <input type="text" id="lt-indicator-search" class="form-input-clean text-xs w-full py-2 px-3 rounded-xl border border-slate-200" placeholder="🔍 ค้นหารหัสมาตรฐาน เช่น ว 4.2..." />
+              <button type="button" id="lt-btn-add-custom-ind" class="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-200 shrink-0 transition-colors cursor-pointer flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>เพิ่มตัวชี้วัดกำหนดเอง</span>
+              </button>
+            </div>
+
+            <!-- Standards Cards Grid (Same style as Lesson Plan) -->
+            <div id="lt-standards-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
+              <!-- Rendered dynamically via renderStandardsList() -->
+            </div>
+
+            <div id="lt-standards-summary-hint" class="text-center text-xs text-slate-400 pt-1">
+              (คลิกที่การ์ดมาตรฐานด้านบนเพื่อเปิดหน้าต่าง Popup เลือกตัวชี้วัด)
+            </div>
+          </div>
+
+          <!-- Step 6: K-P-A Objectives -->
+          <div id="lt-step-panel-6" class="lt-step-panel hidden space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h3 class="font-bold text-slate-900 text-base">จุดประสงค์การเรียนรู้ของโครงการ (K-P-A)</h3>
+                <p class="text-xs text-slate-500">ระบุจุดประสงค์ด้านความรู้ (K) ทักษะ (P) และคุณลักษณะ (A)</p>
+              </div>
+              <button type="button" id="lt-btn-ai-kpa" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>ให้ AI ช่วยร่างจุดประสงค์ K-P-A ทันที</span>
+              </button>
+            </div>
+
+            <div class="space-y-4">
+              <!-- K -->
+              <div>
+                <label class="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-[11px]">K</span>
+                  <span>ด้านความรู้ (Knowledge)</span>
+                </label>
+                <textarea id="lt-kpa-k" rows="3" class="form-textarea-clean text-xs sm:text-sm w-full p-2.5 rounded-xl border border-slate-200 leading-relaxed" placeholder="เช่น 1. อธิบายหลักการและกฎหมายเกี่ยวกับ พ.ร.บ.คอมพิวเตอร์และลิขสิทธิ์ได้ถูกต้อง&#10;2. อธิบายองค์ประกอบของงานออกแบบและขั้นตอนการตัดต่อคลิปวิดีโอได้"></textarea>
+              </div>
+
+              <!-- P -->
+              <div>
+                <label class="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-[11px]">P</span>
+                  <span>ด้านทักษะกระบวนการ (Process / Practice)</span>
+                </label>
+                <textarea id="lt-kpa-p" rows="3" class="form-textarea-clean text-xs sm:text-sm w-full p-2.5 rounded-xl border border-slate-200 leading-relaxed" placeholder="เช่น 1. ออกแบบสื่อกราฟิกด้วย Canva และตัดต่อคลิปวิดีโอด้วย CapCut ได้อย่างสร้างสรรค์&#10;2. ประยุกต์ใช้เทคโนโลยีดิจิทัลในการแก้ปัญหาและสร้างชิ้นงานตามสถานการณ์ที่กำหนดได้"></textarea>
+              </div>
+
+              <!-- A -->
+              <div>
+                <label class="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <span class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-[11px]">A</span>
+                  <span>ด้านคุณลักษณะ / เจตคติ (Attitude / Affective)</span>
+                </label>
+                <textarea id="lt-kpa-a" rows="3" class="form-textarea-clean text-xs sm:text-sm w-full p-2.5 rounded-xl border border-slate-200 leading-relaxed" placeholder="เช่น 1. มีวินัย ใฝ่เรียนรู้ และมุ่งมั่นในการทำงาน&#10;2. มีความรับผิดชอบและตระหนักถึงจริยธรรมในการใช้งานเทคโนโลยีสารสนเทศ"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 7: Teaching Methods (Vectors!) -->
+          <div id="lt-step-panel-7" class="lt-step-panel hidden space-y-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="lt-method-card active p-3 rounded-xl border-2 border-blue-600 bg-blue-50/50 cursor-pointer transition-all flex items-start gap-2.5" data-method="Active Learning">
+                <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">Active Learning</span>
+                  <span class="text-[11px] text-slate-500">เน้นผู้เรียนมีส่วนร่วมและลงมือปฏิบัติ</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card active p-3 rounded-xl border-2 border-blue-600 bg-blue-50/50 cursor-pointer transition-all flex items-start gap-2.5" data-method="Project-Based Learning (PBL)">
+                <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">Project-Based Learning (PBL)</span>
+                  <span class="text-[11px] text-slate-500">การเรียนรู้โดยใช้โครงงานเป็นฐาน</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="Problem-Based Learning">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">Problem-Based Learning</span>
+                  <span class="text-[11px] text-slate-500">การเรียนรู้โดยใช้ปัญหาเป็นฐาน</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="SCSS">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2"/><circle cx="12" cy="12" r="5" stroke-width="2"/><circle cx="12" cy="12" r="1" stroke-width="2"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">SCSS Model</span>
+                  <span class="text-[11px] text-slate-500">โมเดลกระบวนการจัดการเรียนรู้เชิงรุก</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="GPAS 5 Steps">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">GPAS 5 Steps</span>
+                  <span class="text-[11px] text-slate-500">กระบวนการคิดขั้นสูง 5 ขั้นตอน</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="สืบเสาะหาความรู้ (5E)">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">กระบวนการสืบเสาะ (5E)</span>
+                  <span class="text-[11px] text-slate-500">Engage, Explore, Explain, Elaborate, Evaluate</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="STEM / STEAM">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">STEM / STEAM Education</span>
+                  <span class="text-[11px] text-slate-500">บูรณาการวิทย์ เทคโน วิศวะ ศิลปะ และคณิต</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="Game-Based Learning">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">Game-Based Learning</span>
+                  <span class="text-[11px] text-slate-500">การเรียนรู้โดยใช้เกมเป็นสื่อนำ</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="Design Thinking">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4 5 5 0 013-4.5V11a7 7 0 1114 0v1.5a5 5 0 013 4.5 4 4 0 01-4 4H7z"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">Design Thinking</span>
+                  <span class="text-[11px] text-slate-500">กระบวนการคิดเชิงออกแบบสร้างสรรค์</span>
+                </div>
+              </label>
+
+              <label class="lt-method-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="การเรียนรู้แบบร่วมมือ">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                </div>
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">Cooperative Learning</span>
+                  <span class="text-[11px] text-slate-500">การเรียนรู้แบบร่วมมือและทำงานเป็นทีม</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Step 8: Scoring Methods (Vectors!) -->
+          <div id="lt-step-panel-8" class="lt-step-panel hidden space-y-5">
+            <div class="space-y-4">
+              <!-- Auto Option Toggle -->
+              <label class="flex items-center gap-3 p-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-50/40 cursor-pointer transition-all">
+                <input type="checkbox" id="lt-auto-scoring-toggle" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                <div>
+                  <span class="block font-bold text-xs text-slate-900">ให้ AI วิเคราะห์และจัดการวิธีเก็บคะแนนให้อัตโนมัติ (แนะนำ)</span>
+                  <span class="text-[11px] text-slate-500">AI จะเกลี่ยคะแนนตามสัดส่วน 80:20 และกระจายวิธีประเมินตามธรรมชาติของรายวิชา</span>
+                </div>
+              </label>
+
+              <p class="text-xs font-bold text-slate-700 pt-2">หรือเลือกวิธีจัดเก็บคะแนนที่ต้องการเน้น:</p>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label class="lt-scoring-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="ทำแบบทดสอบ">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                  </div>
+                  <div>
+                    <span class="block font-bold text-xs text-slate-900">ทำแบบทดสอบ</span>
+                    <span class="text-[11px] text-slate-500">แบบทดสอบย่อย / ท้ายหน่วย</span>
+                  </div>
+                </label>
+
+                <label class="lt-scoring-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="ทำภาระงาน/ใบงาน">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  </div>
+                  <div>
+                    <span class="block font-bold text-xs text-slate-900">ทำภาระงาน / ใบงาน</span>
+                    <span class="text-[11px] text-slate-500">ใบกิจกรรมและแบบฝึกปฏิบัติ</span>
+                  </div>
+                </label>
+
+                <label class="lt-scoring-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="สร้างชิ้นงาน/โครงงานปฏิบัติ">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                  </div>
+                  <div>
+                    <span class="block font-bold text-xs text-slate-900">สร้างชิ้นงาน / โครงงาน</span>
+                    <span class="text-[11px] text-slate-500">ผลงานสร้างสรรค์เชิงประจักษ์</span>
+                  </div>
+                </label>
+
+                <label class="lt-scoring-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="สังเกตพฤติกรรม">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                  </div>
+                  <div>
+                    <span class="block font-bold text-xs text-slate-900">สังเกตพฤติกรรม</span>
+                    <span class="text-[11px] text-slate-500">การเข้าเรียน ความร่วมมือ จิตพิสัย</span>
+                  </div>
+                </label>
+
+                <label class="lt-scoring-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="การนำเสนอผลงาน">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                  </div>
+                  <div>
+                    <span class="block font-bold text-xs text-slate-900">การนำเสนอผลงาน</span>
+                    <span class="text-[11px] text-slate-500">การพูดอภิปรายและนำเสนอชิ้นงาน</span>
+                  </div>
+                </label>
+
+                <label class="lt-scoring-card p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all flex items-start gap-2.5" data-method="แฟ้มสะสมงาน">
+                  <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>
+                  </div>
+                  <div>
+                    <span class="block font-bold text-xs text-slate-900">แฟ้มสะสมงาน (Portfolio)</span>
+                    <span class="text-[11px] text-slate-500">รวบรวมชิ้นงานเด่นตลอดภาคเรียน</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 9: Direction & Constraints -->
+          <div id="lt-step-panel-9" class="lt-step-panel hidden space-y-5">
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-2">ทิศทางของโครงการ (เลือกได้มากกว่า 1 ข้อ)</label>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" class="lt-direction-pill px-3 py-1.5 rounded-full text-xs font-bold bg-blue-600 text-white transition-colors cursor-pointer" data-direction="เน้นปฏิบัติจริง">
+                    ✓ เน้นปฏิบัติจริง
+                  </button>
+                  <button type="button" class="lt-direction-pill px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer" data-direction="ทำงานเป็นกลุ่ม">
+                    ทำงานเป็นกลุ่ม
+                  </button>
+                  <button type="button" class="lt-direction-pill px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer" data-direction="ถาม-โต้ตอบ">
+                    ถาม-โต้ตอบ
+                  </button>
+                  <button type="button" class="lt-direction-pill px-3 py-1.5 rounded-full text-xs font-bold bg-blue-600 text-white transition-colors cursor-pointer" data-direction="ฝึกคิดวิเคราะห์">
+                    ✓ ฝึกคิดวิเคราะห์
+                  </button>
+                  <button type="button" class="lt-direction-pill px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer" data-direction="เน้นสร้างสรรค์ชิ้นงาน">
+                    เน้นสร้างสรรค์ชิ้นงาน
+                  </button>
+                  <button type="button" class="lt-direction-pill px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer" data-direction="บูรณาการชีวิตประจำวัน">
+                    บูรณาการชีวิตประจำวัน
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                  ข้อกำหนดเพิ่มเติม / สื่อและแหล่งเรียนรู้เฉพาะ (เว้นว่างได้)
+                </label>
+                <textarea id="lt-custom-constraints" rows="3" class="form-textarea-clean text-xs sm:text-sm w-full p-2.5 rounded-xl border border-slate-200 leading-relaxed" placeholder="เช่น ใช้คอมพิวเตอร์และห้องปฏิบัติการเป็นหลัก, มีการใช้โปรแกรม Canva เพื่อการศึกษา, เน้นการเผยแพร่ผลงานออนไลน์..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 10: Teacher Info & Generation -->
+          <div id="lt-step-panel-10" class="lt-step-panel hidden space-y-6">
+            <!-- Inputs -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อผู้สอน</label>
+                <input type="text" id="lt-teacher-name" class="form-input-clean text-xs w-full py-2 px-3 rounded-xl border border-slate-200" placeholder="เช่น ครูสมศักดิ์ รักเรียน" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">ภาคเรียนที่</label>
+                <select id="lt-semester" class="form-select-clean text-xs w-full py-2 px-3 rounded-xl border border-slate-200">
+                  <option value="1">ภาคเรียนที่ 1</option>
+                  <option value="2">ภาคเรียนที่ 2</option>
+                  <option value="ตลอดปีการศึกษา">ตลอดปีการศึกษา</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">ปีการศึกษา</label>
+                <input type="text" id="lt-academic-year" class="form-input-clean text-xs w-full py-2 px-3 rounded-xl border border-slate-200" value="2569" />
+              </div>
+            </div>
+
+            <!-- Summary Checklist -->
+            <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2">
+              <h4 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                <span>สรุปรายการข้อมูลโครงการ:</span>
+              </h4>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-slate-600">
+                <div>ระดับชั้น: <span id="lt-sum-grade" class="font-bold text-slate-900">-</span></div>
+                <div>วิชา: <span id="lt-sum-subject" class="font-bold text-slate-900">-</span></div>
+                <div>เวลาเรียน: <span id="lt-sum-hours" class="font-bold text-slate-900">-</span></div>
+                <div>จำนวนหน่วย: <span id="lt-sum-units" class="font-bold text-slate-900">-</span></div>
+                <div>ตัวชี้วัดที่เลือก: <span id="lt-sum-indicators" class="font-bold text-slate-900">-</span></div>
+                <div>วิธีการสอน: <span id="lt-sum-methods" class="font-bold text-slate-900">-</span></div>
+                <div class="sm:col-span-2">ข้อมูลผู้สอน: <span id="lt-sum-teacher" class="font-bold text-slate-900">-</span></div>
+              </div>
+            </div>
+
+            <!-- Generate Buttons -->
+            <div class="pt-2 flex flex-col sm:flex-row gap-3">
+              <button type="button" id="lt-btn-gen-fast" class="flex-1 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md hover:shadow-lg transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>สร้างโครงการแบบด่วน (Fast Mode)</span>
+              </button>
+              <button type="button" id="lt-btn-gen-precision" class="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md hover:shadow-lg transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2"/><circle cx="12" cy="12" r="5" stroke-width="2"/><circle cx="12" cy="12" r="1" stroke-width="2"/></svg>
+                <span>สร้างโครงการละเอียดสูง (Precision Mode)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Wizard Footer Controls: Progress Dots AT THE BOTTOM! -->
+          <div class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <!-- Prev Button -->
+            <button type="button" id="lt-btn-prev" class="btn-secondary text-xs sm:text-sm py-2 px-4 rounded-xl font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 order-2 sm:order-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              <span>ย้อนกลับ</span>
+            </button>
+
+            <!-- Dots Progress & Step Counter Container at Bottom! -->
+            <div class="flex flex-col items-center gap-1.5 order-1 sm:order-2">
+              <div class="flex items-center justify-center gap-1.5 sm:gap-2">
+                <button type="button" class="lt-wizard-dot w-8 h-2 rounded-full bg-blue-600 transition-all cursor-pointer" data-step="1" title="1. ระดับชั้น"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="2" title="2. กลุ่มสาระและรายวิชา"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="3" title="3. ชั่วโมงและหน่วยกิต"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="4" title="4. หน่วยและคำอธิบาย"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="5" title="5. มาตรฐานและตัวชี้วัด"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="6" title="6. จุดประสงค์ K-P-A"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="7" title="7. วิธีจัดการเรียนรู้"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="8" title="8. วิธีจัดเก็บคะแนน"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="9" title="9. ทิศทางและเงื่อนไข"></button>
+                <button type="button" class="lt-wizard-dot w-2 h-2 rounded-full bg-slate-200 transition-all cursor-pointer" data-step="10" title="10. ข้อมูลผู้สอนและสร้างแผน"></button>
+              </div>
+              <span id="lt-wizard-step-counter" class="text-[11px] text-slate-400 font-medium">ขั้นตอนที่ 1 จาก 10</span>
+            </div>
+
+            <!-- Next Button -->
+            <button type="button" id="lt-btn-next" class="btn-primary text-xs sm:text-sm py-2 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-1.5 order-3">
+              <span>ถัดไป</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview View (A4 Sheet + Toolbar + Refine) -->
+      <div id="lt-preview-view" class="hidden space-y-6 pt-8 border-t-2 border-dashed border-emerald-300">
+        <!-- Toolbar -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <button type="button" id="lt-btn-back-wizard" class="btn-secondary text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+              <span>เลื่อนขึ้นไปแก้ไขข้อมูล</span>
+            </button>
+            <span class="text-xs text-slate-400">|</span>
+            <span class="text-xs text-slate-600 font-medium hidden sm:inline">คลิกแก้ไขข้อความบนกระดาษได้โดยตรง</span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="lt-btn-copy-word" class="btn-secondary text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+              <span>คัดลอกทั้งแผน (สำหรับ Word)</span>
+            </button>
+            <button type="button" id="lt-btn-print" class="btn-secondary text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+              <span>พิมพ์ / PDF</span>
+            </button>
+            <button type="button" id="lt-btn-export-docx" class="btn-primary text-xs sm:text-sm py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>ดาวน์โหลด Word (.docx)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Refine Box -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 shadow-xs">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-4 h-4 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.286L13 21l-2.286-6.857L5 12l5.714-2.286L13 3z"/></svg>
+            <span class="text-xs font-bold text-blue-900">สั่ง AI ปรับแก้เพิ่มเติม (AI Refine Engine)</span>
+          </div>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="text" id="lt-refine-input" class="form-input-clean text-xs sm:text-sm flex-1 py-2 px-3.5 rounded-xl border border-blue-200 bg-white" placeholder="พิมพ์คำสั่งแก้ไข เช่น 'ปรับคะแนนเก็บเป็น 70:30', 'เพิ่มกิจกรรม Canva ในสัปดาห์ที่ 5-6'..." />
+            <button type="button" id="lt-btn-refine" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold py-2 px-4 rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <span>สั่ง AI ปรับปรุงโครงการ</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Virtual A4 Sheet Container -->
+        <div class="overflow-x-auto pb-6">
+          <div id="lt-preview-content" class="a4-sheet bg-white rounded-sm shadow-2xl border border-slate-300 p-8 sm:p-12 font-sarabun text-black min-w-[780px] max-w-[850px] mx-auto select-text" style="font-family: 'TH SarabunPSK', 'TH Sarabun New', Sarabun, sans-serif; font-size: 16pt; line-height: 1.35; color: #000000;">
+            <!-- Rendered dynamically via longTermController.renderPreview() -->
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ============================================================ -->
@@ -1180,6 +1882,34 @@
           ยกเลิกตัวชี้วัดของมาตรฐานนี้
         </button>
         <button id="ind-modal-done" class="btn-primary text-sm py-2 px-6">
+          เรียบร้อย
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MODAL: Long-Term Indicator Selection Drawer -->
+  <!-- ============================================================ -->
+  <div id="lt-indicator-modal-overlay" class="modal-overlay hidden" style="display: none;">
+    <div class="modal-content max-w-xl max-h-[85vh] flex flex-col p-6">
+      <div class="pb-3 border-b border-slate-100 flex items-center justify-between mb-4">
+        <div>
+          <h3 id="lt-ind-modal-title" class="text-lg font-bold text-slate-900">ตัวชี้วัด</h3>
+          <p id="lt-ind-modal-subtitle" class="text-xs text-slate-500 mt-0.5">เลือกตัวชี้วัดที่ต้องการ แล้วกดเรียบร้อย</p>
+        </div>
+        <button type="button" id="lt-ind-modal-close" class="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer p-1">✕</button>
+      </div>
+
+      <div id="lt-ind-modal-list" class="flex-1 overflow-y-auto space-y-2 pr-1 my-2">
+        <!-- Dynamic list of indicator cards with checkboxes -->
+      </div>
+
+      <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-3 mt-2">
+        <button type="button" id="lt-ind-modal-clear" class="text-xs text-slate-500 hover:text-red-600 font-medium cursor-pointer">
+          ยกเลิกตัวชี้วัดของมาตรฐานนี้
+        </button>
+        <button type="button" id="lt-ind-modal-done" class="btn-primary text-sm py-2 px-6 rounded-xl font-bold">
           เรียบร้อย
         </button>
       </div>

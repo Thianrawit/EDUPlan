@@ -84,12 +84,13 @@ import {
   copyRubricToClipboard,
 } from './exporter';
 import mammoth from 'mammoth';
+import { longTermController } from './longTermModule';
 
 // ============================================================
 // State
 // ============================================================
 interface AppState {
-  mainView: 'home' | 'lesson-plan' | 'rubric';
+  mainView: 'home' | 'lesson-plan' | 'rubric' | 'longterm';
   view: 'choice' | 'wizard' | 'allinone';
   currentStep: number; // 1 to 10
   gradeId: string;
@@ -482,11 +483,12 @@ function showModal(title: string, message: string, onYes: () => void, onNo: () =
 // ============================================================
 // Navigation & Views
 // ============================================================
-function switchMainView(view: 'home' | 'lesson-plan' | 'rubric') {
+function switchMainView(view: 'home' | 'lesson-plan' | 'rubric' | 'longterm') {
   state.mainView = view;
   const homeEl = document.getElementById('home-section');
   const lessonPlanEl = document.getElementById('lesson-plan-section');
   const rubricEl = document.getElementById('rubric-section');
+  const longTermEl = document.getElementById('longterm-section');
   const backHomeBtn = document.getElementById('btn-back-home');
   const navBadge = document.getElementById('nav-mode-badge');
   const navSubtitle = document.getElementById('nav-mode-subtitle');
@@ -494,6 +496,7 @@ function switchMainView(view: 'home' | 'lesson-plan' | 'rubric') {
   if (homeEl) homeEl.classList.toggle('hidden', view !== 'home');
   if (lessonPlanEl) lessonPlanEl.classList.toggle('hidden', view !== 'lesson-plan');
   if (rubricEl) rubricEl.classList.toggle('hidden', view !== 'rubric');
+  if (longTermEl) longTermEl.classList.toggle('hidden', view !== 'longterm');
 
   if (backHomeBtn) {
     if (view === 'home') {
@@ -517,6 +520,10 @@ function switchMainView(view: 'home' | 'lesson-plan' | 'rubric') {
   } else if (view === 'rubric') {
     if (navBadge) navBadge.textContent = 'เกณฑ์รูบริกสกอร์';
     if (navSubtitle) navSubtitle.textContent = 'ระบบสร้างเกณฑ์รูบริกสกอร์อัจฉริยะ';
+    scrollToTarget(0, 0);
+  } else if (view === 'longterm') {
+    if (navBadge) navBadge.textContent = 'โครงการจัดการเรียนรู้ (แผนระยะยาว)';
+    if (navSubtitle) navSubtitle.textContent = 'ระบบสร้างโครงการจัดการเรียนรู้และแผนระยะยาว';
     scrollToTarget(0, 0);
   }
 }
@@ -2608,6 +2615,18 @@ function renderAllInOneStandards() {
 }
 
 function resetForm() {
+  if (state.mainView === 'longterm') {
+    showModal(
+      'ยืนยันการล้างข้อมูลโครงการ',
+      'คุณต้องการล้างข้อมูลโครงการจัดการเรียนรู้ทั้งหมดและเริ่มต้นใหม่ ใช่หรือไม่?',
+      () => {
+        longTermController.resetData();
+      },
+      () => {}
+    );
+    return;
+  }
+
   showModal(
     'ยืนยันการล้างข้อมูลฟอร์ม',
     'คุณต้องการล้างข้อมูลที่กรอกทั้งหมดและเริ่มต้นร่างแผนใหม่ ใช่หรือไม่?',
@@ -3605,6 +3624,10 @@ function setupRubricModule() {
     switchMainView('rubric');
   });
 
+  document.getElementById('btn-nav-longterm')?.addEventListener('click', () => {
+    switchMainView('longterm');
+  });
+
   document.getElementById('btn-back-home')?.addEventListener('click', () => {
     switchMainView('home');
   });
@@ -3771,6 +3794,9 @@ async function init() {
 
   // Rubric Module Setup
   setupRubricModule();
+
+  // Long-Term Plan Module Setup
+  await longTermController.init({ startStopwatch, stopStopwatch, showToast });
 
   // Restore Draft if exists
   const hasDraft = loadDraftFromLocalStorage();

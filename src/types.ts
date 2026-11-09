@@ -185,3 +185,103 @@ export interface SystemTierModels {
   precision: string[];
 }
 
+/** ข้อมูลสรุปย่อของแต่ละหน่วยการเรียนรู้ */
+export interface UnitBriefInput {
+  unitNumber: number;
+  title: string;
+  description: string;
+  hours?: number;
+}
+
+/** โครงสร้าง Input ของโครงการจัดการเรียนรู้ (Long-Term Plan Wizard) */
+export interface LongTermPlanInput {
+  gradeId: string;
+  gradeName: string;              // อ.1 ถึง ม.6
+  subjectGroupId: string;
+  subjectGroupName: string;       // 8 กลุ่มสาระการเรียนรู้ หรือ อื่นๆ
+  courseCode: string;             // รหัสวิชา เช่น ว22101
+  courseName: string;             // ชื่อรายวิชา เช่น วิทยาการคำนวณ
+  totalHours: number;             // จำนวนชั่วโมงรวมตลอดภาคเรียน เช่น 40
+  totalCredits: number;           // จำนวนหน่วยกิตรวม (คำนวณอัตโนมัติ = totalHours / 40 หรือกรอกเอง)
+  totalUnits: number;             // จำนวนหน่วยการเรียนรู้
+  usePerUnitDetail: boolean;      // เปิด/ปิดโหมดอธิบายแยกหน่วยการเรียนรู้
+  unitBriefs: UnitBriefInput[];   // รายละเอียดแยกแต่ละหน่วย (ถ้าเปิดใช้)
+  courseOverviewPrompt: string;   // คำอธิบายโครงการจัดการเรียนรู้โดยรวม (เช่น พ.ร.บ.คอมพิวเตอร์, ลิขสิทธิ์, Canva, CapCut)
+  selectedIndicators: string[];   // มาตรฐานและตัวชี้วัดที่เลือก (เลือกได้มากกว่า 1 มาตรฐาน)
+  kObjective: string;             // จุดประสงค์ด้านความรู้ (K)
+  pObjective: string;             // จุดประสงค์ด้านทักษะกระบวนการ (P)
+  aObjective: string;             // จุดประสงค์ด้านคุณลักษณะ (A)
+  teachingMethods: string[];      // วิธีจัดการเรียนรู้ (Multi-select: Active Learning, PBL, SCSS, GPAS 5 Steps, 5E ฯลฯ)
+  scoringMethods: string[];       // วิธีจัดเก็บคะแนน (Multi-select หรือ [] หากให้ AI จัดการอัตโนมัติ)
+  courseDirections: string[];     // ทิศทางของโครงการ (Multi-select: เน้นปฏิบัติจริง, ทำงานเป็นกลุ่ม, ถาม-โต้ตอบ, ฝึกคิดวิเคราะห์ ฯลฯ)
+  customConstraints: string;      // ข้อกำหนดเพิ่มเติม (สื่อ/แหล่งเรียนรู้ หรือทิศทางเฉพาะ - เว้นว่างได้)
+  teacherName: string;            // ชื่อผู้สอน
+  semester: string;               // ภาคเรียนที่
+  academicYear: string;           // ปีการศึกษา
+}
+
+export interface LongTermUnitRow {
+  unitNumber: number | string;    // 1, 2, ..., n
+  unitTitle: string;              // ชื่อหน่วยการเรียนรู้
+  coreConcept: string;            // สาระสำคัญ / สาระการเรียนรู้
+  indicators: string;             // มาตรฐาน / ตัวชี้วัด
+  hours: number;                  // เวลา (ชม.)
+  score: number;                  // คะแนน
+}
+
+export interface WeeklyPlanRow {
+  planGroupTitle?: string;        // เช่น "แผนการจัดการเรียนรู้ที่ 1" (สำหรับแถวคั่น colspan=8)
+  weekNumber: number | string;    // สัปดาห์ที่
+  indicators: string;             // ตัวชี้วัด
+  unitAndTopic: string;           // หน่วยการเรียนรู้/เรื่อง
+  objectives: string;             // จุดประสงค์การเรียนรู้ K-P-A
+  coreContent: string;            // หัวข้อ/สาระสำคัญ
+  teachingMethod: string;         // วิธีจัดการเรียนรู้
+  mediaResources: string;         // สื่อ/แหล่งเรียนรู้
+  assessment: string;             // การวัดและการประเมินผล
+}
+
+export interface ScoringMethodRow {
+  order: number;
+  methodDescription: string;      // วิธีจัดเก็บคะแนน
+  score: number;                  // คะแนน
+}
+
+export interface LongTermPlanData {
+  subjectGroupName: string;
+  courseName: string;
+  courseCode: string;
+  gradeName: string;
+  totalHours: number;
+  totalCredits: number | string;
+  semester: string;
+  academicYear: string;
+  teacherName: string;
+
+  // ส่วนที่ 1: คำอธิบายรายวิชา
+  courseDescriptionPara1: string; // อธิบายโครงการจัดการเรียนรู้โดยย่อ (เนื้อหาที่ศึกษา)
+  courseDescriptionPara2: string; // อธิบายการจัดกิจกรรมการเรียนรู้ ทักษะ และคุณลักษณะที่มุ่งหวัง
+  indicatorsList: string[];       // รายการตัวชี้วัดที่ใช้
+  totalIndicatorsCount: number;   // จำนวนตัวชี้วัดรวม
+  kObjective: string;
+  pObjective: string;
+  aObjective: string;
+
+  // ส่วนที่ 2: ตารางโครงสร้างโครงการจัดการเรียนรู้ระยะยาว
+  hasOrientation: boolean;        // แถวปฐมนิเทศ
+  unitRows: LongTermUnitRow[];    // แถวหน่วยที่ 1 ถึง n
+  affectiveScore: number;         // คะแนนการเข้าชั้นเรียน การแต่งกาย จิตพิสัย และความร่วมมือ
+  finalExamHours: number;         // เวลาสอบปลายภาค (ชม.)
+  finalExamScore: number;         // คะแนนสอบปลายภาค
+
+  // ส่วนที่ 3: ตารางแผนการจัดการเรียนรู้รายสัปดาห์ (8 คอลัมน์)
+  weeklyRows: WeeklyPlanRow[];
+
+  // ส่วนที่ 4: ตารางวิธีจัดเก็บคะแนน (ระหว่างเรียน 80 / ปลายภาค 20 รวม 100)
+  formativeScoreTotal: number;    // ค่าเริ่มต้น 80
+  formativeScoringRows: ScoringMethodRow[];
+  summativeScoreTotal: number;    // ค่าเริ่มต้น 20
+  summativeScoringRows: ScoringMethodRow[];
+}
+
+

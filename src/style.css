@@ -64,12 +64,14 @@
   font-display: swap;
 }
 
-/* Enforce TH SarabunPSK on Lesson Plan Preview */
+/* Enforce TH SarabunPSK & 16pt Word Styling on Previews */
 .a4-paper,
 .a4-sheet,
 #preview-content,
-#preview-content * {
-  font-family: 'TH SarabunPSK', 'TH Sarabun PSK', sans-serif !important;
+#preview-content *,
+#lt-preview-content,
+#lt-preview-content * {
+  font-family: 'TH SarabunPSK', 'TH Sarabun PSK', Sarabun, sans-serif !important;
 }
 
 #preview-content p,
@@ -77,17 +79,51 @@
 #preview-content td,
 #preview-content th,
 #preview-content span,
-#preview-content li {
+#preview-content li,
+#lt-preview-content p,
+#lt-preview-content div,
+#lt-preview-content td,
+#lt-preview-content th,
+#lt-preview-content span,
+#lt-preview-content li {
   font-size: 16pt !important;
+  line-height: 1.35 !important;
+  color: #000000 !important;
 }
 
-#preview-content h1 {
-  font-size: 20pt !important;
+#preview-content h1,
+#lt-preview-content h1 {
+  font-size: 18pt !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  color: #000000 !important;
 }
 
 #preview-content h2,
-#preview-content h3 {
+#preview-content h3,
+#lt-preview-content h2,
+#lt-preview-content h3 {
   font-size: 16pt !important;
+  font-weight: bold !important;
+  color: #000000 !important;
+}
+
+/* Word Page Break Indicator */
+.word-page-break {
+  margin: 28px 0 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #94a3b8;
+  font-size: 11pt !important;
+  user-select: none;
+}
+.word-page-break::before,
+.word-page-break::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed #cbd5e1;
 }
 
 @tailwind base;
@@ -865,9 +901,14 @@ body {
 @media print {
   header,
   footer,
+  #home-section,
   #mode-choice-section,
   #wizard-container,
   #allinone-section,
+  #rubric-section,
+  #lt-wizard-view,
+  #lt-preview-view > div:first-child,
+  #lt-preview-view > div:nth-child(2),
   #preview-section > .white-card:first-child,
   #preview-section > .white-card:last-child,
   .section-toolbar,
@@ -877,6 +918,13 @@ body {
   .bottom-nav-bar,
   button,
   .no-print {
+    display: none !important;
+  }
+
+  /* ซ่อน Section ที่มีคลาส .hidden อย่างเด็ดขาด ป้องกันการแสดงผลทับซ้อน */
+  #preview-section.hidden,
+  #longterm-section.hidden,
+  #lt-preview-view.hidden {
     display: none !important;
   }
 
@@ -896,18 +944,46 @@ body {
     margin: 0 !important;
   }
 
-  #preview-section {
+  #preview-section:not(.hidden) {
     display: block !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  .a4-paper {
+  #longterm-section:not(.hidden) {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #lt-preview-view:not(.hidden) {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  .overflow-x-auto {
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  #lt-preview-content,
+  .a4-paper,
+  .a4-sheet {
     box-shadow: none !important;
     border-radius: 0 !important;
     border: none !important;
     padding: 0 !important;
+    margin: 0 !important;
     max-width: 100% !important;
+    min-width: 0 !important;
     width: 100% !important;
     color: #000000 !important;
     background: #ffffff !important;
@@ -924,46 +1000,97 @@ body {
     background: none !important;
   }
 
-  .a4-paper h1 {
-    font-size: 18pt !important;
+  .a4-paper h1,
+  #lt-preview-content h1 {
+    font-size: 16pt !important;
     font-weight: bold !important;
     text-align: center !important;
-    margin-bottom: 12pt !important;
+    margin-bottom: 8pt !important;
     color: #000000 !important;
+    page-break-after: avoid !important;
   }
 
-  .a4-paper h2 {
-    font-size: 16pt !important;
+  .a4-paper h2,
+  #lt-preview-content h2 {
+    font-size: 14pt !important;
     font-weight: bold !important;
     border-bottom: 1px solid #000000 !important;
     color: #000000 !important;
-    margin-top: 14pt !important;
-    margin-bottom: 6pt !important;
+    margin-top: 10pt !important;
+    margin-bottom: 4pt !important;
+    page-break-after: avoid !important;
   }
 
-  .a4-paper table {
+  #lt-preview-content p {
+    font-size: 12pt !important;
+    line-height: 1.4 !important;
+    color: #000000 !important;
+  }
+
+  /* ตารางทั้งหมดรองรับการแบ่งหน้าอัตโนมัติ (Pagination) หัวตารางติดซ้ำทุกหน้า */
+  .a4-paper table,
+  .a4-sheet table,
+  #lt-preview-content table {
     border-collapse: collapse !important;
     width: 100% !important;
-    margin: 8pt 0 !important;
-    page-break-inside: avoid;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    margin: 6pt 0 !important;
+    page-break-inside: auto !important;
+  }
+
+  .a4-paper thead,
+  .a4-sheet thead,
+  #lt-preview-content thead {
+    display: table-header-group !important;
+  }
+
+  .a4-paper tfoot,
+  .a4-sheet tfoot,
+  #lt-preview-content tfoot {
+    display: table-footer-group !important;
+  }
+
+  .a4-paper tr,
+  .a4-sheet tr,
+  #lt-preview-content tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
   }
 
   .a4-paper th,
-  .a4-paper td {
+  .a4-paper td,
+  .a4-sheet th,
+  .a4-sheet td,
+  #lt-preview-content th,
+  #lt-preview-content td {
     border: 1px solid #000000 !important;
-    padding: 4pt 6pt !important;
+    padding: 2.5pt 3.5pt !important;
     color: #000000 !important;
-    font-size: 14pt !important;
+    font-size: 10pt !important;
+    line-height: 1.25 !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    hyphens: auto !important;
+    vertical-align: top !important;
   }
 
-  .a4-paper th {
-    background-color: #f0f0f0 !important;
+  .a4-paper th,
+  .a4-sheet th,
+  #lt-preview-content th {
+    background-color: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     font-weight: bold !important;
+  }
+
+  h1, h2, h3, h4 {
+    page-break-after: avoid !important;
   }
 
   @page {
     size: A4 portrait;
-    margin: 1.5cm 1.5cm 1.5cm 2cm;
+    margin: 1.2cm 1cm 1.2cm 1.5cm;
   }
 }
 
