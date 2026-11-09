@@ -254,24 +254,24 @@ export async function validateGeminiApiKey(apiKey: string): Promise<{
     );
 
     if (res.ok) {
-      return { status: 'active', message: '🟢 พร้อมใช้งาน (Active)' };
+      return { status: 'active', message: 'พร้อมใช้งาน (Active)' };
     }
 
     if (res.status === 429) {
       return {
         status: 'quota_exceeded',
-        message: '🟡 โควต้าเต็มชั่วคราว (HTTP 429)',
+        message: 'โควต้าเต็มชั่วคราว (HTTP 429)',
       };
     }
 
     return {
       status: 'invalid',
-      message: `🔴 คีย์ไม่ถูกต้อง (HTTP ${res.status})`,
+      message: `คีย์ไม่ถูกต้อง (HTTP ${res.status})`,
     };
   } catch (err: any) {
     return {
       status: 'invalid',
-      message: `🔴 ไม่สามารถเชื่อมต่อเพื่อตรวจสอบได้ (${err?.message || 'Network error'})`,
+      message: `ไม่สามารถเชื่อมต่อเพื่อตรวจสอบได้ (${err?.message || 'Network error'})`,
     };
   }
 }

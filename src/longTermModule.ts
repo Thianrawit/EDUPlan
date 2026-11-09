@@ -259,9 +259,9 @@ class LongTermController {
         unitsContainer.classList.toggle('hidden', !this.inputs.usePerUnitDetail);
       }
       if (toggleUnitsBtn) {
-        toggleUnitsBtn.textContent = this.inputs.usePerUnitDetail
-          ? '➖ ซ่อนรายละเอียดแยกหน่วยการเรียนรู้'
-          : '➕ กดอธิบายแยกหน่วยการเรียนรู้';
+        toggleUnitsBtn.innerHTML = this.inputs.usePerUnitDetail
+          ? `<svg class="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12h-15" /></svg><span>ซ่อนรายละเอียดแยกหน่วยการเรียนรู้</span>`
+          : `<svg class="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg><span>กดอธิบายแยกหน่วยการเรียนรู้</span>`;
       }
       if (this.inputs.usePerUnitDetail) {
         this.renderUnitCards();
@@ -772,7 +772,7 @@ class LongTermController {
     const btn = document.getElementById('lt-btn-ai-kpa') as HTMLButtonElement;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = '⚡ กำลังร่าง K-P-A...';
+      btn.innerHTML = `<svg class="w-4 h-4 animate-spin mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>กำลังร่าง K-P-A...</span>`;
     }
 
     try {
@@ -828,7 +828,7 @@ class LongTermController {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '⚡ ให้ AI ช่วยร่างจุดประสงค์ K-P-A ทันที';
+        btn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><span>ให้ AI ช่วยร่างจุดประสงค์ K-P-A ทันที</span>`;
       }
     }
   }

@@ -161,4 +161,55 @@
   - เพิ่มเส้นแบ่งหน้าเอกสาร `.word-page-break` (`─── ตัวแบ่งหน้า (Page Break) ───`) จำลองการแบ่งหน้า A4 ของ Word
   - ปรับกรอบ A4 Sheet ให้มีมาร์จิ้นภายในมาตรฐาน Word (2.5cm / 2cm) พร้อมเงาตกกระทบแบบเอกสารจริง
 
+---
+
+## 8. การเปลี่ยนไอคอนหลักและการเปลี่ยนผ่านสู่อีโมจิเป็น Vector SVG (Heroicons Migration)
+
+### 8.1 การติดตั้ง Primary Website Icon
+- เปลี่ยน Favicon ในแท็ก `<head>` ของ `index.html` ให้ชี้ไปยัง `./icons/icon.png` (`<link rel="icon" type="image/png" href="./icons/icon.png">`)
+- เปลี่ยนไอคอน Brand Logo ด้านบนซ้ายของ Navbar จากกล่องสีน้ำเงินข้อความ "EP" เดิม มาเป็นโลโก้ภาพจริง `<img src="./icons/icon.png" alt="EduPlan AI" class="w-9 h-9 rounded-xl shadow-xs object-cover" />`
+
+### 8.2 การแปลง Emoji ทั้งหมดเป็น Vector SVG (Heroicons & Clean UI)
+ได้ทำการค้นหาและแทนที่ Emoji ทั้งหมดในโปรเจกต์ด้วย Heroicons SVG Vector และ Clean UI Indicators:
+1. **หน้าหลัก & การ์ดระบบ (`index.html`)**:
+   - `✨` (Hero Badge) → Heroicons `sparkles`
+   - `✓` (Checklist ฟีเจอร์ในการ์ด 1, 2, 3) → Heroicons `check` (สีเขียว emerald และสีม่วง purple)
+2. **ปุ่มสร้างแผนและโหมดประมวลผล (`index.html`)**:
+   - `⚡` (โหมดด่วน) → Heroicons `bolt` SVG
+   - `🎯` (โหมดละเอียด วPA) → Heroicons `sparkles` SVG
+3. **ระบบพรีวิวและคัดลอกแผน (`index.html`, `src/main.ts`)**:
+   - `📋` (ปุ่มคัดลอกทั้งแผน) → Heroicons `clipboard-document` SVG
+   - `📋 คัดลอกหัวข้อนี้` (11 หัวข้อในแผนการสอน) → Heroicons `clipboard-document` SVG พร้อมข้อความ
+4. **โมดูลรูบริกสกอร์ (`index.html`, `src/main.ts`)**:
+   - `📊` (Rubric Tag) → Heroicons `chart-bar` SVG
+   - `✓` (Radio Dot 4 ระดับ) → Heroicons `check` SVG ในวงกลมสีม่วง
+   - `📄` (Dropzone อัปโหลด) → Heroicons `document-arrow-up` SVG
+   - `✓` (กล่องไฟล์ที่เลือก) → Heroicons `check` SVG
+   - `ℹ️` (กล่องคำแนะนำ) → Heroicons `information-circle` SVG
+   - `⚡` (ปุ่มสร้างรูบริก) → Heroicons `bolt` SVG
+   - `📋` (ปุ่มคัดลอกตาราง) → Heroicons `clipboard-document` SVG
+   - `💾` (ปุ่มดาวน์โหลด .docx) → Heroicons `arrow-down-tray` SVG
+5. **หน้าต่างโมดอล & ระบบตั้งค่า (`index.html`, `src/main.ts`)**:
+   - `✕` (ปุ่มปิด Modal ทุกหน้าต่าง: Indicator, Settings, Admin) → Heroicons `x-mark` SVG
+   - `⚙️` (หัวข้อ Settings & Admin) → Heroicons `cog-6-tooth` SVG
+   - `💡` (หัวข้อ Step Carousel) → Heroicons `light-bulb` SVG
+   - `↗️` (ลิงก์ AI Studio) → Heroicons `arrow-top-right-on-square` SVG
+   - `เสร็จสิ้น ✓` (ปุ่มจบคารูเซล) → ข้อความ "เสร็จสิ้น" พร้อม Heroicons `check` SVG
+   - `🟢`, `🟡`, `🔴` (Status Badges ของ BYOK & Admin) → แปลงเป็น CSS Dot Indicators (`w-2 h-2 rounded-full`) สีเขียว/ส้ม/แดง สะอาดตาสไตล์โมเดิร์น
+   - `🔄` (ปุ่มคืนค่าเริ่มต้น Worker) → Heroicons `arrow-path` SVG
+   - `💾` (ปุ่มบันทึกระบบ Admin) → Heroicons `check` SVG
+   - `🎯` (ปุ่ม/ไอคอน Precision Quota Modal) → Heroicons `sparkles` SVG
+   - `⚠️` (ไอคอน Error Retry Modal) → Heroicons `exclamation-triangle` SVG
+   - `🔄` (ปุ่มลองใหม่อีกครั้ง) → Heroicons `arrow-path` SVG
+   - `⏱️` (Stopwatch หน้า Loading) → Heroicons `clock` SVG พร้อมแอนิเมชันหมุน
+6. **โมดูลโครงการจัดการเรียนรู้ (`src/longTermModule.ts`)**:
+   - `➖` / `➕` (ปุ่ม Toggle รายละเอียดแยกหน่วย) → Heroicons minus / plus SVG
+   - `⚡` (ปุ่ม AI ร่างจุดประสงค์ K-P-A) → Heroicons `bolt` SVG พร้อม Spinner หมุนขณะกำลังประมวลผล
+7. **Gemini Service (`src/gemini.ts`)**:
+   - ถอดรหัส Emoji ออกจากข้อความสถานะคงเหลือเฉพาะข้อความทางการ
+8. **ความปลอดภัยของฐานข้อมูล**:
+   - ตรวจสอบ `git status` ยืนยันไฟล์ `public/data/curriculum.json` ไม่ถูกแตะต้อง 100%
+   - ทดสอบ Build ด้วย `npm.cmd run build` ผ่านสมบูรณ์ไม่มี Error
+
+
 

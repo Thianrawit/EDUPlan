@@ -314,7 +314,7 @@ function hideLoading() {
 }
 
 // ============================================================
-// Error Retry Modal (พร้อมปุ่ม [🔄 ลองใหม่อีกครั้ง])
+// Error Retry Modal (พร้อมปุ่ม [ลองใหม่อีกครั้ง])
 // ============================================================
 let lastRetryAction: (() => void) | null = null;
 
@@ -1951,6 +1951,7 @@ function renderPreview() {
   });
 
   const h = getHeaderDisplayValues(data);
+  const copyIconSvg = '<svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>';
 
   const html = `
     <div class="a4-sheet" style="font-family: 'TH SarabunPSK', 'TH Sarabun PSK', sans-serif !important; font-size: 16pt; line-height: 1.5; color: #000000;">
@@ -2015,7 +2016,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">1. มาตรฐานการเรียนรู้</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="1">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="standards">${escapeHtml(data.standards)}</div>
@@ -2026,7 +2027,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">2. ตัวชี้วัด</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="2">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="indicators">${escapeHtml(data.indicators)}</div>
@@ -2037,7 +2038,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">3. สาระสำคัญ</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="3">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="concept">\t${escapeHtml(data.concept)}</div>
@@ -2048,7 +2049,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">4. จุดประสงค์รายวิชา</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="4">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="pl-3 space-y-2">
@@ -2072,7 +2073,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">5. สาระการเรียนรู้</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="5">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="learning_content">${escapeHtml(data.learning_content)}</div>
@@ -2083,7 +2084,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">6. สมรรถนะสำคัญของผู้เรียน</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="6">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="competencies">${escapeHtml(data.competencies)}</div>
@@ -2094,7 +2095,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">7. กิจกรรมการเรียนรู้ (รูปแบบการสอนแบบ <span contenteditable="true" data-field="teaching_model">${escapeHtml(data.teaching_model)}</span>)</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="7">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="editable-content pl-1" contenteditable="true" data-field="activities">${formatActivitiesToHtml(data.activities)}</div>
@@ -2105,7 +2106,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">8. สื่อและแหล่งการเรียนรู้</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="8">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="editable-content whitespace-pre-wrap pl-3" contenteditable="true" data-field="media_resources">${escapeHtml(data.media_resources)}</div>
@@ -2116,7 +2117,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">9. การวัดผลประเมินผล</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="9">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="overflow-x-auto my-2">
@@ -2141,7 +2142,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">10. กิจกรรมเสนอแนะ/งานที่มอบหมาย</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="10">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="pl-3 space-y-2">
@@ -2161,7 +2162,7 @@ function renderPreview() {
           <div class="flex items-center justify-between border-b border-slate-200 pb-1 mb-2">
             <h3 class="font-bold text-base text-slate-900" style="font-size: 16pt;">11. บันทึกหลังกระบวนการจัดการเรียนรู้</h3>
             <button class="copy-section-btn text-xs bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer flex items-center gap-1" data-section="11">
-              📋 คัดลอกหัวข้อนี้
+              ${copyIconSvg} คัดลอกหัวข้อนี้
             </button>
           </div>
           <div class="pl-3 space-y-4" style="font-size: 16pt; line-height: 1.6;">
@@ -2923,7 +2924,7 @@ function setupSettingsModal() {
     }
     if (nextBtn) {
       if (currentStepIdx === GUIDE_STEPS.length - 1) {
-        nextBtn.innerHTML = 'เสร็จสิ้น ✓';
+        nextBtn.innerHTML = '<span>เสร็จสิ้น</span><svg class="w-3.5 h-3.5 text-white ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>';
         nextBtn.className = 'btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1 font-semibold cursor-pointer bg-emerald-600 hover:bg-emerald-700';
       } else {
         nextBtn.innerHTML = 'ขั้นตอนถัดไป';
@@ -2959,18 +2960,18 @@ function setupSettingsModal() {
 
     if (status === 'active') {
       statusBadge.classList.add('badge-active');
-      statusBadge.textContent = msg || '🟢 คีย์ถูกต้อง พร้อมใช้งาน';
+      statusBadge.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5 shadow-xs"></span><span>${msg || 'คีย์ถูกต้อง พร้อมใช้งาน'}</span>`;
       if (warningInfo) warningInfo.classList.add('hidden');
     } else if (status === 'quota_exceeded') {
       statusBadge.classList.add('badge-warning');
-      statusBadge.textContent = msg || '🟡 โควต้าเต็มชั่วคราว (HTTP 429)';
+      statusBadge.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1.5 shadow-xs"></span><span>${msg || 'โควต้าเต็มชั่วคราว (HTTP 429)'}</span>`;
       if (warningInfo) {
         warningInfo.classList.remove('hidden');
         warningInfo.textContent = 'โควต้าคีย์ของท่านหมดชั่วคราว ระบบจะสลับไปใช้ระบบส่วนกลางให้อัตโนมัติ';
       }
     } else {
       statusBadge.classList.add('badge-error');
-      statusBadge.textContent = msg || '🔴 คีย์ไม่ถูกต้อง / หมดอายุ';
+      statusBadge.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-red-500 mr-1.5 shadow-xs"></span><span>${msg || 'คีย์ไม่ถูกต้อง / หมดอายุ'}</span>`;
       if (warningInfo) warningInfo.classList.add('hidden');
     }
   };
@@ -2982,7 +2983,7 @@ function setupSettingsModal() {
     if (byokToggle) byokToggle.checked = isEnabled;
 
     if (storedKey && isEnabled) {
-      updateStatusUI('active', '🟢 คีย์ถูกต้อง พร้อมใช้งาน');
+      updateStatusUI('active', 'คีย์ถูกต้อง พร้อมใช้งาน');
     } else {
       updateStatusUI('none');
     }
@@ -3021,7 +3022,7 @@ function setupSettingsModal() {
   byokCheckBtn?.addEventListener('click', async () => {
     const key = byokKeyInput?.value?.trim() || '';
     if (!key) {
-      updateStatusUI('invalid', '🔴 กรุณาระบุ API Key');
+      updateStatusUI('invalid', 'กรุณาระบุ API Key');
       showToast('กรุณาระบุ API Key ก่อนตรวจสอบ', 'error');
       return;
     }
@@ -3047,21 +3048,21 @@ function setupSettingsModal() {
       if (res.status === 'active') {
         if (byokToggle) byokToggle.checked = true;
         setStoredApiKey(key, true);
-        updateStatusUI('active', '🟢 คีย์ถูกต้อง พร้อมใช้งาน');
+        updateStatusUI('active', 'คีย์ถูกต้อง พร้อมใช้งาน');
         showToast('บันทึก Gemini API Key เรียบร้อยแล้ว (เปิดใช้งาน BYOK)', 'success');
       } else if (res.status === 'quota_exceeded') {
-        updateStatusUI('quota_exceeded', '🟡 โควต้าเต็มชั่วคราว (HTTP 429)');
+        updateStatusUI('quota_exceeded', 'โควต้าเต็มชั่วคราว (HTTP 429)');
         setStoredApiKey(key, false);
         if (byokToggle) byokToggle.checked = false;
         showToast('โควต้าคีย์เต็มชั่วคราว ระบบจะสลับไปใช้ระบบส่วนกลาง', 'info');
       } else {
-        updateStatusUI('invalid', '🔴 คีย์ไม่ถูกต้อง / หมดอายุ');
+        updateStatusUI('invalid', 'คีย์ไม่ถูกต้อง / หมดอายุ');
         setStoredApiKey(key, false);
         if (byokToggle) byokToggle.checked = false;
         showToast('API Key ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', 'error');
       }
     } catch {
-      updateStatusUI('invalid', '🔴 ไม่สามารถเชื่อมต่อเพื่อตรวจสอบได้');
+      updateStatusUI('invalid', 'ไม่สามารถเชื่อมต่อเพื่อตรวจสอบได้');
       showToast('เกิดข้อผิดพลาดในการตรวจสอบคีย์', 'error');
     } finally {
       byokCheckBtn.disabled = false;
@@ -3127,7 +3128,7 @@ function setupAdminModal() {
         </td>
         <td class="text-center py-3 px-3 min-w-[130px] whitespace-nowrap">
           <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-sans font-medium whitespace-nowrap">
-            🟢 ${isFallback ? 'ระบบหลัก (Guaranteed)' : 'ระบบรองรับ'}
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 inline-block"></span>${isFallback ? 'ระบบหลัก (Guaranteed)' : 'ระบบรองรับ'}
           </span>
         </td>
         <td class="text-center py-3 px-3 w-20 whitespace-nowrap">
@@ -3397,11 +3398,11 @@ function setupRubricModule() {
         const dot = c.querySelector('.level-radio-dot');
         if (dot) {
           if (isCurrent) {
-            dot.className = 'level-radio-dot w-4 h-4 rounded-full border-2 border-purple-600 bg-purple-600 flex items-center justify-center text-white text-[10px]';
-            dot.textContent = '✓';
+            dot.className = 'level-radio-dot w-4 h-4 rounded-full border-2 border-purple-600 bg-purple-600 flex items-center justify-center text-white';
+            dot.innerHTML = '<svg class="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>';
           } else {
             dot.className = 'level-radio-dot w-4 h-4 rounded-full border-2 border-slate-300';
-            dot.textContent = '';
+            dot.innerHTML = '';
           }
         }
       });

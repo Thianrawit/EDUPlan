@@ -1161,7 +1161,7 @@ export async function copyRichText(html: string, plainText: string): Promise<boo
 }
 
 /**
- * ดึงข้อมูลเฉพาะหัวข้อสำหรับปุ่ม "📋 คัดลอกหัวข้อนี้"
+ * ดึงข้อมูลเฉพาะหัวข้อสำหรับปุ่ม "คัดลอกหัวข้อนี้"
  */
 export function getSectionCopyContent(secNumber: number, data: LessonPlanData): { html: string; text: string } {
   const formatText = (t: string) => escapeHtml(t).replace(/\n/g, '<br/>');
