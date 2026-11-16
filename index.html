@@ -113,8 +113,8 @@
         </p>
       </div>
 
-      <!-- Main Navigation Cards (3 Cards Layout) -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 max-w-5xl mx-auto">
+      <!-- Main Navigation Cards (2x2 Grid Layout: 2 per row) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
         <!-- Card 1: Lesson Plan Generator -->
         <div class="mode-card group hover:border-blue-500 hover:shadow-lg transition-all flex flex-col justify-between p-6 sm:p-7 bg-white rounded-2xl border border-slate-200">
           <div>
@@ -203,6 +203,42 @@
           <button id="btn-nav-longterm" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm group-hover:shadow-md transition-all">
             <span>เริ่มสร้างโครงการจัดการเรียนรู้</span>
           </button>
+        </div>
+
+        <!-- Card 4: EduPlan Class (Classroom Management Beta) -->
+        <div class="mode-card group hover:border-amber-500 hover:shadow-lg transition-all flex flex-col justify-between p-6 sm:p-7 bg-white rounded-2xl border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between mb-5">
+              <div class="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shadow-xs group-hover:scale-105 transition-transform">
+                <svg class="w-7 h-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-full">
+                  ระบบจัดการห้องเรียน
+                </span>
+                <span class="text-xs font-extrabold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 rounded-full shadow-xs">
+                  เบต้า
+                </span>
+              </div>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2 group-hover:text-amber-600 transition-colors flex items-center gap-2">
+              <span>EduPlan Class</span>
+              <span class="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">BETA</span>
+            </h2>
+            <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mb-4">
+              ระบบจัดการห้องเรียน เช็คชื่อการมาเรียน ติดตามการส่งงานและให้คะแนนรายบุคคล รองรับทั้งโหมดในเครื่องและซิงก์ Google Sheet อัตโนมัติ
+            </p>
+            <ul class="text-xs text-slate-500 space-y-1.5 mb-6">
+              <li class="flex items-center gap-1.5"><svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> นำเข้ารายชื่อจากไฟล์ Excel (.xlsx) หรือ Google Sheet</li>
+              <li class="flex items-center gap-1.5"><svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> เช็คชื่อรายวัน แก้ไขย้อนหลัง และตรวจงานใส่คะแนน</li>
+              <li class="flex items-center gap-1.5"><svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> ซิงก์ Google Sheet Real-time และส่งออกไฟล์ Excel 3 แท็บ</li>
+            </ul>
+          </div>
+          <a href="./classroom.html" id="btn-nav-classroom" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm group-hover:shadow-md transition-all no-underline">
+            <span>เข้าสู่ระบบจัดการห้องเรียน (EduPlan Class)</span>
+          </a>
         </div>
       </div>
     </section>
