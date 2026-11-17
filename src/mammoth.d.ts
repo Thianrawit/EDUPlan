@@ -13,9 +13,17 @@ declare module 'mammoth' {
     path?: string;
   }): Promise<MammothResult>;
 
-  export function convertToHtml(input: {
-    arrayBuffer?: ArrayBuffer;
-    buffer?: any;
-    path?: string;
-  }): Promise<MammothResult>;
+  export const images: {
+    imgElement: (fn: (image: any) => Promise<{ src: string }>) => any;
+    dataUri?: any;
+  };
+
+  export function convertToHtml(
+    input: {
+      arrayBuffer?: ArrayBuffer;
+      buffer?: any;
+      path?: string;
+    },
+    options?: Record<string, any>
+  ): Promise<MammothResult>;
 }

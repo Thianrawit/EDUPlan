@@ -85,12 +85,13 @@ import {
 } from './exporter';
 import mammoth from 'mammoth';
 import { longTermController } from './longTermModule';
+import { batchStructureController } from './batchStructureView';
 
 // ============================================================
 // State
 // ============================================================
 interface AppState {
-  mainView: 'home' | 'lesson-plan' | 'rubric' | 'longterm';
+  mainView: 'home' | 'lesson-plan' | 'rubric' | 'longterm' | 'batch-structure';
   view: 'choice' | 'wizard' | 'allinone';
   currentStep: number; // 1 to 10
   gradeId: string;
@@ -483,12 +484,13 @@ function showModal(title: string, message: string, onYes: () => void, onNo: () =
 // ============================================================
 // Navigation & Views
 // ============================================================
-function switchMainView(view: 'home' | 'lesson-plan' | 'rubric' | 'longterm') {
+function switchMainView(view: 'home' | 'lesson-plan' | 'rubric' | 'longterm' | 'batch-structure') {
   state.mainView = view;
   const homeEl = document.getElementById('home-section');
   const lessonPlanEl = document.getElementById('lesson-plan-section');
   const rubricEl = document.getElementById('rubric-section');
   const longTermEl = document.getElementById('longterm-section');
+  const batchStructureEl = document.getElementById('batch-structure-section');
   const backHomeBtn = document.getElementById('btn-back-home');
   const navBadge = document.getElementById('nav-mode-badge');
   const navSubtitle = document.getElementById('nav-mode-subtitle');
@@ -497,6 +499,7 @@ function switchMainView(view: 'home' | 'lesson-plan' | 'rubric' | 'longterm') {
   if (lessonPlanEl) lessonPlanEl.classList.toggle('hidden', view !== 'lesson-plan');
   if (rubricEl) rubricEl.classList.toggle('hidden', view !== 'rubric');
   if (longTermEl) longTermEl.classList.toggle('hidden', view !== 'longterm');
+  if (batchStructureEl) batchStructureEl.classList.toggle('hidden', view !== 'batch-structure');
 
   if (backHomeBtn) {
     if (view === 'home') {
@@ -524,6 +527,11 @@ function switchMainView(view: 'home' | 'lesson-plan' | 'rubric' | 'longterm') {
   } else if (view === 'longterm') {
     if (navBadge) navBadge.textContent = 'โครงการจัดการเรียนรู้ (แผนระยะยาว)';
     if (navSubtitle) navSubtitle.textContent = 'ระบบสร้างโครงการจัดการเรียนรู้และแผนระยะยาว';
+    scrollToTarget(0, 0);
+  } else if (view === 'batch-structure') {
+    if (navBadge) navBadge.textContent = 'สร้างแผนจากโครงสร้าง (.docx)';
+    if (navSubtitle) navSubtitle.textContent = 'วิเคราะห์โครงสร้างรายวิชาและสร้างแผนแบบชุด (BYOK • โหมดด่วน)';
+    batchStructureController.renderWorkspace();
     scrollToTarget(0, 0);
   }
 }
@@ -3629,6 +3637,10 @@ function setupRubricModule() {
     switchMainView('longterm');
   });
 
+  document.getElementById('btn-nav-batch-structure')?.addEventListener('click', () => {
+    batchStructureController.checkByokAndEnter();
+  });
+
   document.getElementById('btn-back-home')?.addEventListener('click', () => {
     switchMainView('home');
   });
@@ -3798,6 +3810,9 @@ async function init() {
 
   // Long-Term Plan Module Setup
   await longTermController.init({ startStopwatch, stopStopwatch, showToast });
+
+  // Batch Course Structure (.docx) Module Setup
+  await batchStructureController.init({ switchMainView, showToast });
 
   // Restore Draft if exists
   const hasDraft = loadDraftFromLocalStorage();

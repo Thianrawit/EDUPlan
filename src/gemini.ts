@@ -11,7 +11,7 @@
  * ============================================================
  */
 
-import { getWorkerEndpoint, STORAGE_KEYS, ADMIN_PASS_HASH } from './config';
+import { getWorkerEndpoint, STORAGE_KEYS, ADMIN_PASS_HASH, FAST_MODELS, KPA_MODELS, PRECISION_MODELS } from './config';
 import type { ByokModelItem, SystemTierModels } from './types';
 
 export interface GeminiMessage {
@@ -136,7 +136,7 @@ export async function fetchTextOutModels(apiKey: string): Promise<ByokModelItem[
   if (!cleanKey) return [];
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`
   );
 
   if (!res.ok) {
@@ -303,6 +303,75 @@ export function sanitizeJsonString(raw: string): string {
   return text.trim();
 }
 
+const MODEL_DISCOVERY_TTL_MS = 10 * 60_000;
+const discoveredModelsCache = new Map<string, { models: ByokModelItem[]; fetchedAt: number }>();
+const dead404ModelsCache = new Map<string, Set<string>>();
+
+const FAST_PRIORITY_ORDER = [
+  'gemini-3.5-flash',
+  'gemini-3-flash',
+  'gemini-3-flash-preview',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+];
+
+function rankFastModelId(id: string): number {
+  const lower = id.toLowerCase();
+  const exactIdx = FAST_PRIORITY_ORDER.indexOf(lower);
+  if (exactIdx !== -1) return exactIdx;
+  if (lower.includes('3.5') && lower.includes('flash') && !lower.includes('lite')) return 20;
+  if (lower.includes('3') && lower.includes('flash') && !lower.includes('lite')) return 25;
+  if (lower.includes('2.5') && lower.includes('flash') && !lower.includes('lite')) return 30;
+  if (lower.includes('flash-lite') || lower.includes('flash') && lower.includes('lite')) return 40;
+  if (lower.includes('flash') && !lower.includes('exp')) return 50;
+  return 60;
+}
+
+/**
+ * ค้นหาและแคชรายชื่อโมเดลที่ API Key นี้รองรับจริงจาก Google Generative Language API (/v1beta/models)
+ * ป้องกันการวนเรียกโมเดลที่ถูก Google ปลดระวางหรือติด HTTP 404
+ */
+async function discoverModelsForKey(
+  userKey: string,
+  mode: 'kpa' | 'fast' | 'precision'
+): Promise<string[]> {
+  try {
+    const cached = discoveredModelsCache.get(userKey);
+    let list: ByokModelItem[];
+    if (cached && Date.now() - cached.fetchedAt < MODEL_DISCOVERY_TTL_MS) {
+      list = cached.models;
+    } else {
+      list = await fetchTextOutModels(userKey);
+      if (list.length > 0) {
+        discoveredModelsCache.set(userKey, { models: list, fetchedAt: Date.now() });
+      }
+    }
+
+    const filtered = list
+      .map(m => m.id.replace(/^models\//, '').trim())
+      .filter(id => {
+        const lower = id.toLowerCase();
+        if (lower.includes('thinking')) return false;
+        if (mode === 'fast' || mode === 'kpa') {
+          // โหมดด่วนต้องใช้โมเดลตระกูล flash เท่านั้น (ไม่ปน pro)
+          return lower.includes('flash') && !lower.includes('pro');
+        }
+        return lower.includes('flash') || lower.includes('pro');
+      });
+
+    filtered.sort((a, b) => rankFastModelId(a) - rankFastModelId(b));
+    return filtered;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * ส่ง Request ตรงไปยัง Google Gemini REST API โดยใช้ BYOK
  */
@@ -311,8 +380,10 @@ async function callGeminiDirectBYOK(
   prompt: string,
   systemInstruction?: string,
   maxTokens: number = 8192,
-  mode: 'kpa' | 'fast' | 'precision' = 'fast'
+  mode: 'kpa' | 'fast' | 'precision' = 'fast',
+  responseMimeType?: string
 ): Promise<GeminiResult> {
+  const cleanKey = (userKey || '').trim();
   const candidateModels: string[] = [];
 
   // 1. ตรวจสอบการตั้งค่าโมเดลส่วนตัวของผู้ใช้จาก LocalStorage (eduplan_user_byok_tiers)
@@ -345,19 +416,52 @@ async function callGeminiDirectBYOK(
     } catch {}
   }
 
-  // 2. หากยังไม่มีโมเดลที่เลือกไว้ ให้ใช้ Default Candidates
-  const defaultCandidates = [
-    'gemini-3.5-flash',
-    'gemini-flash-latest',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-  ];
-  for (const def of defaultCandidates) {
-    if (!candidateModels.includes(def)) {
-      candidateModels.push(def);
+  // 2. ค้นหาโมเดลจริงที่ Key นี้ใช้งานได้จาก Google API (แคช 10 นาที ช่วยตัดโมเดล 404 ออก)
+  const discovered = await discoverModelsForKey(cleanKey, mode);
+  for (const dm of discovered) {
+    if (!candidateModels.includes(dm)) {
+      candidateModels.push(dm);
     }
+  }
+
+  // 3. หากยังไม่มีรายการ (เช่น ดึงรายการโมเดลไม่สำเร็จ) ให้เติม Default Candidates ตาม Tier
+  if (candidateModels.length === 0) {
+    const tierDefaults = mode === 'kpa' ? KPA_MODELS : mode === 'precision' ? PRECISION_MODELS : FAST_MODELS;
+    const extraDefaults = [
+      ...tierDefaults,
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash',
+    ];
+    for (const def of extraDefaults) {
+      if (!candidateModels.includes(def)) {
+        candidateModels.push(def);
+      }
+    }
+  }
+
+  // ข้ามโมเดลที่เคยตอบ 404 สำหรับ Key นี้ในเซสชันปัจจุบัน (ถ้าทุกตัวติด 404 ให้ล้างแคชเพื่อลองใหม่)
+  let deadSet = dead404ModelsCache.get(cleanKey);
+  if (!deadSet) {
+    deadSet = new Set<string>();
+    dead404ModelsCache.set(cleanKey, deadSet);
+  }
+  let activeCandidates = candidateModels.filter(m => !deadSet!.has(m));
+  if (activeCandidates.length === 0) {
+    deadSet.clear();
+    discoveredModelsCache.delete(cleanKey);
+    activeCandidates = [...candidateModels];
+  }
+
+  const generationConfig: Record<string, any> = {
+    temperature: mode === 'kpa' ? 0.2 : 0.7,
+    topP: 0.95,
+    topK: 40,
+    maxOutputTokens: maxTokens,
+  };
+  if (responseMimeType) {
+    generationConfig.responseMimeType = responseMimeType;
   }
 
   const geminiPayload: any = {
@@ -367,12 +471,7 @@ async function callGeminiDirectBYOK(
         parts: [{ text: prompt }],
       },
     ],
-    generationConfig: {
-      temperature: mode === 'kpa' ? 0.2 : 0.7,
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: maxTokens,
-    },
+    generationConfig,
   };
 
   if (systemInstruction) {
@@ -381,9 +480,13 @@ async function callGeminiDirectBYOK(
     };
   }
 
-  let lastStatus = 0;
-  for (const model of candidateModels) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userKey}`;
+  let saw429 = false;
+  let saw503 = false;
+  let sawNetworkError = false;
+  let saw404 = false;
+
+  for (const model of activeCandidates) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -391,7 +494,6 @@ async function callGeminiDirectBYOK(
         body: JSON.stringify(geminiPayload),
       });
 
-      lastStatus = response.status;
       if (response.ok) {
         const data: GeminiResponse = await response.json();
         if (data.candidates && data.candidates.length > 0) {
@@ -415,15 +517,25 @@ async function callGeminiDirectBYOK(
         throw fatalErr;
       }
 
-      // หากเจอ 429 ให้ mark status ใน Dynamic Quota Tracker และลองโมเดลถัดไปในลิสต์ของผู้ใช้ (Waterfall Fallback)
+      // หากเจอ 429 ให้ mark status ใน Dynamic Quota Tracker และลองโมเดลถัดไป
       if (response.status === 429) {
+        saw429 = true;
         markModelQuotaLimited(model);
         console.warn(`[BYOK] Model ${model} returned 429, trying next candidate in waterfall...`);
         continue;
       }
 
-      // หากเจอ 404 หรือ 503 ให้ลองโมเดลถัดไป
-      if (response.status === 404 || response.status === 503) {
+      // หากเจอ 503 (Server Overloaded ชั่วคราว) ให้ลองโมเดลถัดไปโดยไม่ให้ 404 มาทับสถานะ 503
+      if (response.status === 503) {
+        saw503 = true;
+        console.warn(`[BYOK] Model ${model} returned 503 (overloaded), trying next candidate...`);
+        continue;
+      }
+
+      // หากเจอ 404 ให้จำไว้ว่าโมเดลนี้ไม่มีบน Key นี้ในเซสชันนี้แล้วข้ามทันที
+      if (response.status === 404) {
+        saw404 = true;
+        deadSet.add(model);
         continue;
       }
 
@@ -437,16 +549,69 @@ async function callGeminiDirectBYOK(
       if ((err as any)?.isFatal) {
         throw err;
       }
-      // หากเกิด Network Error ขณะลองโมเดล ให้วนลองโมเดลถัดไป
+      // เกิด Network Error / ERR_NAME_NOT_RESOLVED / ERR_CONNECTION_CLOSED
+      sawNetworkError = true;
     }
   }
 
-  // หากโมเดลทั้งหมดใน Waterfall ติด 429 ให้ตัดสลับไป Shared Worker Proxy
-  if (lastStatus === 429) {
-    throw new Error('BYOK_429');
+  // จัดลำดับสาเหตุที่แท้จริง (ไม่ให้ 404 ของโมเดลสำรองมาทับ 503 / 429 / Network Error)
+  if (saw503) {
+    const busyErr = new Error('เซิร์ฟเวอร์ Google Gemini หนาแน่นชั่วคราว (HTTP 503)');
+    (busyErr as any).status = 503;
+    (busyErr as any).isTransient = true;
+    throw busyErr;
   }
 
-  throw new Error(`BYOK_FAILED_${lastStatus}`);
+  if (saw429) {
+    const rateErr = new Error('BYOK_429');
+    (rateErr as any).status = 429;
+    (rateErr as any).isTransient = true;
+    throw rateErr;
+  }
+
+  if (sawNetworkError) {
+    const netErr = new Error('การเชื่อมต่อ Google Gemini API ขัดข้องชั่วคราว (โปรดตรวจสอบอินเทอร์เน็ต/DNS)');
+    (netErr as any).isTransientNetwork = true;
+    (netErr as any).isTransient = true;
+    throw netErr;
+  }
+
+  if (saw404) {
+    discoveredModelsCache.delete(cleanKey);
+    const notFoundErr = new Error('ไม่พบโมเดลโหมดด่วนที่ใช้งานได้กับ API Key นี้ (HTTP 404)');
+    (notFoundErr as any).status = 404;
+    throw notFoundErr;
+  }
+
+  throw new Error('ไม่สามารถเรียกใช้งานโมเดล Google Gemini ได้ในขณะนี้');
+}
+
+/**
+ * เรียกใช้ Gemini AI เฉพาะ BYOK โหมดด่วน (Fast Mode Only) โดยไม่ผ่าน Cloudflare Worker เด็ดขาด
+ * ใช้สำหรับฟีเจอร์วิเคราะห์โครงสร้างรายวิชา (.docx) และสร้างแผนแบบชุด (Batch Generator)
+ */
+export async function callGeminiByokFastOnly(
+  prompt: string,
+  systemInstruction?: string,
+  maxTokens: number = 8192,
+  responseMimeType?: string
+): Promise<GeminiResult> {
+  const userKey = getStoredApiKey();
+  const byokActive = isByokEnabled() && Boolean(userKey);
+  if (!byokActive) {
+    const err = new Error('ต้องเปิดใช้งาน Gemini API Key ส่วนตัว (BYOK) ก่อนใช้งานฟีเจอร์นี้');
+    (err as any).code = 'BYOK_REQUIRED';
+    throw err;
+  }
+  try {
+    return await callGeminiDirectBYOK(userKey, prompt, systemInstruction, maxTokens, 'fast', responseMimeType);
+  } catch (err: any) {
+    // หากติดเนื่องจาก responseMimeType ไม่รองรับในบางโมเดลเก่า ให้ลองอีกครั้งโดยไม่ใส่ responseMimeType
+    if (responseMimeType && err?.isFatal && /responseMimeType|mime/i.test(String(err?.message || ''))) {
+      return await callGeminiDirectBYOK(userKey, prompt, systemInstruction, maxTokens, 'fast');
+    }
+    throw err;
+  }
 }
 
 /**

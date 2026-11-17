@@ -660,9 +660,9 @@ function createEvaluationDocxTable(data: LessonPlanData): Table {
 }
 
 /**
- * ดาวน์โหลดไฟล์ .docx มาตรฐาน 11 หัวข้อ
+ * สร้าง Blob ของไฟล์ .docx มาตรฐาน 11 หัวข้อ (ใช้ร่วมกันระหว่างส่งออกเดี่ยวและส่งออกเป็นชุด .zip)
  */
-export async function exportToDocx(data: LessonPlanData): Promise<void> {
+export async function generateLessonPlanDocxBlob(data: LessonPlanData): Promise<Blob> {
   const doc = new Document({
     sections: [
       {
@@ -789,7 +789,14 @@ export async function exportToDocx(data: LessonPlanData): Promise<void> {
     ],
   });
 
-  const blob = await Packer.toBlob(doc);
+  return await Packer.toBlob(doc);
+}
+
+/**
+ * ดาวน์โหลดไฟล์ .docx มาตรฐาน 11 หัวข้อ
+ */
+export async function exportToDocx(data: LessonPlanData): Promise<void> {
+  const blob = await generateLessonPlanDocxBlob(data);
   const filename = `แผนจัดการเรียนรู้_${(data.topic || 'บทเรียน').replace(/\s+/g, '_')}_${data.grade}.docx`;
   saveAs(blob, filename);
 }

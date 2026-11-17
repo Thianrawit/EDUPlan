@@ -683,6 +683,89 @@
 - ไฟล์ที่ปรับปรุงครอบคลุมเฉพาะโมดูล `src/classroom/*` พร้อมเอกสาร `can.md`, `eduplan_ai_master_prompts.md` และ `ReviewIDE.md` (ไม่ได้แก้ไขโค้ดระบบหลัก `EduPlan AI`)
 - ตรวจสอบซ้ำ: `Emoji hits: 0`, `npx.cmd tsc --noEmit` (Exit Code `0`), `npm.cmd run build` (Exit Code `0`)
 
+---
+
+## 29. เพิ่มระบบวิเคราะห์โครงสร้างรายวิชา (.docx) และสร้างแผนการจัดการเรียนรู้แบบชุด (Batch Lesson Plan Generator — BYOK Fast Mode Only)
+
+### 29.1 สถาปัตยกรรมและไฟล์ที่สร้าง/อัปเดต
+1. **จุดเข้าเมนูบน Home Hub และด่านบังคับ BYOK (`index.html`, `src/main.ts`, `src/batchStructureView.ts`)**:
+   - เพิ่มการ์ดเมนู `สร้างแผนจากโครงสร้างรายวิชา (.docx)` พร้อมป้าย `BYOK • โหมดด่วน` และปุ่ม `สร้างแผนจากโครงสร้าง →` (`#btn-nav-batch-structure`) บนหน้าแรกอย่างสมดุล
+   - สร้างด่าน `checkByokAndEnter()` และ `#bs-byok-gatekeeper-modal` ตรวจสอบ `eduplan_use_byok` และ `eduplan_user_api_key` ทันทีที่คลิก หากยังไม่เปิดหรือยังไม่มีคีย์จะแสดง Popup แจ้งเตือนพร้อมปุ่ม `ตั้งค่าระบบ & ใส่ Gemini API Key` ที่เปิด `#settings-modal-overlay`, เปิดสวิตช์ `#byok-toggle` และโฟกัส `#byok-key-input` ทันที
+2. **ระบบวิเคราะห์ไฟล์ Word โครงสร้างรายวิชาแบบ 2 ชั้น (`src/structureParser.ts`)**:
+   - ใช้ `mammoth.convertToHtml({ arrayBuffer }, { convertImage: ... })` แปลงตารางใน `.docx` เป็น HTML โดยตัดรูปภาพออก
+   - **ชั้นที่ 1 (Zero-Token DOM Parser)**: ใช้ `DOMParser` ดึงข้อมูลส่วนหัวรายวิชา (`กลุ่มสาระ`, `รายวิชา`, `รหัสวิชา`, `ชั้น`, `จำนวนชั่วโมง`, `ภาคเรียน`, `ปีการศึกษา`, `ผู้สอน`), ตรวจจับตารางแผนรายสัปดาห์ 8 คอลัมน์, **ยุบรวมแผนที่มีหมายเลขแผนเดียวกันหรือลงท้ายด้วย `(ต่อ)` ข้ามสัปดาห์เข้าด้วยกันอัตโนมัติ** (บวกชั่วโมงรวม, อัปเดต `weekLabel` เช่น `สัปดาห์ที่ 2-3`, รวมหัวข้อ/สาระสำคัญ/วิธีสอน/สื่อ/การวัดผลโดยตัดข้อความซ้ำ), แยกจุดประสงค์ `K:`, `P:`, `A:` และดึงคำอธิบายมาตรฐานการเรียนรู้จาก `public/data/curriculum.json` มาเติมลงใน `standards`
+   - **ชั้นที่ 2 (AI Smart Extractor Fallback — Fast Mode Only)**: หากไฟล์ `.docx` ไม่ตรงกับตารางมาตรฐาน 8 คอลัมน์ จะแปลง HTML เป็นตารางข้อความกระชับแล้วยิงผ่าน `callGeminiByokFastOnly()` (`responseMimeType: 'application/json'`) เพื่อสกัดรายการแผนทั้งหมด
+3. **หน้าสรุปผล ตรวจสอบ/แก้ไขรายละเอียด และพรีวิว A4 (`src/batchStructureView.ts`)**:
+   - แสดงป้ายบอกวิธีวิเคราะห์ (`0 Token` หรือ `AI โหมดด่วน`), สรุปจำนวนแผน, และฟอร์มค่าเริ่มต้นส่วนหัวแผน (ดึงค่าที่เคยกรอกค้างไว้จาก `eduplan_ai_draft` และ `eduplan_longterm_draft` ใน `localStorage`)
+   - แถบเครื่องมือ Batch Action: `เลือกทั้งหมด`, `ไม่เลือกทั้งหมด`, `ข้ามแผนปฐมนิเทศ / สอบ`, `สั่งเจนแผนที่เลือกทั้งหมด (Y แผน) • โหมดด่วน`, และ `ดาวน์โหลดทั้งหมดเป็นไฟล์ .zip`
+   - หน้าต่าง Inspector Modal (`#bs-inspector-modal`) เปิดดูและแก้ไขข้อมูลตั้งต้นครบทั้ง 9 หมวดรายแผน พร้อมปุ่ม `บันทึกการแก้ไข` และ `บันทึก & เจนแผนนี้ทันที`
+   - หน้าต่างพรีวิวกระดาษ A4 มาตรฐาน 11 หัวข้อ (`#bs-a4-preview-modal`) แก้ไขข้อความสด (`contenteditable="true"`) ซิงก์ลง IndexedDB, คัดลอกแยกหัวข้อ 1–11, คัดลอกทั้งแผนสำหรับวางใน Word, และดาวน์โหลด `.docx` รายแผน
+4. **ระบบคิวเบื้องหลังและแถบสถานะลอยตัว (`src/batchQueue.ts`, `src/gemini.ts`)**:
+   - เพิ่ม `callGeminiByokFastOnly()` ใน `src/gemini.ts` ที่ยิงตรงด้วย API Key ส่วนตัว (BYOK) ในกลุ่มโมเดล `fast` tier เท่านั้น โดยไม่ผ่าน Cloudflare Worker ส่วนกลาง
+   - ประมวลผลทีละ 1 แผนตามลำดับคิว หน่วงเวลาพัก 2.5 วินาทีระหว่างแผน, มีระบบ **Auto-Resume เมื่อเจอ HTTP 429** (พักรอ 15 วินาทีพร้อมแสดงเวลานับถอยหลังแล้วทำแผนเดิมต่ออัตโนมัติ), ป้องกันการปิดแท็บด้วย `beforeunload`, และบันทึกผลลง IndexedDB (`eduplan_batch_structure_db`) ทันทีที่เสร็จทีละแผน
+   - รองรับการย่อหน้าต่างไปทำงานหน้าอื่นพร้อมแสดง **Persistent Floating Status Bar** (`#batch-floating-status-bar`) มุมขวาล่างของหน้าจอ
+5. **ระบบส่งออกไฟล์รวม `.zip` (`src/batchExporter.ts`, `src/exporter.ts`)**:
+   - แยกฟังก์ชัน `generateLessonPlanDocxBlob()` ใน `src/exporter.ts` เพื่อใช้สร้างไฟล์ `.docx` มาตรฐานราชการ 11 หัวข้อ (ฟอนต์ `TH SarabunPSK` ขอบ 1 นิ้ว) ร่วมกัน
+   - ใช้ `PizZip` และ `file-saver` บีบอัดแผนที่สร้างเสร็จทั้งหมดเป็นไฟล์ `.zip` เดียวในรูปแบบ `แผนที่_01_...docx`
+6. **ผลการตรวจสอบ**:
+   - `New batch files emoji hits: 0` (ใช้ Vector SVG ทั้งหมด)
+   - `npx.cmd tsc --noEmit` ผ่าน Exit Code `0`
+   - `npm.cmd run build` ผ่าน Exit Code `0` (`✓ built in 11.61s`)
+
+---
+
+## 30. แก้ไขตัวแยกจุดประสงค์การเรียนรู้ K-P-A กรณีอยู่ในช่องตารางเดียวกัน (`splitKpaObjectives` Fix)
+
+### 30.1 สาเหตุของบั๊ก
+- ใน `splitKpaObjectives()` เดิม (`src/structureParser.ts`) เมื่อวนลูปตรวจแต่ละบรรทัดแล้วพบ `K:` ตั้งแต่ต้นบรรทัด Regex `^(?:...K)\s*[:：\-]\s*(.*)$` ได้กวาดข้อความทั้งหมดจนจบแถว รวมถึง `P:` และ `A:` ที่อยู่บรรทัดเดียวกันไปเก็บลงใน `kLines` แล้วสั่ง `continue` จึงไม่เคยไปตรวจ `P:` / `A:` ต่อ (ส่งผลให้ K-P-A ไปกองรวมกันในช่อง K ช่องเดียว)
+
+### 30.2 การแก้ไขที่ทำ
+1. **อัปเกรด `splitKpaObjectives()` (`src/structureParser.ts`)**:
+   - เปลี่ยนมาใช้ Global Marker Scan ด้วย `markerRegex` ค้นหาตำแหน่งของหมวด K, P, A ทั้งหมดตลอดข้อความ (รองรับทั้งรูปแบบอยู่ในบรรทัดเดียวกัน `[K: ... P: ... A: ...]`, คั่นด้วย `|` หรือช่องว่าง, ไม่มีเว้นวรรคหลังอักษรไทย, รูปแบบภาษาไทย `ด้านความรู้ (K)` / `ด้านทักษะกระบวนการ (P)` / `ด้านคุณลักษณะอันพึงประสงค์ (A)` และแบบแยกหลายบรรทัด) แล้วตัดข้อความระหว่าง Marker ลง `k`, `p`, `a` แยกกันอย่างแม่นยำโดยไม่สับสนกับคำย่อภาษาอังกฤษ เช่น `IP:` หรือ `HTTP:`
+2. **กู้คืนข้อมูลแคชเดิมอัตโนมัติ (`src/structureParser.ts` & `src/batchStructureView.ts`)**:
+   - ส่งออก (`export`) `splitKpaObjectives()` นำไปแยกซ้ำหาก AI Fallback หรือแคชเดิมที่บันทึกอยู่ใน IndexedDB (`loadLatestBatchJobFromDb`) ยังมี K-P-A รวมอยู่ใน `k_objective` โดยที่ `p_objective`/`a_objective` เป็น `-` ให้แยกออกเป็น 3 ช่องให้อัตโนมัติเมื่อเปิดหน้าเว็บ
+3. **ผลการตรวจสอบ**:
+   - ทดสอบกับข้อมูลตัวอย่าง K-P-A แบบอยู่ช่องเดียวกัน, คั่นด้วย `|`, หลายบรรทัด และแบบติดกันไม่มีเว้นวรรค: แยกครบทั้ง K, P, A ถูกต้อง
+   - `npx.cmd tsc --noEmit` และ `npm.cmd run build` ผ่าน Exit Code `0` (`✓ 423 modules transformed`, `✓ built in 9.34s`)
+
+---
+
+## 31. แก้ไขปัญหา `BYOK_FAILED_404`, HTTP 503 และการค้นหาโมเดล BYOK โหมดด่วนอัตโนมัติ (`src/gemini.ts` & `src/batchQueue.ts`)
+
+### 31.1 สาเหตุที่ทำให้ขึ้น `BYOK_FAILED_404`
+1. **ไม่ค้นหาโมเดลจริงที่ API Key นั้นใช้งานได้**: เดิม `callGeminiDirectBYOK()` ไล่ลองเฉพาะรายชื่อโมเดลตายตัว (`gemini-3.5-flash`, `gemini-flash-latest`, `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`) ซึ่งโมเดลเก่าบางตัวถูก Google ปิดแล้ว (`404`)
+2. **Error 404 จากโมเดลสำรองไปทับสาเหตุจริง (HTTP 503 / Network Error)**: เมื่อโมเดลหลักอย่าง `gemini-3.5-flash` ตอบ `503` (เซิร์ฟเวอร์หนาแน่นชั่วคราว) หรือเกิด `ERR_CONNECTION_CLOSED` / `ERR_NAME_NOT_RESOLVED` ระบบวนไปเจอ `404` ของโมเดลถัดไปแล้วนำ `lastStatus = 404` ไปแสดงเป็น `BYOK_FAILED_404` ทำให้ดูเหมือนคีย์ไม่มีโมเดลและไม่ทำการกู้คิว
+3. **`batchQueue.ts` กู้คิวเฉพาะ HTTP 429**: เมื่อเจอ `503` หรือเน็ต/DNS สะดุดชั่วคราว แผนจึงหลุดเป็นสถานะ `error` ทันทีโดยไม่หน่วงรอและลองใหม่
+
+### 31.2 การแก้ไขที่ทำ
+1. **Dynamic Model Discovery & Session 404 Cache (`src/gemini.ts`)**:
+   - เพิ่ม `discoverModelsForKey()` เรียกใช้ `fetchTextOutModels()` ดึงรายการโมเดลจริงที่ Key ของผู้ใช้มีสิทธิ์ใช้งานจาก Google `/v1beta/models` (แคชในหน่วยความจำ 10 นาที และกรองเฉพาะโมเดลตระกูล `flash` สำหรับโหมดด่วนโดยตัด `pro` และ `thinking` ออก)
+   - เพิ่ม `dead404ModelsCache` จำโมเดลที่เคยตอบ `404` ต่อ Key เพื่อข้ามทันทีไม่ยิงซ้ำให้เสียเวลา
+   - แยก Flag สถานะ `saw503`, `saw429`, `sawNetworkError`, `saw404` อย่างอิสระ ไม่ให้ `404` จากโมเดลสำรองมาทับข้อความ Error จริงของ `503` / `429` / Network Drop พร้อมเข้ารหัส `encodeURIComponent` ของ Key และ Model URL อย่างถูกต้อง
+2. **Smart Auto-Resume สำหรับ 429 / 503 / Network Blip (`src/batchQueue.ts`)**:
+   - ปรับ `startBatchGeneration()` ให้กู้คืนและลองใหม่อัตโนมัติ (สูงสุด 4 ครั้งต่อแผน) เมื่อเจอทั้ง `429` (พัก 15 วินาที), `503` (พัก 8 วินาที), และ Network/DNS Error ชั่วคราว (พัก 8 วินาที) พร้อมแสดงสาเหตุและเวลานับถอยหลังบนแถบสถานะลอยตัว (`pauseReason`)
+3. **ผลการตรวจสอบ**:
+   - `Emoji hits: 0`
+   - `npx.cmd tsc --noEmit` และ `npm.cmd run build` ผ่าน Exit Code `0` (`✓ 423 modules transformed`, `✓ built in 9.53s`)
+
+---
+
+## 32. ตรวจสอบความปลอดภัยและแก้ไขช่องโหว่ XSS / DoS ก่อนอัปโหลดขึ้น GitHub (Security Audit & Push)
+
+### 32.1 ช่องโหว่ที่พบและแก้ไขทันทีก่อน Push
+1. **XSS Protection ใน Floating Status Bar (`src/batchQueue.ts`)**:
+   - พบการแทรกตัวแปรจากไฟล์ที่อัปโหลด (`activePlanTopic`, `courseName`, `courseCode`, `pauseReason`) ลงใน `bar.innerHTML` โดยตรง จึงเพิ่มฟังก์ชัน `escapeHtml()` และครอบค่าทุกช่องใน `renderFloatingStatusBar()` ครบ 100%
+2. **XSS Protection ใน A4 Preview (`src/batchStructureView.ts`)**:
+   - เปลี่ยนการแสดงกิจกรรมการเรียนรู้บนหน้า A4 จาก `formatActivitiesToHtml(data.activities)` เป็น `formatActivitiesToHtml(escapeHtml(data.activities))` เนื่องจาก `formatActivitiesToHtml()` ใน `templates.ts` เดิมไม่ Escape HTML Tag
+3. **Upload Size Limit DoS Guard (`src/structureParser.ts`)**:
+   - เพิ่มการตรวจขนาดไฟล์ `.docx` สูงสุด `15 MB` (`MAX_DOCX_BYTES`) ใน `parseCourseStructureDocx()` ป้องกันแท็บเบราว์เซอร์ค้างหรือหน่วยความจำเต็มจากไฟล์ขนาดใหญ่ผิดปกติ
+
+### 32.2 ผลการตรวจสอบความปลอดภัยทั้งหมด
+- **Secret & Env Protection**: `git check-ignore -v .env .env.local dist` ยืนยัน `.gitignore` บล็อกครบทุกไฟล์ สแกนไฟล์โค้ดและเอกสาร (`AIza...`, `AQ...`, `GOCSPX-`, `ghp_`, `github_pat_`, `sk-`, Private Keys) ไม่พบ Key จริงหลุดเข้าซอร์สโค้ด
+- **Strict BYOK Fast Mode Boundary**: `callGeminiByokFastOnly()` ยิงตรงไป Google API ด้วย Key ส่วนตัวของผู้ใช้ในกลุ่ม Fast Mode เท่านั้น ไม่ผ่าน Cloudflare Worker ส่วนกลาง และไม่แตะ `curriculum.json` / `Template_EDUPlan.docx` / `worker/worker.js` / `src/classroom/*`
+- **Dependency Audit (`npm.cmd audit --omit=dev`)**: คงพบเฉพาะ Moderate 2 รายการใน `uuid <11.1.1` (ติดมาจาก `exceljs` ที่มีอยู่เดิมของโปรเจกต์) ไม่มีช่องโหว่ใหม่จากการติดตั้ง `pizzip`
+- **Build & Type Check**: `Emoji hits: 0`, `npx.cmd tsc --noEmit` (Exit Code `0`), `npm.cmd run build` (Exit Code `0`, `✓ 423 modules transformed`, `✓ built in 9.78s`)
+
 
 
 
