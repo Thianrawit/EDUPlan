@@ -4,12 +4,38 @@
 import './classroom.css';
 import { getAssignments, getClassroom, getSessions, getStudents, onDataChange } from './db';
 import { exportClassroomXlsx } from './excelService';
-import { initAuth, onAuthChange } from './googleAuth';
-import { syncAppData } from './googleSheets';
-import { classroomTitle, errorMessage, escapeHtml, icon, safeHttpsUrl, type AppContext, type Classroom, type RoomTab } from './types';
+import { getAuthState, initAuth, onAuthChange } from './googleAuth';
+import {
+  fetchRoomCollaborators,
+  fetchSharedClassrooms,
+  isGoogleNotFoundError,
+  pickSpreadsheet,
+  pullClassroomFromSheet,
+  syncAppData,
+  syncSpreadsheetSyncMeta,
+} from './googleSheets';
+import {
+  mountConflictBanner,
+  resolveRealtimeConflict,
+  startRealtimeSync,
+  stopRealtimeSync,
+} from './realtimeSync';
+import {
+  classroomTitle,
+  errorMessage,
+  escapeHtml,
+  getEffectiveRole,
+  icon,
+  roleBadgeHtml,
+  safeHttpsUrl,
+  type AppContext,
+  type Classroom,
+  type RoomTab,
+} from './types';
 import { renderAssignments } from './components/AssignmentsTab';
 import { renderAttendance } from './components/AttendanceTab';
 import { renderHub } from './components/ClassroomHub';
+import { openCollaboratorModal } from './components/CollaboratorModal';
 import { confirmDialog, toast, withBusy } from './components/ColumnMapperModal';
 import { renderSettings } from './components/SettingsTab';
 import { maybeShowFirstVisitTutorial, mountTopBar, refreshTopBar, setTopBarBackHandler } from './components/TopBar';
@@ -46,6 +72,7 @@ async function bootstrap(): Promise<void> {
   let route: RouteState = parseHash();
   let dirty = false;
   let rendering = false;
+  let renderQueued = false;
 
   const confirmLeaveIfDirty = async (): Promise<boolean> => {
     if (!dirty) return true;
@@ -86,9 +113,77 @@ async function bootstrap(): Promise<void> {
     await render();
   }
 
+  const ownerMetaSynced = new Set<string>();
+  const activeSharedPulls = new Map<string, Promise<boolean>>();
+  const lastSharedPullAt = new Map<string, number>();
+  const SHARED_PULL_COOLDOWN_MS = 5000;
+
+  function ensureSharedPull(room: Classroom): Promise<boolean> {
+    const existing = activeSharedPulls.get(room.id);
+    if (existing) return existing;
+    const job = (async (): Promise<boolean> => {
+      try {
+        await pullClassroomFromSheet(room);
+        return true;
+      } catch (err) {
+        if (isGoogleNotFoundError(err)) {
+          const ok = await confirmDialog(
+            `ยังไม่สามารถอ่านข้อมูลภายในไฟล์ "${room.sheet?.spreadsheetName || room.subject}" ได้ (HTTP 404)\n\nอาจเกิดจาก Token เดิมยังไม่ได้อนุญาตสิทธิ์ Google Sheets หรือต้องเลือกไฟล์ผ่าน Google Picker 1 ครั้งเพื่อเปิดสิทธิ์ให้ไฟล์ที่ถูกแชร์\n\nต้องการเปิด Google Picker เพื่อเลือกไฟล์นี้และปลดล็อกสิทธิ์หรือไม่?`,
+            { title: 'ยืนยันสิทธิ์เข้าถึงไฟล์ Google Sheet', confirmText: 'เลือกไฟล์เพื่อเปิดสิทธิ์' },
+          );
+          if (ok) {
+            try {
+              const picked = await pickSpreadsheet({
+                sharedOnly: true,
+                title: `เลือกไฟล์ "${room.sheet?.spreadsheetName || room.subject}" เพื่อเปิดสิทธิ์การซิงก์`,
+              });
+              if (picked) {
+                await pullClassroomFromSheet(room);
+                toast('เปิดสิทธิ์และดึงข้อมูลล่าสุดจาก Google Sheet สำเร็จแล้ว', 'success');
+                return true;
+              }
+            } catch (err2) {
+              toast(`เปิดสิทธิ์ Google Sheet ไม่สำเร็จ: ${errorMessage(err2)}`, 'warn');
+            }
+          }
+        } else {
+          toast(`ดึงข้อมูลล่าสุดจาก Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'warn');
+        }
+        return false;
+      } finally {
+        lastSharedPullAt.set(room.id, Date.now());
+        activeSharedPulls.delete(room.id);
+      }
+    })();
+    activeSharedPulls.set(room.id, job);
+    return job;
+  }
+
   async function renderRoomWorkspace(room: Classroom): Promise<void> {
+    const currentRole = getEffectiveRole(room);
+    const isOwner = currentRole === 'owner';
+    const canSeeSettings = isOwner || currentRole === 'creator';
+    const canSeeSheetLink = isOwner || currentRole === 'creator';
+
+    if (!canSeeSettings && route.tab === 'settings') {
+      route = { ...route, tab: 'attendance' };
+      history.replaceState(null, '', buildHash(route));
+    }
+
     const google = room.syncMode === 'google' && !!room.sheet;
     const students = await getStudents(room.id);
+    const collabCount = (room.collaborators ?? []).length;
+
+    const authNow = getAuthState();
+    const pullInFlight = activeSharedPulls.has(room.id);
+    const needsAutoPull =
+      !isOwner &&
+      google &&
+      authNow.signedIn &&
+      authNow.tokenValid &&
+      Date.now() - (lastSharedPullAt.get(room.id) ?? 0) > SHARED_PULL_COOLDOWN_MS;
+    const shouldSyncShared = pullInFlight || needsAutoPull;
+
     appEl!.innerHTML = `
       <section class="cr-page">
         <div class="cr-ws-bar">
@@ -96,17 +191,42 @@ async function bootstrap(): Promise<void> {
             <div class="cr-ws-title">
               <div class="flex flex-wrap items-center gap-2">
                 <h1 class="cr-h1">${escapeHtml(classroomTitle(room))}</h1>
+                ${roleBadgeHtml(currentRole)}
                 <span class="cr-badge ${google ? 'cr-badge--green' : 'cr-badge--gray'}">
                   <span class="cr-dot ${google ? 'cr-dot--green' : 'cr-dot--gray'}"></span>
                   <span>${google ? 'ซิงก์ Google Sheet' : 'ในเครื่อง'}</span>
                 </span>
+                ${
+                  shouldSyncShared && students.length > 0
+                    ? `<span class="cr-badge cr-badge--gray" data-shared-sync-pill>
+                        <span class="cr-spinner cr-spinner--sm"></span>
+                        <span>กำลังอัปเดตข้อมูล...</span>
+                      </span>`
+                    : ''
+                }
+                ${
+                  isOwner && !google
+                    ? `<span class="cr-badge cr-badge--amber" title="ต้องเชื่อมต่อ Google Sheet ก่อนจึงจะเชิญผู้ร่วมสอนได้">ต้องเชื่อมต่อ Google Sheet ก่อนจึงจะเชิญผู้ร่วมสอนได้</span>`
+                    : ''
+                }
               </div>
-              <p class="cr-muted">ภาคเรียนที่ ${escapeHtml(room.term || '-')}/${escapeHtml(room.academicYear || '-')} · นักเรียน ${students.length} คน</p>
+              <p class="cr-muted">
+                ภาคเรียนที่ ${escapeHtml(room.term || '-')}/${escapeHtml(room.academicYear || '-')} · นักเรียน ${students.length} คน
+                ${!isOwner && room.ownerEmail ? ` · เจ้าของห้อง: <b>${escapeHtml(room.ownerEmail)}</b>` : ''}
+              </p>
             </div>
           </div>
           <div class="cr-ws-bar__right">
+            ${
+              isOwner
+                ? `<button type="button" class="cr-btn cr-btn--outline" data-manage-collab title="${google ? 'เชิญและจัดการสิทธิ์ผู้ร่วมสอน' : 'ต้องเชื่อมต่อ Google Sheet ก่อนจึงจะเชิญผู้ร่วมสอนได้'}">
+                    ${icon('users', 16)}
+                    <span>จัดการผู้ร่วมสอน (<span data-collab-count>${collabCount}</span>/5)</span>
+                  </button>`
+                : ''
+            }
             ${(() => {
-              const url = google ? safeHttpsUrl(room.sheet?.spreadsheetUrl) : '';
+              const url = google && canSeeSheetLink ? safeHttpsUrl(room.sheet?.spreadsheetUrl) : '';
               return url
                 ? `<a class="cr-btn cr-btn--outline" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
                     ${icon('external', 16)}
@@ -121,7 +241,7 @@ async function bootstrap(): Promise<void> {
           </div>
         </div>
 
-        <nav class="cr-tabs" role="tablist" aria-label="เมนูจัดการห้องเรียน">
+        <nav class="cr-tabs ${!canSeeSettings ? 'cr-tabs--2' : ''}" role="tablist" aria-label="เมนูจัดการห้องเรียน">
           <button type="button" role="tab" aria-selected="${route.tab === 'attendance'}" class="cr-tab ${route.tab === 'attendance' ? 'is-active' : ''}" data-tab="attendance">
             ${icon('calendar', 17)}
             <span>การมาเรียน</span>
@@ -130,10 +250,14 @@ async function bootstrap(): Promise<void> {
             ${icon('clipboard', 17)}
             <span>การส่งงาน</span>
           </button>
-          <button type="button" role="tab" aria-selected="${route.tab === 'settings'}" class="cr-tab ${route.tab === 'settings' ? 'is-active' : ''}" data-tab="settings">
-            ${icon('settings', 17)}
-            <span>ตั้งค่าตารางและคอลัมน์</span>
-          </button>
+          ${
+            canSeeSettings
+              ? `<button type="button" role="tab" aria-selected="${route.tab === 'settings'}" class="cr-tab ${route.tab === 'settings' ? 'is-active' : ''}" data-tab="settings">
+                  ${icon('settings', 17)}
+                  <span>ตั้งค่าตารางและคอลัมน์</span>
+                </button>`
+              : ''
+          }
         </nav>
 
         <div id="cr-tab-panel" class="cr-tab-panel" role="tabpanel"></div>
@@ -143,10 +267,35 @@ async function bootstrap(): Promise<void> {
     const tabs = appEl!.querySelector('.cr-tabs') as HTMLElement;
     const panel = appEl!.querySelector('#cr-tab-panel') as HTMLElement;
 
+    const updateCollabCountLabel = (n: number) => {
+      const cntEl = bar.querySelector('[data-collab-count]');
+      if (cntEl) cntEl.textContent = String(n);
+    };
+
+    if (isOwner && google && getAuthState().signedIn) {
+      fetchRoomCollaborators(room)
+        .then((list) => updateCollabCountLabel(list.length))
+        .catch(() => undefined);
+      if (!ownerMetaSynced.has(room.id)) {
+        ownerMetaSynced.add(room.id);
+        syncSpreadsheetSyncMeta(room).catch(() => {
+          ownerMetaSynced.delete(room.id);
+        });
+      }
+    }
+
     bar.addEventListener('click', async (e) => {
       const t = e.target as HTMLElement;
       if (t.closest('[data-back-hub]')) {
         ctx.goHub();
+        return;
+      }
+      if (isOwner && t.closest('[data-manage-collab]')) {
+        openCollaboratorModal(room, (collabs, updatedRoom) => {
+          Object.assign(room, updatedRoom);
+          updateCollabCountLabel(collabs.length);
+          if (!dirty) void render();
+        });
         return;
       }
       const expBtn = t.closest<HTMLButtonElement>('[data-export-xlsx]');
@@ -174,39 +323,105 @@ async function bootstrap(): Promise<void> {
       if (tab !== route.tab) ctx.openRoom(room.id, tab);
     });
 
-    if (route.tab === 'attendance') await renderAttendance(panel, room, ctx);
-    else if (route.tab === 'assignments') await renderAssignments(panel, room, ctx);
-    else await renderSettings(panel, room, ctx);
+    if (shouldSyncShared && students.length === 0) {
+      panel.innerHTML = `
+        <div class="cr-empty" style="text-align:center;">
+          <span class="cr-spinner" style="width:26px;height:26px;border-width:2.5px;color:var(--cr-primary);display:inline-block;"></span>
+          <p class="mt-3 font-semibold" style="color:var(--cr-ink);">กำลังดึงข้อมูลล่าสุดจาก Google Sheet...</p>
+          <p class="cr-muted mt-1">โปรดรอสักครู่ ระบบกำลังเตรียมตารางห้องเรียนให้ตรงกับเจ้าของห้อง</p>
+        </div>`;
+    } else if (route.tab === 'attendance') {
+      await renderAttendance(panel, room, ctx, currentRole);
+    } else if (route.tab === 'assignments') {
+      await renderAssignments(panel, room, ctx, currentRole);
+    } else if (canSeeSettings) {
+      await renderSettings(panel, room, ctx, currentRole);
+    } else {
+      await renderAttendance(panel, room, ctx, currentRole);
+    }
+
+    if (shouldSyncShared) {
+      void ensureSharedPull(room).then((ok) => {
+        bar.querySelector('[data-shared-sync-pill]')?.remove();
+        if (route.view !== 'room' || route.roomId !== room.id) return;
+        if (!dirty && (ok || students.length === 0)) {
+          void render();
+        } else if (ok && dirty) {
+          const currentPanel = appEl!.querySelector<HTMLElement>('#cr-tab-panel');
+          if (currentPanel) {
+            mountConflictBanner(currentPanel, room.ownerEmail || 'ผู้ร่วมสอน', () => {
+              dirty = false;
+              void resolveRealtimeConflict();
+            });
+          }
+        }
+      });
+    }
+
+    if (google) {
+      startRealtimeSync({
+        room,
+        isDirty: () => dirty,
+        onAutoReloaded: () => {
+          if (route.view === 'room' && route.roomId === room.id && !dirty) {
+            void render();
+          }
+        },
+        onDirtyConflict: (modifierEmail) => {
+          const currentPanel = appEl!.querySelector<HTMLElement>('#cr-tab-panel');
+          if (!currentPanel) return;
+          mountConflictBanner(currentPanel, modifierEmail, () => {
+            dirty = false;
+            void resolveRealtimeConflict();
+          });
+        },
+      });
+    } else {
+      stopRealtimeSync();
+    }
   }
 
   async function render(): Promise<void> {
-    if (rendering) return;
+    if (rendering) {
+      renderQueued = true;
+      return;
+    }
     rendering = true;
     try {
-      dirty = false;
-      // ล้าง handler เดิมบน appEl ทุกครั้งก่อนสลับหน้า
-      appEl!.onclick = null;
-      appEl!.onkeydown = null;
-      appEl!.onchange = null;
-      appEl!.oninput = null;
-      appEl!.onsubmit = null;
+      do {
+        renderQueued = false;
+        dirty = false;
+        const snapshotRoute = { ...route };
+        // ล้าง handler เดิมบน appEl ทุกครั้งก่อนสลับหน้า
+        appEl!.onclick = null;
+        appEl!.onkeydown = null;
+        appEl!.onchange = null;
+        appEl!.oninput = null;
+        appEl!.onsubmit = null;
 
-      if (route.view === 'room' && route.roomId) {
-        const room = await getClassroom(route.roomId);
-        if (!room) {
-          toast('ไม่พบห้องเรียนที่เลือก', 'warn');
-          route = { view: 'hub', roomId: null, tab: 'attendance' };
-          history.replaceState(null, '', '#/');
+        if (snapshotRoute.view === 'room' && snapshotRoute.roomId) {
+          const room = await getClassroom(snapshotRoute.roomId);
+          if (route.view !== snapshotRoute.view || route.roomId !== snapshotRoute.roomId || route.tab !== snapshotRoute.tab) {
+            renderQueued = true;
+            continue;
+          }
+          if (!room) {
+            stopRealtimeSync();
+            toast('ไม่พบห้องเรียนที่เลือก', 'warn');
+            route = { view: 'hub', roomId: null, tab: 'attendance' };
+            history.replaceState(null, '', '#/');
+            refreshTopBar();
+            await renderHub(appEl!, ctx);
+            continue;
+          }
+          refreshTopBar();
+          await renderRoomWorkspace(room);
+        } else {
+          stopRealtimeSync();
           refreshTopBar();
           await renderHub(appEl!, ctx);
-          return;
         }
-        refreshTopBar();
-        await renderRoomWorkspace(room);
-      } else {
-        refreshTopBar();
-        await renderHub(appEl!, ctx);
-      }
+      } while (renderQueued);
     } finally {
       rendering = false;
     }
@@ -217,11 +432,12 @@ async function bootstrap(): Promise<void> {
   setTopBarBackHandler(() => ctx.goHub());
 
   if (auth.signedIn && auth.tokenValid) {
-    syncAppData()
-      .then((changed) => {
-        if (changed > 0 && !dirty) void render();
-      })
-      .catch(() => undefined);
+    Promise.all([
+      syncAppData().catch(() => 0),
+      fetchSharedClassrooms().catch(() => []),
+    ]).then(([changed]) => {
+      if (changed > 0 && !dirty) void render();
+    });
   }
 
   let prevSigned = auth.signedIn;

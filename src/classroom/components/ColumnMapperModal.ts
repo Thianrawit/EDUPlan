@@ -11,12 +11,18 @@ import {
   getMergedCellValue,
   icon,
   type ColumnMapping,
+  type IconName,
   type ParsedStudent,
   type SheetMerge,
 } from '../types';
 
 // ---------------- Toast ----------------
-export function toast(message: string, type: 'success' | 'error' | 'info' | 'warn' = 'info', ms = 4200): void {
+export function toast(
+  message: string,
+  type: 'success' | 'error' | 'info' | 'warn' = 'info',
+  ms = 4200,
+  toastIcon?: IconName,
+): void {
   let host = document.getElementById('cr-toasts');
   if (!host) {
     host = document.createElement('div');
@@ -28,7 +34,11 @@ export function toast(message: string, type: 'success' | 'error' | 'info' | 'war
   }
   const el = document.createElement('div');
   el.className = `cr-toast cr-toast--${type}`;
-  el.textContent = message;
+  if (toastIcon) {
+    el.innerHTML = `<span class="cr-toast__inner">${icon(toastIcon, 16)}<span>${escapeHtml(message)}</span></span>`;
+  } else {
+    el.textContent = message;
+  }
   host.appendChild(el);
   window.setTimeout(() => {
     el.classList.add('cr-toast--out');
@@ -46,6 +56,7 @@ export interface ModalHandle {
 
 export function openModal(opts: {
   title: string;
+  titleIcon?: IconName;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   body?: string;
   footer?: string;
@@ -55,10 +66,13 @@ export function openModal(opts: {
   const prevFocus = document.activeElement as HTMLElement | null;
   const overlay = document.createElement('div');
   overlay.className = 'cr-overlay';
+  const titleHtml = opts.titleIcon
+    ? `<span class="cr-modal__title-inner">${icon(opts.titleIcon, 18)}<span>${escapeHtml(opts.title)}</span></span>`
+    : escapeHtml(opts.title);
   overlay.innerHTML = `
     <div class="cr-modal cr-modal--${opts.size ?? 'md'}" role="dialog" aria-modal="true" aria-label="${escapeHtml(opts.title)}">
       <div class="cr-modal__head">
-        <h2 class="cr-modal__title">${escapeHtml(opts.title)}</h2>
+        <h2 class="cr-modal__title">${titleHtml}</h2>
         <button type="button" class="cr-icon-btn" data-close aria-label="ปิดหน้าต่าง">${icon('x', 18)}</button>
       </div>
       <div class="cr-modal__body">${opts.body ?? ''}</div>

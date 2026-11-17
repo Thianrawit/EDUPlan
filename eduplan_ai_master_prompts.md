@@ -1,151 +1,52 @@
-# PROMPT: สร้างระบบจัดการห้องเรียน (เช็คชื่อการมาเรียน & เช็คการส่งงาน) — Standalone Page
+# PROMPT: แก้ไขบั๊ก Card ห้องเรียนที่ถูกแชร์ไม่แสดงผลฝั่งผู้ถูกเชิญ (Shared Classroom Discovery Fix)
 
-## 1. กฎเหล็กด้านขอบเขตงาน (CRITICAL ISOLATION RULES)
+โปรดทำงานแบบ Token-Saving (กระชับ ตรงประเด็น แก้ไขเฉพาะไฟล์ใน `src/classroom/*` ไม่เกริ่นนำ และสรุปการแก้ไขลง `ReviewIDE.MD` เมื่อเสร็จงาน)
 
-1. **ห้ามแก้ไข ลบ หรือแตะต้องไฟล์เดิมของโปรเจกต์ `EDUPLAN` เด็ดขาด** รวมถึงห้ามแก้ไข `index.html`, `src/main.ts`, `src/style.css`, `src/config.ts`, `src/gemini.ts`, `src/types.ts`, `src/templates.ts`, `src/exporter.ts`, `src/rubricExporter.ts`, `src/longTermExporter.ts` และ `vite.config.ts`
-2. **ห้ามสร้างปุ่มหรือเมนูเชื่อมจากหน้าเดิม (`index.html`) มายังหน้าใหม่** จนกว่าจะได้รับคำสั่งในภายหลัง
-3. **สร้างเป็นหน้าเว็บแยกอิสระ (Standalone Entry Point):**
-   - สร้างไฟล์ HTML ใหม่ที่ root ชื่อ `classroom.html` (เพื่อให้เข้าใช้งานทดสอบผ่าน `http://localhost:5173/classroom.html`)
-   - สร้างโค้ด TypeScript, CSS, Types, Services และ UI Components ทั้งหมดไว้ภายในโฟลเดอร์ `src/classroom/` เท่านั้น
-4. **ไม่ยุ่งกับ Cloudflare Worker:** ระบบล็อกอินและการเชื่อมต่อ Google Drive / Google Sheets ทั้งหมดต้องทำงานบนฝั่ง Client (Browser) ล้วนๆ ผ่าน Google Identity Services (GIS) และ Google REST APIs
-   5 **ห้ามแตะต้อง ลบ หรือแก้ไขไฟล์** `public/data/curriculum.json` โดยเด็ดขาด
+## 1. กฎเหล็กด้านขอบเขตงาน (STRICT ISOLATION)
+
+- **ห้ามแก้ไข ลบ หรือแตะต้องไฟล์ระบบหลัก `EduPlan AI`** (`index.html`, `src/main.ts`, `src/style.css`, `src/config.ts`, `src/curriculum.ts`, `src/gemini.ts`, `src/types.ts`, `src/templates.ts`, `src/exporter.ts`, `src/rubricExporter.ts`, `src/longTermExporter.ts`, `src/longTermModule.ts`, `public/data/curriculum.json`, `vite.config.ts`, `worker/worker.js`)
+- แก้ไขเฉพาะไฟล์ภายใน `src/classroom/*` เท่านั้น และคงการทำงานของ `InteractiveTour.ts`, `safeHttpsUrl()`, และ `valueInputOption: 'RAW'` ไว้ครบถ้วน
 
 ---
 
-## 2. Tech Stack & Dependencies
+## 2. สาเหตุที่ต้องแก้ไขและรายละเอียดการแก้โค้ด
 
-- ใช้ **Vite + TypeScript + Tailwind CSS** ตามโครงสร้างโปรเจกต์เดิม
-- ติดตั้งแพ็กเกจเพิ่มเติมเฉพาะที่จำเป็น (ห้ามอัปเกรดแพ็กเกจเดิมจนกระทบระบบเก่า):
-  - `dexie` (สำหรับจัดเก็บฐานข้อมูลในเครื่องผ่าน IndexedDB อย่างเสถียร)
-  - `exceljs` (สำหรับอ่านไฟล์ `.xlsx` และสร้างไฟล์ `.xlsx` ส่งออกพร้อมจัดรูปแบบตารางภาษาไทย)
-  - (ใช้ `file-saver` ที่มีอยู่แล้วในโปรเจกต์สำหรับดาวน์โหลดไฟล์)
-- **Design System:** ใช้โทนสีและฟอนต์ให้กลมกลืนกับโปรเจกต์เดิม อ้างอิงตาม `DESIGN.md`:
-  - ฟอนต์หลัก: `'Sarabun', sans-serif` (โหลด Google Fonts Sarabun ใน `classroom.html`)
-  - พื้นหลังหลัก `#F8FAFC`, การ์ด `#FFFFFF`, เส้นขอบ `#E2E8F0`
-  - ปุ่มหลักสีน้ำเงิน `#2563EB` (Hover `#1D4ED8`), ขอบมนปุ่ม/Input `8.5px`, ขอบมนการ์ด/Modal `20px`
+### 2.1 เพิ่ม Scope `drive.metadata.readonly` ใน `src/classroom/googleAuth.ts`
 
----
+- **ปัญหา:** เดิมใช้แค่ `drive.file` ซึ่ง Google Drive API v3 บล็อกไม่ให้มองเห็นไฟล์ที่ผู้อื่นแชร์มาให้ (`sharedWithMe = true`) จนกว่าผู้ใช้จะเปิดไฟล์นั้นผ่าน Picker
+- **วิธีแก้:** เพิ่ม `'https://www.googleapis.com/auth/drive.metadata.readonly'` เข้าไปในรายการ `SCOPES` ของ `googleAuth.ts` เพื่อให้คำสั่งค้นหาไฟล์ที่ถูกแชร์ (`sharedWithMe = true`) สามารถอ่านรายชื่อไฟล์และ `properties` ของห้องเรียนที่ถูกเชิญได้ทันทีโดยอัตโนมัติ
 
-## 3. สถาปัตยกรรม 2 โหมดในแกนกลางเดียว (Zero-Server-Storage)
+### 2.2 แก้ไขระบบบันทึกและค้นหาห้องเรียนร่วมใน `src/classroom/googleSheets.ts`
 
-ระบบต้องรองรับการใช้งาน 2 รูปแบบโดยใช้ข้อมูลในเครื่อง (`IndexedDB`) เป็นแกนหลัก และมีระบบซิงก์ออนไลน์ผ่าน Google Account:
+1. **Normalize อีเมลทั้งหมดด้วย `.toLowerCase().trim()`:**
+   - ทั้งตอนบันทึก `collab_1` ถึง `collab_5` ลง `properties` (รูปแบบ `"email@domain.com|role"`) และตอนตรวจสอบอีเมลของผู้ใช้ที่ล็อกอินอยู่ ให้แปลงเป็นตัวพิมพ์เล็กและตัดช่องว่างหัวท้ายเสมอ
+   - ตรวจสอบให้แน่ใจว่าตอนเจ้าของห้องกดเชิญผู้ร่วมสอน (`inviteCollaborator`) มีการยิงทั้ง:
+     - `POST /drive/v3/files/{fileId}/permissions?sendNotificationEmail=false` (`reader` สำหรับ `viewer`, `writer` สำหรับ `assistant` และ `creator`)
+     - `PATCH /drive/v3/files/{fileId}` อัปเดต `properties` (`eduplan_type: 'classroom'`, `eduplan_room_name`, `eduplan_subject`, `collab_1`..`collab_5`) และตรวจสอบ `response.ok` พร้อม Log Error ชัดเจนหากอัปเดตไม่สำเร็จ
+2. **ปรับปรุงฟังก์ชันดึงห้องเรียนที่ถูกเชิญ (`fetchSharedClassrooms`):**
+   - ค้นหาด้วย Query:
+     `sharedWithMe = true and trashed = false and mimeType = 'application/vnd.google-apps.spreadsheet'`
+     (ใช้การกรอง `properties?.eduplan_type === 'classroom'` ในฝั่ง JavaScript ควบคู่ไปด้วย เพื่อแก้ปัญหา Google Drive Search Index ล่าช้าเวลาเพิ่งกดแชร์ใหม่ๆ)
+   - ดึงฟิลด์ให้ครบ: `files(id,name,modifiedTime,owners(emailAddress,displayName),properties)`
+   - ตรวจสอบอีเมลผู้ใช้ปัจจุบัน (`.toLowerCase().trim()`) เทียบกับ `properties.collab_1`..`collab_5` หากตรงกันให้คืนค่า Metadata ของห้องเรียนพร้อม `role` และ `ownerEmail`
+3. **เพิ่มฟังก์ชันรับห้องเรียนผ่าน Google Picker (`importSharedRoomViaPicker`):**
+   - เปิด Google Picker (`google.picker.ViewId.SPREADSHEETS`) ให้ผู้ใช้เลือกไฟล์ Sheet ที่ถูกแชร์มา
+   - เมื่อผู้ใช้เลือกไฟล์ ให้ดึง Metadata (`GET /drive/v3/files/{fileId}?fields=id,name,modifiedTime,owners(emailAddress,displayName),properties`)
+   - ตรวจสอบสิทธิ์จาก `properties` (หรือหากไม่มี `properties` ให้เช็กสิทธิ์ `capabilities.canEdit` บนไฟล์ Drive เพื่อกำหนดเป็น `'assistant'` หรือ `'viewer'` อัตโนมัติ) แล้วนำเข้าเป็นห้องเรียนร่วมทันที
 
-### โหมดที่ 1: ใช้งานในเครื่อง (Local Only Mode)
+### 2.3 อัปเดต State & UI ใน `src/classroom/ClassroomHub.ts` และ `src/classroom/db.ts`
 
-- ไม่ต้องล็อกอิน เข้าใช้งานจัดการห้องเรียนได้ทันที
-- เก็บข้อมูลห้องเรียน รายชื่อนักเรียน ประวัติเช็คชื่อ และคะแนนงานทั้งหมดลง **IndexedDB (Dexie)** ในเบราว์เซอร์
-- ส่งออกข้อมูลเป็นไฟล์ **Excel (`.xlsx`)** ได้ทุกเมื่อ (ไม่ต้องทำฟังก์ชันส่งออก Word `.docx`)
-
-### โหมดที่ 2: เชื่อมต่อบัญชี Google (Google Sheet Real-time Sync Mode)
-
-- ใช้ **Google Identity Services (GIS)** (`https://accounts.google.com/gsi/client`) และ **Google API (`gapi`)** (`https://apis.google.com/js/api.js`) โดยอ่านค่าจาก Environment Variables:
-  - `VITE_GOOGLE_CLIENT_ID`
-  - `VITE_GOOGLE_API_KEY`
-  - _หมายเหตุ:_ หากยังไม่ได้ใส่ค่า `.env` (หรือเป็นค่าว่าง/Placeholder) ปุ่มล็อกอิน Google ต้องแสดงสถานะแจ้งเตือนอย่างสุภาพว่า _"ยังไม่ได้ตั้งค่า Google Client ID (ใช้งานโหมดในเครื่องได้ปกติ)"_ โดยไม่ทำให้หน้าเว็บพังหรือเกิด Uncaught Error
-- **OAuth Scopes ที่ขอใช้:**
-  - `openid email profile`
-  - `https://www.googleapis.com/auth/drive.file`
-  - `https://www.googleapis.com/auth/drive.appdata`
-- **การจำสถานะล็อกอิน (Session Persistence) & Logout:**
-  - จดจำโปรไฟล์ครู (`name`, `email`, `picture`) และสถานะการเชื่อมต่อไว้ใน `localStorage` เมื่อรีเฟรชหน้าเว็บยังคงสถานะล็อกอินอยู่ (รองรับ Silent Token Refresh เมื่อ Token หมดอายุ 1 ชม.)
-  - มีปุ่ม **"ออกจากระบบ (Logout)"** ที่มุมขวาบน เพื่อล้าง Session และ Revoke Token ได้
-- **การซิงก์รายชื่อห้องเรียนข้ามเครื่อง (`appDataFolder`):**
-  - บันทึกไฟล์ตั้งค่าห้องเรียนทั้งหมด (`eduplan_classrooms.json`) ลงในโฟลเดอร์ลับ `appDataFolder` ของ Google Drive ของครูคนนั้น เพื่อไม่ให้เปลืองพื้นที่เซิร์ฟเวอร์ผู้พัฒนา และเมื่อครูล็อกอินเครื่องอื่น ระบบจะดึงรายการห้องเรียนและ ID ของ Google Sheet กลับมาอัตโนมัติ
-- **โครงสร้าง Google Sheet อัตโนมัติ (แบบ A — 1 ไฟล์ แยก 3 แท็บ):**
-  - เมื่อครูสร้างห้องเรียนใหม่แบบซิงก์ออนไลน์ (หรือกดอัปเกรดห้อง Local ขึ้นออนไลน์) ระบบจะยิง Google Sheets API สร้างไฟล์ Google Sheet ใหม่ใน Drive ของครู และสร้าง **3 แท็บ (Worksheets)** อัตโนมัติ:
-    1. `รายชื่อนักเรียน` (คอลัมน์: เลขที่, รหัสนักเรียน, คำนำหน้า/ชื่อ-สกุล)
-    2. `การมาเรียน` (คอลัมน์ตั้งต้น: เลขที่, รหัสนักเรียน, ชื่อ-สกุล ตามด้วยคอลัมน์วันที่/คาบเรียน)
-    3. `การส่งงาน` (คอลัมน์ตั้งต้น: เลขที่, รหัสนักเรียน, ชื่อ-สกุล ตามด้วยคอลัมน์ชื่องานต่างๆ)
+1. **Merge ห้องเรียนที่ถูกเชิญเข้าสู่รายการแสดงผลของ `ClassroomHub`:**
+   - ทุกครั้งที่โหลดหน้า `ClassroomHub` (เมื่อล็อกอิน Google แล้ว) หรือกดปุ่มซิงก์ข้อมูล ให้เรียก `fetchSharedClassrooms()`
+   - นำห้องเรียนที่ถูกเชิญมาบันทึก/อัปเดตลงตาราง `rooms` ใน Dexie (ระบุ `role`, `ownerEmail`, `isSharedWithMe: true`, `sheetId`) และลบห้องร่วมที่ถูกเจ้าของถอนสิทธิ์ออกแล้วออกจาก Dexie
+   - แสดง Card ห้องเรียนที่ถูกเชิญรวมใน Grid หน้าหลัก พร้อมป้ายสัญลักษณ์ตามสิทธิ์ (`👁️ ผู้ชม`, `📋 ครูผู้ช่วย`, `🛠️ ครีเอเตอร์`), แสดง **`เจ้าของห้อง: {ownerEmail}`**, และปุ่ม **`🚪 ออกจากห้องร่วม`**
+2. **เพิ่มปุ่มลัดรับห้องเรียนที่ถูกแชร์ใน `ClassroomHub.ts`:**
+   - เพิ่มปุ่ม **`📥 รับห้องเรียนที่ถูกแชร์`** ข้างปุ่ม `+ เพิ่มห้องเรียน` (แสดงเมื่อล็อกอิน Google แล้ว) เมื่อคลิกจะเรียก `importSharedRoomViaPicker()` เพื่อเปิด Google Drive Picker ให้เลือกไฟล์ที่เพื่อนแชร์มาได้ทันที
 
 ---
 
-## 4. รายละเอียดหน้าจอและฟีเจอร์ทั้งหมด (`src/classroom/`)
+## 3. การตรวจสอบและส่งมอบงาน
 
-### 4.1 แถบนำทางด้านบน (Top Navigation Bar)
-
-- แสดงชื่อระบบ **"EDUPLAN Classroom — ระบบเช็คชื่อและติดตามงาน"**
-- แสดงป้ายสถานะโหมดปัจจุบัน:
-  - ยังไม่ล็อกอิน: ป้ายสีเทา/เหลืองอ่อน `💾 โหมดใช้งานในเครื่อง (Local)` + ปุ่ม `เข้าสู่ระบบด้วย Google`
-  - ล็อกอินแล้ว: แสดงรูปโปรไฟล์ + ชื่อ/อีเมลครู + ปุ่ม `ซิงก์ข้อมูล` + ปุ่ม `ออกจากระบบ`
-
-### 4.2 หน้าคลังห้องเรียน (Classroom Hub)
-
-- แสดง Card ห้องเรียนทั้งหมดของครู (ระบุชื่อวิชา, ระดับชั้น/ห้อง, ปีการศึกษา, จำนวนนักเรียน และป้ายสถานะ `💾 ในเครื่อง` หรือ `🟢 ซิงก์ Google Sheet`)
-- มีปุ่ม **`+ เพิ่มห้องเรียน`** ซึ่งเปิด Wizard/Modal ให้เลือกวิธีนำเข้าข้อมูลได้ 3 ทาง:
-  1. **สร้างตารางรายชื่อเองอัตโนมัติ:** กรอกชื่อห้อง/วิชา แล้วมีตารางให้พิมพ์เพิ่มแถว/ลบแถว (`เลขที่`, `รหัสนักเรียน`, `ชื่อ-นามสกุล`) ได้ไม่จำกัด
-  2. **นำเข้าจากไฟล์ Excel (`.xlsx`):** อัปโหลดไฟล์ Excel -> แสดงตารางตัวอย่าง 15 แถวแรก -> ให้ครูคลิกเลือก **"แถวหัวตาราง (Header Row)"** และจับคู่คอลัมน์ (`เลขที่`, `รหัสนักเรียน`, `ชื่อ-สกุล` หรือแยก `คำนำหน้า` + `ชื่อ` + `นามสกุล`) พร้อมแสดงผลลัพธ์ **Real-time Preview** ก่อนยืนยัน
-  3. **เชื่อมต่อจาก Google Sheet ที่มีอยู่แล้ว (เฉพาะตอนล็อกอิน Google):** เปิดหน้าต่างเลือกไฟล์จาก Google Drive (Google Picker) -> เลือกแท็บ (Worksheet) -> เลือกแถวหัวตารางและแมปคอลัมน์พร้อม Real-time Preview
-  - _(หากล็อกอิน Google อยู่ วิธีที่ 1 และ 2 ต้องมีตัวเลือกติ๊กถูก: "สร้างไฟล์ Google Sheet ใหม่ใน Drive และซิงก์อัตโนมัติ (แนะนำ)")_
-
-### 4.3 Workspace ภายในห้องเรียน (แบ่ง 3 แท็บหลัก)
-
-เมื่อคลิกเข้าห้องเรียนใดห้องเรียนหนึ่ง ด้านบนจะมีปุ่มกลับไปหน้ารวมห้องเรียน และปุ่ม **`📊 ส่งออก Excel (.xlsx)`** พร้อมเมนูสลับ 3 แท็บ:
-
-#### แท็บที่ 1: การมาเรียน (Attendance)
-
-- **แถบควบคุมรอบการเช็คชื่อ (Session Bar):**
-  - Dropdown เลือก **"สร้างรอบเช็คชื่อใหม่ (วันที่/คาบเรียน)"** หรือเลือก **"วันที่/รอบเดิมที่เคยบันทึกไว้"** เพื่อกลับมาแก้ไขย้อนหลังได้
-  - มีปุ่มลัด **"เช็คมาเรียนทั้งหมด"**
-- **ตารางเช็คชื่อรายบุคคล:**
-  - แสดง `เลขที่`, `รหัสนักเรียน`, `ชื่อ-นามสกุล` และปุ่มวิทยุ/Segmented Control เลือกได้ **1 สถานะต่อคน**:
-    - `มา` (สีเขียว)
-    - `ลา/ขาด` (สีแดง)
-    - `มาสาย` (สีส้ม/เหลือง)
-- **แถบสรุปผลด้านล่างสุด (Sticky Summary Footer):**
-  - คำนวณ Real-time แสดงจำนวนคนแต่ละประเภท: `มา: X คน | ลา/ขาด: Y คน | มาสาย: Z คน | ยังไม่ระบุ: W คน`
-  - ปุ่ม **`บันทึกการมาเรียน`**: บันทึกลง IndexedDB และหากห้องนี้เปิดซิงก์ Google Sheet ให้ยิงอัปเดตลงแท็บ `การมาเรียน` (หรือคอลัมน์ที่ครูตั้งค่าไว้) โดยอัตโนมัติ
-
-#### แท็บที่ 2: การส่งงาน (Assignments)
-
-- **เงื่อนไขตรวจสอบการซิงก์ (Sync Guard):** หากห้องเรียนนี้เปิดโหมดซิงก์ Google Sheet แต่ยังไม่ได้ตั้งค่าแท็บ/คอลัมน์สำหรับเก็บงาน ให้แสดงหน้าจอแจ้งเตือนพร้อมปุ่มพาไปตั้งค่าในแท็บ **"ตั้งค่าตารางและคอลัมน์"** ก่อน
-- **หน้าแสดงรายการงาน (Assignment Cards View):**
-  - แสดง Card ของแต่ละชิ้นงาน (แสดง `ชื่องาน`, `วันที่สั่ง`, `กำหนดส่ง`, `คะแนนเต็ม` และแถบความคืบหน้าจำนวนคนที่ส่งแล้ว)
-  - ปุ่ม **`+ เพิ่มงาน`**: เปิด Modal กรอก `ชื่องาน`, `วันที่สั่ง`, `กำหนดส่ง`, `คะแนนเต็ม (ไม่บังคับ)` และกดบันทึก
-- **หน้าตรวจงานรายชิ้น (เมื่อคลิกเข้า Card งาน):**
-  - ปุ่มย้อนกลับไปหน้ารวม Card งาน
-  - ตารางรายชื่อนักเรียน (`เลขที่`, `รหัสนักเรียน`, `ชื่อ-นามสกุล`) พร้อม:
-    - ปุ่มเลือกสถานะ: `ส่งแล้ว` (สีเขียว) / `ยังไม่ส่ง` (สีแดง)
-    - ช่องกรอกคะแนน: `ใส่คะแนน (ไม่บังคับ)`
-  - ปุ่ม **`บันทึกการส่งงาน`**: บันทึกลง IndexedDB และอัปเดตลง Google Sheet อัตโนมัติ (หากเป็นไฟล์ Sheet มาตรฐานแบบ A ให้บันทึกค่าในคอลัมน์ของงานนั้น เช่น ถ้ากรอกคะแนนให้ใส่ตัวเลขคะแนน ถ้าไม่กรอกคะแนนให้ใส่คำว่า `"ส่งแล้ว"` หรือ `"ยังไม่ส่ง"`)
-
-#### แท็บที่ 3: ตั้งค่าตารางและคอลัมน์ (Table & Column Settings)
-
-- แก้ไขข้อมูลพื้นฐานของห้องเรียน (`ชื่อห้อง`, `วิชา`, `ภาคเรียน/ปีการศึกษา`)
-- **จัดการรายชื่อนักเรียน (Master Roster):** เพิ่ม/ลบ/แก้ไข `เลขที่`, `รหัสนักเรียน`, `ชื่อ-นามสกุล` ได้โดยตรง หรือกด **"อัปโหลดไฟล์ Excel ใหม่"** เพื่อนำเข้ารายชื่อพร้อมเลือกแถวหัวตารางและดู Preview Real-time
-- **ตั้งค่าการเชื่อมต่อ Google Sheet & คอลัมน์:**
-  - เปิด/ปิด หรือเชื่อมต่อกับ Google Sheet ไฟล์ใหม่/ไฟล์เดิม
-  - เลือกแท็บ (Worksheet) และแมปคอลัมน์สำหรับ **การมาเรียน** (เลือกได้ว่าจะกำหนดจำนวนช่องเช็คชื่อตายตัว เช่น 20 ช่อง หรือให้เพิ่มช่องยาวไปทางขวาเรื่อยๆ อัตโนมัติ)
-  - เลือกแท็บ (Worksheet) และคอลัมน์เริ่มต้นสำหรับ **การส่งงาน**
-  - แสดงตัวอย่างตารางจำลอง (Real-time Mapping Preview) ให้เห็นชัดว่าข้อมูลจะถูกเขียนลงคอลัมน์ตัวอักษรใด (`A, B, C...`) ใน Google Sheet
-
----
-
-## 5. ระบบส่งออกไฟล์ Excel (`.xlsx`)
-
-- เมื่อกดปุ่ม **`📊 ส่งออก Excel (.xlsx)`** ระบบใช้ `ExcelJS` สร้างไฟล์ `.xlsx` ที่มี 3 แท็บ (`รายชื่อนักเรียน`, `สรุปการมาเรียน`, `สรุปคะแนนและการส่งงาน`)
-- จัดรูปแบบหัวตารางตัวหนา ใส่เส้นขอบตารางครบทุกช่อง คำนวณสรุปยอด `มา / ลา-ขาด / มาสาย` และ `ส่งแล้ว / ยังไม่ส่ง / คะแนนรวม` ท้ายตารางให้พร้อมใช้งานทันที
-
----
-
-## 6. โครงสร้างไฟล์ที่ต้องสร้าง (Strict File Tree)
-
-```text
-├── classroom.html                  # หน้า Entry Point แยกอิสระ (ห้ามแก้ index.html)
-├── .env.example                    # เพิ่มตัวอย่าง VITE_GOOGLE_CLIENT_ID และ VITE_GOOGLE_API_KEY
-└── src/
-    └── classroom/
-        ├── main.ts                 # ตัวเริ่มทำงานของหน้า classroom.html
-        ├── classroom.css           # สไตล์เฉพาะหน้าจัดการห้องเรียน (Tailwind + Custom)
-        ├── types.ts                # Data Schema (Classroom, Student, Attendance, Assignment, SheetMapping)
-        ├── db.ts                   # Dexie IndexedDB setup & CRUD helpers
-        ├── googleAuth.ts           # Google Identity Services (GIS) Login, Session & Logout
-        ├── googleSheets.ts         # Google Sheets API & Drive AppDataFolder Sync & Google Picker
-        ├── excelService.ts         # อ่านไฟล์ .xlsx (Dynamic Header Row) และส่งออก .xlsx ด้วย ExcelJS
-        └── components/
-            ├── TopBar.ts           # แถบสถานะ Local / Google Profile & Logout
-            ├── ClassroomHub.ts     # หน้าการ์ดห้องเรียน + Modal สร้างห้อง (พิมพ์เอง / Excel / Sheet)
-            ├── ColumnMapperModal.ts# ตัวช่วยเลือกแถวหัวตารางและจับคู่คอลัมน์แบบ Real-time Preview
-            ├── AttendanceTab.ts    # หน้าเช็คชื่อ + สรุปยอดด้านล่าง + แก้ไขย้อนหลัง
-            ├── AssignmentsTab.ts   # หน้า Card งาน + Modal เพิ่มงาน + ตารางเช็คงาน/ใส่คะแนน
-            └── SettingsTab.ts      # หน้าแก้ไขรายชื่อ อัปโหลด Excel ใหม่ และตั้งค่าคอลัมน์ Sheet
-```
+1. ตรวจสอบว่าไม่มีการแก้ไขไฟล์นอก `src/classroom/*`
+2. รัน `npm run build` ต้องผ่าน 100% ปราศจาก TypeScript Error
+3. สรุปไฟล์ที่แก้ไขและขั้นตอนการทดสอบลงใน `ReviewIDE.MD`

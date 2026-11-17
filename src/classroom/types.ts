@@ -7,6 +7,14 @@ export type AttendanceStatus = 'present' | 'absent' | 'late';
 export type SubmissionStatus = 'submitted' | 'missing';
 export type RowKeyType = 'code' | 'number' | 'name' | 'order';
 export type RoomTab = 'attendance' | 'assignments' | 'settings';
+export type ClassroomRole = 'owner' | 'creator' | 'assistant' | 'viewer';
+export type SessionHeaderMode = 'both' | 'date' | 'period';
+
+export interface Collaborator {
+  email: string;
+  role: Exclude<ClassroomRole, 'owner'>;
+  permissionId?: string;
+}
 
 export interface Classroom {
   id: string;
@@ -16,6 +24,15 @@ export interface Classroom {
   academicYear: string;  // ปีการศึกษา (พ.ศ.)
   syncMode: SyncMode;
   sheet: SheetMapping | null;
+  sheetId?: string;                  // spreadsheetId (Backward-Compatible reference)
+  isSharedWithMe?: boolean;          // true = ห้องเรียนที่ถูกเชิญมา
+  importedViaPicker?: boolean;       // true = นำเข้าผ่าน Google Picker
+  role?: ClassroomRole;              // สิทธิ์ของผู้ใช้ปัจจุบัน (default: 'owner')
+  ownerEmail?: string;               // อีเมลเจ้าของห้อง (สำหรับห้องร่วม)
+  collaborators?: Collaborator[];    // รายชื่อผู้ร่วมสอน (สูงสุด 5 คน)
+  myPermissionId?: string;           // permissionId ของตัวเอง (สำหรับห้องร่วม)
+  lastModifiedTime?: string;         // เวลาแก้ไขล่าสุดจาก Google Drive
+  attendanceHeaderMode?: SessionHeaderMode; // รูปแบบหัวคอลัมน์เช็คชื่อล่าสุดของห้อง
   createdAt: number;
   updatedAt: number;
 }
@@ -35,6 +52,7 @@ export interface AttendanceSession {
   classroomId: string;
   date: string;          // YYYY-MM-DD (ค.ศ.)
   period: string;        // คาบเรียน/รอบ
+  headerMode?: SessionHeaderMode; // รูปแบบการแสดงหัวช่อง: ทั้ง 2 (2 บรรทัด) / แค่คาบ / แค่วันที่
   records: Record<string, AttendanceStatus>; // studentId -> status
   sheetColumn: number | null; // 0-based column (Google Sheet แบบไฟล์เดิม)
   sheetSynced: boolean;
@@ -166,6 +184,34 @@ export const KEY_TYPE_LABEL: Record<RowKeyType, string> = {
   order: 'ลำดับแถว (ไม่จับคู่)',
 };
 
+export const ROLE_BADGE_LABEL: Record<ClassroomRole, string> = {
+  owner: 'เจ้าของห้อง',
+  creator: 'ครีเอเตอร์',
+  assistant: 'ครูผู้ช่วย',
+  viewer: 'ผู้ชม',
+};
+
+export const ROLE_ICON: Record<ClassroomRole, IconName> = {
+  owner: 'crown',
+  creator: 'wrench',
+  assistant: 'clipboard',
+  viewer: 'eye',
+};
+
+export const COLLAB_ROLE_OPTIONS: { value: Exclude<ClassroomRole, 'owner'>; label: string; short: string }[] = [
+  { value: 'viewer', label: 'ผู้ชม - ดูได้อย่างเดียว', short: 'ผู้ชม' },
+  { value: 'assistant', label: 'ครูผู้ช่วย - เช็คชื่อ/เพิ่มลบงาน', short: 'ครูผู้ช่วย' },
+  { value: 'creator', label: 'ครีเอเตอร์ - แก้ไขได้ทั้งหมด', short: 'ครีเอเตอร์' },
+];
+
+export function getEffectiveRole(room: Pick<Classroom, 'role'> | null | undefined): ClassroomRole {
+  return room?.role ?? 'owner';
+}
+
+export function roleBadgeHtml(role: ClassroomRole, customLabel?: string): string {
+  return `<span class="cr-role-pill is-${role}">${icon(ROLE_ICON[role], 13)}<span>${escapeHtml(customLabel ?? ROLE_BADGE_LABEL[role])}</span></span>`;
+}
+
 // ---------------- Pure helpers ----------------
 export function uid(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -219,8 +265,24 @@ export function currentTerm(): string {
   return m >= 4 && m <= 9 ? '1' : '2';
 }
 
-export function sessionLabel(s: Pick<AttendanceSession, 'date' | 'period'>): string {
-  return `${formatThaiDate(s.date)}${s.period ? ` ${s.period}` : ''}`;
+/** ข้อความหัวคอลัมน์ใน Google Sheet / Excel / ตาราง (แบ่ง 2 บรรทัดเมื่อเลือกแสดงทั้ง 2: คาบบน + วันที่ล่าง) */
+export function sessionHeaderText(s: Pick<AttendanceSession, 'date' | 'period' | 'headerMode'>): string {
+  const mode: SessionHeaderMode = s.headerMode ?? 'both';
+  const dateText = formatThaiDate(s.date);
+  const periodText = (s.period ?? '').trim();
+  if (mode === 'date') return dateText;
+  if (mode === 'period') return periodText || dateText;
+  return periodText ? `${periodText}\n${dateText}` : dateText;
+}
+
+/** ข้อความรอบเช็คชื่อแบบบรรทัดเดียว (ใช้กับ dropdown / dialog / toast) */
+export function sessionLabel(s: Pick<AttendanceSession, 'date' | 'period' | 'headerMode'>): string {
+  const mode: SessionHeaderMode = s.headerMode ?? 'both';
+  const dateText = formatThaiDate(s.date);
+  const periodText = (s.period ?? '').trim();
+  if (mode === 'date') return dateText;
+  if (mode === 'period') return periodText || dateText;
+  return periodText ? `${periodText} (${dateText})` : dateText;
 }
 
 export function sortSessions(list: AttendanceSession[]): AttendanceSession[] {
@@ -361,7 +423,11 @@ export type IconName =
   | 'logout'
   | 'help'
   | 'sparkles'
-  | 'arrow-right';
+  | 'arrow-right'
+  | 'crown'
+  | 'wrench'
+  | 'eye'
+  | 'download';
 
 const ICON_PATHS: Record<IconName, string> = {
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -387,6 +453,7 @@ const ICON_PATHS: Record<IconName, string> = {
   'cloud-up': '<path d="M4 14.9A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.24"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>',
   database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   warning: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
@@ -397,6 +464,9 @@ const ICON_PATHS: Record<IconName, string> = {
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
   help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
   sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+  crown: '<path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/>',
+  wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
 };
 
 export function icon(name: IconName, size = 16, extraClass = ''): string {

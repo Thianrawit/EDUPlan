@@ -158,11 +158,48 @@ export async function markAssignmentSync(id: string, patch: Partial<Pick<Assignm
   await db.assignments.update(id, patch);
 }
 
+/** บันทึกแคชโครงสร้างและข้อมูลล่าสุดจาก Google Sheet ลง Dexie (ใช้กับห้องร่วม & Real-time Sync) */
+export async function replaceClassroomCache(
+  room: Classroom,
+  students: Student[],
+  sessions: AttendanceSession[],
+  assignments: Assignment[],
+): Promise<void> {
+  await db.transaction('rw', [db.classrooms, db.students, db.sessions, db.assignments], async () => {
+    await db.classrooms.put(room);
+    await db.students.where('classroomId').equals(room.id).delete();
+    if (students.length) await db.students.bulkPut(students);
+    await db.sessions.where('classroomId').equals(room.id).delete();
+    if (sessions.length) await db.sessions.bulkPut(sessions);
+    await db.assignments.where('classroomId').equals(room.id).delete();
+    if (assignments.length) await db.assignments.bulkPut(assignments);
+  });
+  emit(room.id);
+}
+
+/** ลบแคชห้องร่วมที่ไม่ได้อยู่ในรายการที่ถูกแชร์แล้วออกจากเครื่อง */
+export async function purgeStaleSharedClassrooms(activeSharedIds: Set<string>): Promise<void> {
+  const all = await db.classrooms.toArray();
+  const stale = all.filter((c) => (c.isSharedWithMe || (c.role && c.role !== 'owner')) && !activeSharedIds.has(c.id));
+  if (!stale.length) return;
+  await db.transaction('rw', [db.classrooms, db.students, db.sessions, db.assignments], async () => {
+    for (const r of stale) {
+      await db.students.where('classroomId').equals(r.id).delete();
+      await db.sessions.where('classroomId').equals(r.id).delete();
+      await db.assignments.where('classroomId').equals(r.id).delete();
+      await db.classrooms.delete(r.id);
+    }
+  });
+  emit(null);
+}
+
 // ---------------- Sync snapshot (Google Drive appDataFolder) ----------------
 const TOMBSTONE_TTL = 1000 * 60 * 60 * 24 * 120; // 120 วัน
 
 export async function buildSyncSnapshot(): Promise<SyncSnapshot> {
-  const classrooms = (await db.classrooms.toArray()).filter((c) => c.syncMode === 'google');
+  const classrooms = (await db.classrooms.toArray()).filter(
+    (c) => c.syncMode === 'google' && !c.isSharedWithMe && (!c.role || c.role === 'owner'),
+  );
   const ids = classrooms.map((c) => c.id);
   const [students, sessions, assignments, tombstones] = await Promise.all([
     db.students.where('classroomId').anyOf(ids).toArray(),

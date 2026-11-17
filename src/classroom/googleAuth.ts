@@ -58,12 +58,15 @@ export const SCOPES = [
   'profile',
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/drive.appdata',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/spreadsheets',
 ];
 
 export const NOT_CONFIGURED_MESSAGE = 'ยังไม่ได้ตั้งค่า Google Client ID (ใช้งานโหมดในเครื่องได้ปกติ)';
 
 const PROFILE_KEY = 'eduplan_classroom_google_profile';
 const TOKEN_KEY = 'eduplan_classroom_google_token';
+const SCOPE_VERSION = 3;
 
 const RAW_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '').trim();
 const RAW_API_KEY = String(import.meta.env.VITE_GOOGLE_API_KEY ?? '').trim();
@@ -143,7 +146,7 @@ function hasValidToken(): boolean {
 
 function persistToken(): void {
   try {
-    if (accessToken) sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ accessToken, expiresAt }));
+    if (accessToken) sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ accessToken, expiresAt, scopeVer: SCOPE_VERSION }));
     else sessionStorage.removeItem(TOKEN_KEY);
   } catch {
     /* storage unavailable */
@@ -196,8 +199,12 @@ function requestToken(prompt: string): Promise<string> {
           return;
         }
         const oauth2 = window.google?.accounts?.oauth2;
-        if (oauth2 && !oauth2.hasGrantedAllScopes(resp, SCOPES[3], SCOPES[4])) {
-          reject(new Error('ต้องอนุญาตสิทธิ์ Google Drive ทั้งหมดเพื่อใช้งานการซิงก์ (กรุณาเข้าสู่ระบบใหม่และติ๊กอนุญาตทุกช่อง)'));
+        if (oauth2 && !oauth2.hasGrantedAllScopes(resp, SCOPES[3], SCOPES[4], SCOPES[5], SCOPES[6])) {
+          reject(
+            new Error(
+              'ต้องอนุญาตสิทธิ์ Google Drive, อ่านข้อมูลไฟล์ที่แชร์ และ Google Sheets ทั้งหมดเพื่อเปิดอ่านและซิงก์ห้องเรียนร่วม (กรุณาเข้าสู่ระบบใหม่และติ๊กอนุญาตทุกช่อง)',
+            ),
+          );
           return;
         }
         accessToken = resp.access_token;
@@ -228,7 +235,8 @@ export async function ensureToken(interactive = true): Promise<string> {
   if (!state.signedIn) throw new Error('กรุณาเข้าสู่ระบบด้วย Google ก่อน');
   if (hasValidToken()) return accessToken!;
   try {
-    const t = await requestToken('');
+    const promptMode = state.needsReconnect && interactive ? 'consent' : '';
+    const t = await requestToken(promptMode);
     emit();
     return t;
   } catch (e) {
@@ -247,12 +255,13 @@ export async function forceRefreshToken(): Promise<string> {
   return ensureToken();
 }
 
-export async function signIn(): Promise<GoogleProfile> {
+export async function signIn(forceConsent = false): Promise<GoogleProfile> {
   if (!CLIENT_ID_VALID) throw new Error(NOT_CONFIGURED_MESSAGE);
   state.busy = true;
   emit();
   try {
-    const token = await requestToken(state.profile ? '' : 'select_account');
+    const promptMode = forceConsent || state.needsReconnect ? 'consent' : state.profile ? '' : 'select_account';
+    const token = await requestToken(promptMode);
     const profile = await fetchProfile(token);
     state.profile = profile;
     state.signedIn = true;
@@ -307,8 +316,8 @@ export function initAuth(): AuthState {
     }
     const tok = sessionStorage.getItem(TOKEN_KEY);
     if (tok && state.signedIn) {
-      const t = JSON.parse(tok) as { accessToken?: string; expiresAt?: number };
-      if (t.accessToken && t.expiresAt && t.expiresAt > Date.now() + 60_000) {
+      const t = JSON.parse(tok) as { accessToken?: string; expiresAt?: number; scopeVer?: number };
+      if (t.scopeVer === SCOPE_VERSION && t.accessToken && t.expiresAt && t.expiresAt > Date.now() + 60_000) {
         accessToken = t.accessToken;
         expiresAt = t.expiresAt;
         scheduleRefresh();

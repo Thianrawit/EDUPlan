@@ -9,13 +9,16 @@ import {
   errorMessage,
   escapeHtml,
   formatThaiDate,
+  getEffectiveRole,
   icon,
+  roleBadgeHtml,
   sortAssignments,
   todayISO,
   uid,
   type AppContext,
   type Assignment,
   type Classroom,
+  type ClassroomRole,
   type Student,
   type Submission,
   type SubmissionStatus,
@@ -24,7 +27,14 @@ import { confirmDialog, openModal, toast, withBusy } from './ColumnMapperModal';
 
 const openedAssignment: Record<string, string | null> = {};
 
-export async function renderAssignments(root: HTMLElement, room: Classroom, ctx: AppContext): Promise<void> {
+export async function renderAssignments(
+  root: HTMLElement,
+  room: Classroom,
+  ctx: AppContext,
+  currentRole: ClassroomRole = getEffectiveRole(room),
+): Promise<void> {
+  const isViewer = currentRole === 'viewer';
+  const canSeeSettings = currentRole === 'owner' || currentRole === 'creator';
   const google = room.syncMode === 'google' && !!room.sheet;
   const sheetReady = google && (room.sheet!.standard || !!room.sheet!.assignments);
 
@@ -34,14 +44,18 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
       <div class="cr-guard">
         <div class="cr-guard__icon" aria-hidden="true">${icon('compass', 28)}</div>
         <h2 class="cr-h2">ตั้งค่าคอลัมน์สำหรับเก็บงานก่อน</h2>
-        <p class="cr-muted">ห้องนี้เชื่อมกับ Google Sheet "${escapeHtml(room.sheet!.spreadsheetName)}" กรุณาเลือกแท็บและคอลัมน์สำหรับบันทึกการส่งงานและคะแนน</p>
-        <button type="button" class="cr-btn cr-btn--primary mt-4" data-goto-settings>
-          ${icon('settings', 16)}
-          <span>ไปตั้งค่าตารางและคอลัมน์</span>
-        </button>
+        <p class="cr-muted">ห้องนี้เชื่อมกับ Google Sheet "${escapeHtml(room.sheet!.spreadsheetName)}" ${canSeeSettings ? 'กรุณาเลือกแท็บและคอลัมน์สำหรับบันทึกการส่งงานและคะแนน' : 'กรุณาแจ้งเจ้าของห้องเรียนให้ตั้งค่าคอลัมน์การส่งงานก่อน'}</p>
+        ${
+          canSeeSettings
+            ? `<button type="button" class="cr-btn cr-btn--primary mt-4" data-goto-settings>
+                ${icon('settings', 16)}
+                <span>ไปตั้งค่าตารางและคอลัมน์</span>
+              </button>`
+            : ''
+        }
       </div>`;
     root.onclick = (e) => {
-      if ((e.target as HTMLElement).closest('[data-goto-settings]')) ctx.openRoom(room.id, 'settings');
+      if (canSeeSettings && (e.target as HTMLElement).closest('[data-goto-settings]')) ctx.openRoom(room.id, 'settings');
     };
     root.onchange = null;
     root.oninput = null;
@@ -63,12 +77,16 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
       <div class="cr-section-head">
         <div>
           <h2 class="cr-h2">รายการงานที่มอบหมาย</h2>
-          <p class="cr-muted">${assignments.length ? `ทั้งหมด ${assignments.length} ชิ้นงาน — คลิกการ์ดเพื่อตรวจการส่งงานและบันทึกคะแนน` : 'ยังไม่มีชิ้นงานในห้องเรียนนี้'}</p>
+          <p class="cr-muted">${assignments.length ? `ทั้งหมด ${assignments.length} ชิ้นงาน — คลิกการ์ดเพื่อ${isViewer ? 'ดูสถานะการส่งงานและคะแนน' : 'ตรวจการส่งงานและบันทึกคะแนน'}` : 'ยังไม่มีชิ้นงานในห้องเรียนนี้'}</p>
         </div>
-        <button type="button" class="cr-btn cr-btn--primary" data-add-assignment>
-          ${icon('plus', 17)}
-          <span>เพิ่มงาน</span>
-        </button>
+        ${
+          !isViewer
+            ? `<button type="button" class="cr-btn cr-btn--primary" data-add-assignment>
+                ${icon('plus', 17)}
+                <span>เพิ่มงาน</span>
+              </button>`
+            : ''
+        }
       </div>
       ${
         assignments.length
@@ -82,10 +100,14 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
                 <article class="cr-asg-card" data-open="${a.id}" tabindex="0" role="button" aria-label="ตรวจงาน ${escapeHtml(a.title)}">
                   <div class="cr-asg-card__top">
                     <h3 class="cr-asg-card__title">${escapeHtml(a.title)}</h3>
-                    <div class="cr-room-card__actions">
-                      <button type="button" class="cr-icon-btn" data-edit="${a.id}" aria-label="แก้ไขงาน" title="แก้ไขงาน">${icon('edit', 15)}</button>
-                      <button type="button" class="cr-icon-btn cr-icon-btn--danger" data-del="${a.id}" aria-label="ลบงาน" title="ลบงาน">${icon('trash', 15)}</button>
-                    </div>
+                    ${
+                      !isViewer
+                        ? `<div class="cr-room-card__actions">
+                            <button type="button" class="cr-icon-btn" data-edit="${a.id}" aria-label="แก้ไขงาน" title="แก้ไขงาน">${icon('edit', 15)}</button>
+                            <button type="button" class="cr-icon-btn cr-icon-btn--danger" data-del="${a.id}" aria-label="ลบงาน" title="ลบงาน">${icon('trash', 15)}</button>
+                          </div>`
+                        : ''
+                    }
                   </div>
                   <dl class="cr-asg-card__meta">
                     <div><dt>วันที่สั่ง</dt><dd>${formatThaiDate(a.assignedDate)}</dd></div>
@@ -105,29 +127,33 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
           : `<div class="cr-empty">
               <div class="cr-empty__icon" aria-hidden="true">${icon('clipboard', 28)}</div>
               <h2 class="cr-h2">ยังไม่มีงานในห้องเรียนนี้</h2>
-              <p class="cr-muted">กดปุ่ม "+ เพิ่มงาน" เพื่อสร้างชิ้นงานและเริ่มติดตามการส่งงานของนักเรียน</p>
-              <button type="button" class="cr-btn cr-btn--primary mt-4" data-add-assignment>
-                ${icon('plus', 17)}
-                <span>เพิ่มงานชิ้นแรก</span>
-              </button>
+              <p class="cr-muted">${!isViewer ? 'กดปุ่ม "+ เพิ่มงาน" เพื่อสร้างชิ้นงานและเริ่มติดตามการส่งงานของนักเรียน' : 'ยังไม่มีชิ้นงานที่ถูกมอบหมายในห้องเรียนนี้'}</p>
+              ${
+                !isViewer
+                  ? `<button type="button" class="cr-btn cr-btn--primary mt-4" data-add-assignment>
+                      ${icon('plus', 17)}
+                      <span>เพิ่มงานชิ้นแรก</span>
+                    </button>`
+                  : ''
+              }
             </div>`
       }`;
 
     root.onclick = async (e) => {
       const t = e.target as HTMLElement;
-      if (t.closest('[data-add-assignment]')) {
+      if (!isViewer && t.closest('[data-add-assignment]')) {
         e.stopPropagation();
         openAssignmentModal(null);
         return;
       }
-      const ed = t.closest<HTMLElement>('[data-edit]');
+      const ed = !isViewer ? t.closest<HTMLElement>('[data-edit]') : null;
       if (ed) {
         e.stopPropagation();
         const a = assignments.find((x) => x.id === ed.dataset.edit);
         if (a) openAssignmentModal(a);
         return;
       }
-      const del = t.closest<HTMLElement>('[data-del]');
+      const del = !isViewer ? t.closest<HTMLElement>('[data-del]') : null;
       if (del) {
         e.stopPropagation();
         const a = assignments.find((x) => x.id === del.dataset.del);
@@ -230,6 +256,7 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
     });
     let dirty = false;
     const setDirty = (v: boolean) => {
+      if (isViewer) return;
       dirty = v;
       ctx.setDirty(v);
       root.querySelector('[data-dirty]')?.classList.toggle('hidden', !v);
@@ -255,10 +282,14 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
           <h2 class="cr-h2">${escapeHtml(a.title)}</h2>
           <p class="cr-muted">วันที่สั่ง ${formatThaiDate(a.assignedDate)} · กำหนดส่ง ${formatThaiDate(a.dueDate)} · คะแนนเต็ม ${a.maxScore ?? 'ไม่กำหนด'}</p>
         </div>
-        <button type="button" class="cr-btn cr-btn--soft-green cr-btn--sm ml-auto" data-all-submitted ${students.length ? '' : 'disabled'}>
-          ${icon('check-all', 16)}
-          <span>ส่งแล้วทั้งหมด</span>
-        </button>
+        ${
+          !isViewer
+            ? `<button type="button" class="cr-btn cr-btn--soft-green cr-btn--sm ml-auto" data-all-submitted ${students.length ? '' : 'disabled'}>
+                ${icon('check-all', 16)}
+                <span>ส่งแล้วทั้งหมด</span>
+              </button>`
+            : ''
+        }
       </div>
       ${
         students.length
@@ -277,28 +308,32 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
                           <div class="cr-seg cr-seg--status" role="radiogroup" aria-label="สถานะการส่งของ ${escapeHtml(s.fullName)}">
                             ${(['submitted', 'missing'] as SubmissionStatus[])
                               .map(
-                                (k) => `<button type="button" role="radio" aria-checked="${d.status === k}" class="cr-seg__btn cr-seg__btn--${k === 'submitted' ? 'present' : 'absent'} ${d.status === k ? 'is-on' : ''}" data-sid="${s.id}" data-st="${k}">${icon(k === 'submitted' ? 'check' : 'x', 14)}<span>${SUBMISSION_LABEL[k]}</span></button>`,
+                                (k) => `<button type="button" role="radio" aria-checked="${d.status === k}" class="cr-seg__btn cr-seg__btn--${k === 'submitted' ? 'present' : 'absent'} ${d.status === k ? 'is-on' : ''}" data-sid="${s.id}" data-st="${k}" ${isViewer ? 'disabled' : ''}>${icon(k === 'submitted' ? 'check' : 'x', 14)}<span>${SUBMISSION_LABEL[k]}</span></button>`,
                               )
                               .join('')}
                           </div>
                         </td>
-                        <td><input type="number" inputmode="decimal" min="0" ${a.maxScore !== null ? `max="${a.maxScore}"` : ''} step="0.5" class="cr-input cr-input--score" data-score="${s.id}" value="${d.score ?? ''}" placeholder="ใส่คะแนน" aria-label="คะแนนของ ${escapeHtml(s.fullName)}" /></td>
+                        <td><input type="number" inputmode="decimal" min="0" ${a.maxScore !== null ? `max="${a.maxScore}"` : ''} step="0.5" class="cr-input cr-input--score" data-score="${s.id}" value="${d.score ?? ''}" placeholder="${isViewer ? '-' : 'ใส่คะแนน'}" aria-label="คะแนนของ ${escapeHtml(s.fullName)}" ${isViewer ? 'disabled readonly' : ''} /></td>
                       </tr>`;
                     })
                     .join('')}
                 </tbody>
               </table>
             </div>`
-          : `<div class="cr-empty"><h2 class="cr-h2">ยังไม่มีรายชื่อนักเรียน</h2><button type="button" class="cr-btn cr-btn--primary mt-4" data-goto-settings>${icon('plus', 16)}<span>ไปเพิ่มรายชื่อ</span></button></div>`
+          : `<div class="cr-empty"><h2 class="cr-h2">ยังไม่มีรายชื่อนักเรียน</h2>${canSeeSettings ? `<button type="button" class="cr-btn cr-btn--primary mt-4" data-goto-settings>${icon('plus', 16)}<span>ไปเพิ่มรายชื่อ</span></button>` : ''}</div>`
       }
       <div class="cr-sticky-footer" role="region" aria-label="สรุปการส่งงาน">
         <div class="cr-sticky-footer__sum" data-summary aria-live="polite">${summary()}</div>
         <div class="flex items-center gap-3">
-          <span class="cr-unsaved hidden" data-dirty><span class="cr-dot cr-dot--amber"></span><span>ยังไม่ได้บันทึก</span></span>
-          <button type="button" class="cr-btn cr-btn--primary" data-save ${students.length ? '' : 'disabled'}>
-            ${icon('check', 16)}
-            <span>บันทึกการส่งงาน</span>
-          </button>
+          ${
+            isViewer
+              ? roleBadgeHtml('viewer', 'โหมดผู้ชม (ดูได้อย่างเดียว)')
+              : `<span class="cr-unsaved hidden" data-dirty><span class="cr-dot cr-dot--amber"></span><span>ยังไม่ได้บันทึก</span></span>
+                 <button type="button" class="cr-btn cr-btn--primary" data-save ${students.length ? '' : 'disabled'}>
+                   ${icon('check', 16)}
+                   <span>บันทึกการส่งงาน</span>
+                 </button>`
+          }
         </div>
       </div>`;
 
@@ -320,8 +355,16 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
 
     root.onclick = async (e) => {
       const t = e.target as HTMLElement;
+      if (t.closest('[data-back]')) {
+        if (await leave()) {
+          assignments = sortAssignments(await getAssignments(room.id));
+          renderCards();
+        }
+        return;
+      }
+      if (isViewer) return;
       const b = t.closest<HTMLButtonElement>('[data-st]');
-      if (b) {
+      if (b && !b.disabled) {
         const sid = b.dataset.sid!;
         draft[sid].status = b.dataset.st as SubmissionStatus;
         if (draft[sid].status === 'missing' && draft[sid].score !== null) {
@@ -341,14 +384,7 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
         setDirty(true);
         return;
       }
-      if (t.closest('[data-back]')) {
-        if (await leave()) {
-          assignments = sortAssignments(await getAssignments(room.id));
-          renderCards();
-        }
-        return;
-      }
-      if (t.closest('[data-goto-settings]')) {
+      if (t.closest('[data-goto-settings]') && canSeeSettings) {
         ctx.openRoom(room.id, 'settings');
         return;
       }
@@ -356,6 +392,7 @@ export async function renderAssignments(root: HTMLElement, room: Classroom, ctx:
       if (sb) await save(sb);
     };
     root.oninput = (e) => {
+      if (isViewer) return;
       const inp = (e.target as HTMLElement).closest<HTMLInputElement>('[data-score]');
       if (!inp) return;
       const sid = inp.dataset.score!;

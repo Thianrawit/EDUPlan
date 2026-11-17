@@ -14,6 +14,8 @@ import {
   pushClassroom,
   quoteSheet,
   scheduleAppDataSync,
+  syncClassroomDriveProperties,
+  syncSpreadsheetSyncMeta,
   upgradeToStandardSheet,
   type SpreadsheetMeta,
 } from '../googleSheets';
@@ -23,11 +25,12 @@ import {
   colToLetter,
   errorMessage,
   escapeHtml,
+  getEffectiveRole,
   getMergedCellValue,
   icon,
   normalizeKey,
   safeHttpsUrl,
-  sessionLabel,
+  sessionHeaderText,
   sortAssignments,
   sortSessions,
   uid,
@@ -35,6 +38,7 @@ import {
   type AssignmentSheetMapping,
   type AttendanceSheetMapping,
   type Classroom,
+  type ClassroomRole,
   type ParsedStudent,
   type RowKeyType,
   type Student,
@@ -68,7 +72,17 @@ function mergeRoster(existing: RosterRow[], incoming: ParsedStudent[], mode: 're
   return out;
 }
 
-export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: AppContext): Promise<void> {
+export async function renderSettings(
+  root: HTMLElement,
+  roomIn: Classroom,
+  ctx: AppContext,
+  currentRole: ClassroomRole = getEffectiveRole(roomIn),
+): Promise<void> {
+  if (currentRole !== 'owner' && currentRole !== 'creator') {
+    ctx.openRoom(roomIn.id, 'attendance');
+    return;
+  }
+  const isOwner = currentRole === 'owner';
   let room: Classroom = JSON.parse(JSON.stringify(roomIn)) as Classroom;
   const students = await getStudents(room.id);
   let roster: RosterRow[] = students.map((s) => ({ id: s.id, number: s.number, code: s.studentCode, name: s.fullName }));
@@ -238,7 +252,7 @@ export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: 
     const used = new Set<number>();
     const out: { col: number; label: string; ghost?: boolean }[] = [];
     let next = m.startCol;
-    const label = (i: number) => (kind === 'attendance' ? sessionLabel(sessions[i]) : assignmentHeader(assignments[i]));
+    const label = (i: number) => (kind === 'attendance' ? sessionHeaderText(sessions[i]) : assignmentHeader(assignments[i]));
     items.forEach((it, i) => {
       if (!resetting && it.sheetColumn !== null && it.sheetColumn !== undefined) {
         out.push({ col: it.sheetColumn, label: label(i) });
@@ -360,7 +374,7 @@ export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: 
         const rawVal = anchor ? getMergedCellValue(vals, merges, r0, c) : (row[c] ?? '');
         let cell = escapeHtml(rawVal);
         if (p && isHeader) {
-          cell = `<span class="cr-proj">${escapeHtml(p.label)}</span>`;
+          cell = `<span class="cr-proj">${escapeHtml(p.label).replace(/\n/g, '<br>')}</span>`;
         } else if (p && r > m.headerRow && !p.ghost) {
           cell = `<span class="cr-proj">${kind === 'attendance' ? 'มา / ลา / สาย' : 'คะแนน / ส่งแล้ว'}</span>`;
         }
@@ -471,7 +485,13 @@ export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: 
   };
 
   const standardPreview = () => {
-    const sCols = sessions.slice(0, 4).map((s, i) => `<th class="is-write is-write-edge-top">${colToLetter(3 + i)}<span class="cr-grid__role">${escapeHtml(sessionLabel(s))}</span></th>`).join('');
+    const sCols = sessions
+      .slice(0, 4)
+      .map(
+        (s, i) =>
+          `<th class="is-write is-write-edge-top">${colToLetter(3 + i)}<span class="cr-grid__role">${escapeHtml(sessionHeaderText(s)).replace(/\n/g, '<br>')}</span></th>`,
+      )
+      .join('');
     const aCols = assignments.slice(0, 4).map((a, i) => `<th class="is-write is-write-edge-top">${colToLetter(3 + i)}<span class="cr-grid__role">${escapeHtml(a.title)}</span></th>`).join('');
     const table = (title: string, cols: string, nextCol: number, nextLabel: string) => `
       <div class="cr-std-card">
@@ -526,9 +546,13 @@ export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: 
                 ? `<a class="cr-btn cr-btn--outline cr-btn--sm" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${icon('external', 14)}<span>เปิดไฟล์</span></a>`
                 : '';
             })()}
-            <button type="button" class="cr-btn cr-btn--outline cr-btn--sm" data-g-toggle>${icon(on ? 'pause' : 'refresh', 14)}<span>${on ? 'พักการซิงก์' : 'เปิดการซิงก์'}</span></button>
-            <button type="button" class="cr-btn cr-btn--ghost cr-btn--sm" data-g-create>${icon('cloud-up', 14)}<span>สร้างไฟล์ใหม่แทน</span></button>
-            <button type="button" class="cr-btn cr-btn--ghost cr-btn--sm" data-g-pick>${icon('folder', 14)}<span>เปลี่ยนไฟล์</span></button>
+            ${
+              isOwner
+                ? `<button type="button" class="cr-btn cr-btn--outline cr-btn--sm" data-g-toggle>${icon(on ? 'pause' : 'refresh', 14)}<span>${on ? 'พักการซิงก์' : 'เปิดการซิงก์'}</span></button>
+                   <button type="button" class="cr-btn cr-btn--ghost cr-btn--sm" data-g-create>${icon('cloud-up', 14)}<span>สร้างไฟล์ใหม่แทน</span></button>
+                   <button type="button" class="cr-btn cr-btn--ghost cr-btn--sm" data-g-pick>${icon('folder', 14)}<span>เปลี่ยนไฟล์</span></button>`
+                : ''
+            }
           </div>
         </div>
         ${
@@ -664,7 +688,11 @@ export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: 
     const fresh = { ...room, subject, name, term: String(fd.get('term') ?? ''), academicYear: String(fd.get('academicYear') ?? '').trim() };
     room = await saveClassroom(fresh);
     toast('บันทึกข้อมูลห้องเรียนแล้ว', 'success');
-    if (room.syncMode === 'google') scheduleAppDataSync();
+    if (room.syncMode === 'google') {
+      syncClassroomDriveProperties(room).catch(() => undefined);
+      syncSpreadsheetSyncMeta(room).catch(() => undefined);
+      scheduleAppDataSync();
+    }
     ctx.refresh();
   };
 
@@ -775,7 +803,10 @@ export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: 
           } catch (err) {
             toast(`บันทึกในเครื่องแล้ว แต่อัปเดต Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'error');
           }
-        } else toast(`บันทึกรายชื่อ ${list.length} คนแล้ว`, 'success');
+        } else {
+          await syncSpreadsheetSyncMeta(room).catch(() => undefined);
+          toast(`บันทึกรายชื่อ ${list.length} คนแล้ว`, 'success');
+        }
         scheduleAppDataSync();
       } else toast(`บันทึกรายชื่อ ${list.length} คนแล้ว`, 'success');
     });
@@ -827,12 +858,15 @@ export async function renderSettings(root: HTMLElement, roomIn: Classroom, ctx: 
       await withBusy(btn, 'กำลังเชื่อมต่อ...', async () => {
         const m = await getSpreadsheetMeta(f.id);
         room.sheet = { spreadsheetId: m.spreadsheetId, spreadsheetName: m.title, spreadsheetUrl: m.url, standard: false, roster: null, attendance: null, assignments: null };
+        room.sheetId = m.spreadsheetId;
         room.syncMode = 'google';
         await Promise.all([
           ...sessions.map((s) => markSessionSync(s.id, { sheetColumn: null, sheetSynced: false })),
           ...assignments.map((a) => markAssignmentSync(a.id, { sheetColumn: null, sheetSynced: false })),
         ]);
         room = await saveClassroom(room);
+        await syncClassroomDriveProperties(room).catch(() => undefined);
+        await syncSpreadsheetSyncMeta(room, m).catch(() => undefined);
         scheduleAppDataSync();
         toast(`เชื่อมต่อ "${m.title}" แล้ว — ตั้งค่าแท็บและคอลัมน์ด้านล่าง`, 'success');
         ctx.refresh();

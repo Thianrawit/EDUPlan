@@ -9,7 +9,7 @@ import {
   SUBMISSION_LABEL,
   classroomTitle,
   formatThaiDate,
-  sessionLabel,
+  sessionHeaderText,
   sortAssignments,
   sortSessions,
   type Assignment,
@@ -254,9 +254,12 @@ export async function exportClassroomXlsx(
 
   // ---- 2) สรุปการมาเรียน ----
   const ws2 = wb.addWorksheet('สรุปการมาเรียน', { views: [{ state: 'frozen', ySplit: 2, xSplit: 3 }] });
-  const attHead = [...base, ...sessions.map((s) => sessionLabel(s)), 'มา', 'ลา/ขาด', 'มาสาย'];
+  const attHead = [...base, ...sessions.map((s) => sessionHeaderText(s)), 'มา', 'ลา/ขาด', 'มาสาย'];
   addTitle(ws2, `สรุปการมาเรียน ${title}`, attHead.length);
   ws2.addRow(attHead);
+  if (sessions.some((s) => sessionHeaderText(s).includes('\n'))) {
+    ws2.getRow(2).height = 42;
+  }
   students.forEach((st) => {
     let p = 0, a = 0, l = 0;
     const cells = sessions.map((s) => {

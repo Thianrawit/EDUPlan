@@ -5,7 +5,7 @@
 //   บรรทัดที่ 2: ซ้ายสุด [ย้อนกลับ / กลับหน้าหลัก, ซิงก์ล่าสุด] | ขวาสุด [ปุ่มตั้งค่า, โปรไฟล์, ออกจากระบบ]
 // ============================================================
 import { NOT_CONFIGURED_MESSAGE, getAuthState, onAuthChange, signIn, signOut, type AuthState } from '../googleAuth';
-import { fullSync, onSyncStatus, syncAppData, type SyncStatus } from '../googleSheets';
+import { fetchSharedClassrooms, fullSync, onSyncStatus, syncAppData, type SyncStatus } from '../googleSheets';
 import { escapeHtml, errorMessage, icon, safeHttpsUrl } from '../types';
 import { confirmDialog, toast, withBusy } from './ColumnMapperModal';
 
@@ -235,8 +235,9 @@ export function mountTopBar(el: HTMLElement): void {
       try {
         const p = await signIn();
         toast(`เข้าสู่ระบบแล้ว: ${p.email}`, 'success');
-        const changed = await syncAppData();
+        const [changed, shared] = await Promise.all([syncAppData(), fetchSharedClassrooms().catch(() => [])]);
         if (changed) toast(`ดึงข้อมูลห้องเรียนจาก Google Drive แล้ว (${changed} รายการ)`, 'info');
+        else if (shared.length) toast(`พบห้องเรียนที่ถูกเชิญ ${shared.length} ห้อง`, 'info');
       } catch (err) {
         toast(errorMessage(err), 'error');
       }

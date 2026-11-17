@@ -1,15 +1,20 @@
 // ============================================================
-// EDUPLAN Class — Classroom Hub (การ์ดห้องเรียน + แจ้งเตือนโหมด Local + Wizard สร้างห้อง)
+// EDUPLAN Class — Classroom Hub (การ์ดห้องเรียน + ห้องเรียนร่วม + แจ้งเตือนโหมด Local + Wizard สร้างห้อง)
 // ============================================================
 import { countStudents, deleteClassroom, listClassrooms, replaceStudents, saveClassroom } from '../db';
 import { readWorkbook, type WorkbookSheet } from '../excelService';
 import { getAuthState, signIn } from '../googleAuth';
 import {
+  fetchSharedClassrooms,
   getSpreadsheetMeta,
+  importSharedRoomViaPicker,
+  leaveSharedClassroom,
   loadSheetGrid,
   pickSpreadsheet,
   scheduleAppDataSync,
   syncAppData,
+  syncClassroomDriveProperties,
+  syncSpreadsheetSyncMeta,
   upgradeToStandardSheet,
   type SheetInfo,
 } from '../googleSheets';
@@ -19,7 +24,9 @@ import {
   currentTerm,
   errorMessage,
   escapeHtml,
+  getEffectiveRole,
   icon,
+  roleBadgeHtml,
   safeHttpsUrl,
   uid,
   type AppContext,
@@ -31,11 +38,34 @@ import {
 import { confirmDialog, openColumnMapper, openModal, toast, withBusy, type MapperResult, type MapperSource } from './ColumnMapperModal';
 
 const CARD_THEMES = ['blue', 'purple', 'emerald', 'indigo'] as const;
+const SHARED_FETCH_COOLDOWN_MS = 10_000;
+let sharedFetchInFlight = false;
+let lastSharedFetchAt = 0;
 
 export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<void> {
   const auth = getAuthState();
-  const rooms = await listClassrooms();
+  const allRooms = await listClassrooms();
+  const rooms = allRooms.filter((r) => auth.signedIn || (!r.isSharedWithMe && (!r.role || r.role === 'owner')));
   const counts = await Promise.all(rooms.map((r) => countStudents(r.id)));
+
+  // ค้นหาห้องเรียนที่ถูกแชร์มาให้เพิ่มเติมแบบไม่บล็อกการเรนเดอร์ครั้งแรก และเว้นช่วงไม่ยิงซ้ำถี่เกินไป
+  if (auth.signedIn && auth.tokenValid && !sharedFetchInFlight && Date.now() - lastSharedFetchAt > SHARED_FETCH_COOLDOWN_MS) {
+    sharedFetchInFlight = true;
+    fetchSharedClassrooms()
+      .then(async () => {
+        lastSharedFetchAt = Date.now();
+        const after = (await listClassrooms()).filter((r) => auth.signedIn || (!r.isSharedWithMe && (!r.role || r.role === 'owner')));
+        const beforeKey = rooms.map((r) => `${r.id}:${r.role ?? 'owner'}:${r.name}:${r.subject}:${r.ownerEmail ?? ''}`).join('|');
+        const afterKey = after.map((r) => `${r.id}:${r.role ?? 'owner'}:${r.name}:${r.subject}:${r.ownerEmail ?? ''}`).join('|');
+        if (beforeKey !== afterKey && root.querySelector('[data-hub-page]')) {
+          ctx.refresh();
+        }
+      })
+      .catch((err) => console.warn('[EduPlan Class] fetchSharedClassrooms warning:', err))
+      .finally(() => {
+        sharedFetchInFlight = false;
+      });
+  }
 
   const localAdvisoryHtml = !auth.signedIn
     ? `<div class="cr-local-advisory" role="region" aria-label="คำแนะนำโหมดเก็บข้อมูล">
@@ -59,7 +89,72 @@ export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<voi
             : ''
         }
       </div>`
-    : '';
+    : auth.needsReconnect
+      ? `<div class="cr-local-advisory" role="region" aria-label="แจ้งเตือนอัปเดตสิทธิ์บัญชี Google">
+          <div class="cr-local-advisory__icon" aria-hidden="true">${icon('refresh', 22)}</div>
+          <div class="cr-local-advisory__content">
+            <div class="cr-local-advisory__title-row">
+              <strong>กรุณาเชื่อมต่อบัญชี Google ใหม่เพื่ออัปเดตสิทธิ์ซิงก์</strong>
+              <span class="cr-local-advisory__tag">อัปเดตระบบ</span>
+            </div>
+            <p>
+              ระบบได้เพิ่มสิทธิ์อ่านข้อมูลไฟล์ร่วม และสิทธิ์ Google Sheets เพื่อให้เปิดห้องเรียนที่ถูกเชิญได้ทันทีโดยไม่ติด Error 404
+            </p>
+          </div>
+          <button type="button" class="cr-btn cr-btn--primary cr-btn--sm cr-local-advisory__cta" data-hub-reconnect ${auth.busy ? 'disabled' : ''}>
+            ${icon('refresh', 16)}
+            <span>เชื่อมต่อสิทธิ์ Google ใหม่</span>
+          </button>
+        </div>`
+      : '';
+
+  const renderRoomCard = (r: Classroom, i: number) => {
+    const google = r.syncMode === 'google';
+    const role = getEffectiveRole(r);
+    const isOwner = role === 'owner';
+    const canSeeSheetLink = isOwner || role === 'creator';
+    const theme = CARD_THEMES[i % CARD_THEMES.length];
+    const roleBadge = roleBadgeHtml(role);
+
+    return `
+      <article class="cr-room-card cr-room-card--${theme} ${!isOwner ? 'is-shared-room' : ''}" data-open="${r.id}" tabindex="0" role="button" aria-label="เปิดห้อง ${escapeHtml(classroomTitle(r))}">
+        <div class="cr-room-card__top">
+          <div class="flex flex-wrap items-center gap-1.5">
+            ${roleBadge}
+            <span class="cr-badge ${google ? 'cr-badge--green' : 'cr-badge--gray'}">
+              <span class="cr-dot ${google ? 'cr-dot--green' : 'cr-dot--gray'}"></span>
+              <span>${google ? 'ซิงก์ Google Sheet' : 'ในเครื่อง (Local)'}</span>
+            </span>
+          </div>
+          <div class="cr-room-card__actions">
+            ${isOwner && !google && auth.signedIn ? `<button type="button" class="cr-icon-btn" data-upgrade="${r.id}" title="สร้าง Google Sheet และซิงก์ห้องนี้" aria-label="อัปโหลดขึ้น Google Sheet">${icon('cloud-up', 16)}</button>` : ''}
+            ${(() => {
+              const url = google && canSeeSheetLink ? safeHttpsUrl(r.sheet?.spreadsheetUrl) : '';
+              return url
+                ? `<a class="cr-icon-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" data-stop title="เปิดไฟล์ Google Sheet" aria-label="เปิดไฟล์ Google Sheet">${icon('external', 16)}</a>`
+                : '';
+            })()}
+            ${
+              isOwner
+                ? `<button type="button" class="cr-icon-btn cr-icon-btn--danger" data-del="${r.id}" title="ลบห้องเรียน" aria-label="ลบห้องเรียน">${icon('trash', 16)}</button>`
+                : `<button type="button" class="cr-btn cr-btn--outline cr-btn--xs cr-text-danger" data-leave-shared="${r.id}" title="ออกจากห้องเรียนร่วมนี้">${icon('logout', 13)}<span>ออกจากห้องร่วม</span></button>`
+            }
+          </div>
+        </div>
+        <div class="cr-room-card__body-head">
+          <span class="cr-room-card__emblem" aria-hidden="true">${icon('users', 20)}</span>
+          <div>
+            <h2 class="cr-room-card__subject">${escapeHtml(r.subject || 'ไม่ระบุวิชา')}</h2>
+            <p class="cr-room-card__room">${escapeHtml(r.name || 'ไม่ระบุชั้น/ห้อง')}</p>
+            ${!isOwner ? `<p class="cr-room-card__owner">เจ้าของห้อง: <b>${escapeHtml(r.ownerEmail || 'ไม่ระบุ')}</b></p>` : ''}
+          </div>
+        </div>
+        <dl class="cr-room-card__meta">
+          <div class="cr-room-card__stat"><dt>ภาคเรียน / ปีการศึกษา</dt><dd>${escapeHtml(r.term || '-')}/${escapeHtml(r.academicYear || '-')}</dd></div>
+          <div class="cr-room-card__stat"><dt>จำนวนนักเรียน</dt><dd>${counts[i] ? `${counts[i]} คน` : !isOwner ? 'คลิกเพื่อซิงก์รายชื่อ' : '0 คน'}</dd></div>
+        </dl>
+      </article>`;
+  };
 
   root.innerHTML = `
     <section class="cr-page" data-hub-page>
@@ -69,50 +164,25 @@ export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<voi
           <h1 class="cr-h1">คลังห้องเรียนของคุณ</h1>
           <p class="cr-muted">${rooms.length ? `ทั้งหมด ${rooms.length} ห้องเรียน — คลิกการ์ดเพื่อเข้าเช็คชื่อการมาเรียนและติดตามงาน` : 'สร้างห้องเรียนเพื่อเริ่มเช็คชื่อ ติดตามงาน และส่งออกรายงาน Excel'}</p>
         </div>
-        <button type="button" class="cr-btn cr-btn--primary" data-add-room>
-          ${icon('plus', 17)}
-          <span>เพิ่มห้องเรียน</span>
-        </button>
+        <div class="cr-hub-hero__actions">
+          ${
+            auth.signedIn
+              ? `<button type="button" class="cr-btn cr-btn--outline" data-import-shared ${auth.busy ? 'disabled' : ''} title="เลือกไฟล์ Google Sheet ห้องเรียนที่เพื่อนแชร์มาให้คุณ">
+                  ${icon('download', 17)}
+                  <span>รับห้องเรียนที่ถูกแชร์</span>
+                </button>`
+              : ''
+          }
+          <button type="button" class="cr-btn cr-btn--primary" data-add-room>
+            ${icon('plus', 17)}
+            <span>เพิ่มห้องเรียน</span>
+          </button>
+        </div>
       </header>
       ${
         rooms.length
           ? `<div class="cr-room-grid">
-              ${rooms
-                .map((r, i) => {
-                  const google = r.syncMode === 'google';
-                  const theme = CARD_THEMES[i % CARD_THEMES.length];
-                  return `
-                  <article class="cr-room-card cr-room-card--${theme}" data-open="${r.id}" tabindex="0" role="button" aria-label="เปิดห้อง ${escapeHtml(classroomTitle(r))}">
-                    <div class="cr-room-card__top">
-                      <span class="cr-badge ${google ? 'cr-badge--green' : 'cr-badge--gray'}">
-                        <span class="cr-dot ${google ? 'cr-dot--green' : 'cr-dot--gray'}"></span>
-                        <span>${google ? 'ซิงก์ Google Sheet' : 'ในเครื่อง (Local)'}</span>
-                      </span>
-                      <div class="cr-room-card__actions">
-                        ${!google && auth.signedIn ? `<button type="button" class="cr-icon-btn" data-upgrade="${r.id}" title="สร้าง Google Sheet และซิงก์ห้องนี้" aria-label="อัปโหลดขึ้น Google Sheet">${icon('cloud-up', 16)}</button>` : ''}
-                        ${(() => {
-                          const url = google ? safeHttpsUrl(r.sheet?.spreadsheetUrl) : '';
-                          return url
-                            ? `<a class="cr-icon-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" data-stop title="เปิดไฟล์ Google Sheet" aria-label="เปิดไฟล์ Google Sheet">${icon('external', 16)}</a>`
-                            : '';
-                        })()}
-                        <button type="button" class="cr-icon-btn cr-icon-btn--danger" data-del="${r.id}" title="ลบห้องเรียน" aria-label="ลบห้องเรียน">${icon('trash', 16)}</button>
-                      </div>
-                    </div>
-                    <div class="cr-room-card__body-head">
-                      <span class="cr-room-card__emblem" aria-hidden="true">${icon('users', 20)}</span>
-                      <div>
-                        <h2 class="cr-room-card__subject">${escapeHtml(r.subject || 'ไม่ระบุวิชา')}</h2>
-                        <p class="cr-room-card__room">${escapeHtml(r.name || 'ไม่ระบุชั้น/ห้อง')}</p>
-                      </div>
-                    </div>
-                    <dl class="cr-room-card__meta">
-                      <div class="cr-room-card__stat"><dt>ภาคเรียน / ปีการศึกษา</dt><dd>${escapeHtml(r.term || '-')}/${escapeHtml(r.academicYear || '-')}</dd></div>
-                      <div class="cr-room-card__stat"><dt>จำนวนนักเรียน</dt><dd>${counts[i]} คน</dd></div>
-                    </dl>
-                  </article>`;
-                })
-                .join('')}
+              ${rooms.map((r, i) => renderRoomCard(r, i)).join('')}
             </div>`
           : `<div class="cr-empty">
               <div class="cr-empty__icon" aria-hidden="true">${icon('users', 28)}</div>
@@ -132,17 +202,36 @@ export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<voi
   pageEl.onclick = async (e) => {
     const t = e.target as HTMLElement;
     if (t.closest('[data-stop]')) return;
-    if (t.closest('[data-hub-login]')) {
+    if (t.closest('[data-hub-login], [data-hub-reconnect]')) {
       e.stopPropagation();
+      const force = !!t.closest('[data-hub-reconnect]');
       try {
-        const p = await signIn();
-        toast(`เข้าสู่ระบบแล้ว: ${p.email}`, 'success');
-        const changed = await syncAppData();
+        const p = await signIn(force);
+        lastSharedFetchAt = Date.now();
+        toast(`เชื่อมต่อแล้ว: ${p.email}`, 'success');
+        const [changed, shared] = await Promise.all([syncAppData(), fetchSharedClassrooms().catch(() => [])]);
         if (changed) toast(`ดึงข้อมูลห้องเรียนจาก Google Drive แล้ว (${changed} รายการ)`, 'info');
+        else if (shared.length) toast(`พบห้องเรียนที่ถูกเชิญ ${shared.length} ห้อง`, 'info');
         ctx.refresh();
       } catch (err) {
         toast(errorMessage(err), 'error');
       }
+      return;
+    }
+    const importBtn = t.closest<HTMLButtonElement>('[data-import-shared]');
+    if (importBtn) {
+      e.stopPropagation();
+      await withBusy(importBtn, 'กำลังเปิด...', async () => {
+        try {
+          const importedRoom = await importSharedRoomViaPicker();
+          if (importedRoom) {
+            toast(`รับห้องเรียนร่วม "${classroomTitle(importedRoom)}" เรียบร้อยแล้ว`, 'success');
+            ctx.refresh();
+          }
+        } catch (err) {
+          toast(errorMessage(err), 'error');
+        }
+      });
       return;
     }
     if (t.closest('[data-add-room]')) {
@@ -169,6 +258,27 @@ export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<voi
       });
       return;
     }
+    const leaveBtn = t.closest<HTMLButtonElement>('[data-leave-shared]');
+    if (leaveBtn) {
+      e.stopPropagation();
+      const room = rooms.find((r) => r.id === leaveBtn.dataset.leaveShared);
+      if (!room) return;
+      const ok = await confirmDialog(
+        `ต้องการออกจากห้องเรียนร่วม "${classroomTitle(room)}" (เจ้าของห้อง: ${room.ownerEmail || '-'}) หรือไม่?\nระบบจะถอนสิทธิ์การเข้าถึงของคุณและนำห้องออกจากคลังทันที`,
+        { title: 'ออกจากห้องร่วม', confirmText: 'ออกจากห้องร่วม', danger: true },
+      );
+      if (!ok) return;
+      await withBusy(leaveBtn, 'กำลังออก...', async () => {
+        try {
+          await leaveSharedClassroom(room);
+          toast('ออกจากห้องเรียนร่วมแล้ว', 'info');
+          ctx.refresh();
+        } catch (err) {
+          toast(errorMessage(err), 'error');
+        }
+      });
+      return;
+    }
     const del = t.closest<HTMLElement>('[data-del]');
     if (del) {
       e.stopPropagation();
@@ -186,13 +296,16 @@ export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<voi
       return;
     }
     const card = t.closest<HTMLElement>('[data-open]');
-    if (card) ctx.openRoom(card.dataset.open!);
+    if (card) {
+      ctx.openRoom(card.dataset.open!);
+      return;
+    }
   };
   pageEl.onkeydown = (e) => {
     const card = (e.target as HTMLElement).closest<HTMLElement>('[data-open]');
     if (card && e.target === card && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
-      ctx.openRoom(card.dataset.open!);
+      card.click();
     }
   };
 }
@@ -485,12 +598,16 @@ export function openCreateWizard(ctx: AppContext): void {
         term: info.term.trim(),
         academicYear: info.academicYear.trim(),
         syncMode: 'local',
+        role: 'owner',
+        collaborators: [],
         sheet: null,
         createdAt: now,
         updatedAt: now,
       };
       if (method === 'sheet' && picked && imported) {
         room.syncMode = 'google';
+        room.sheetId = picked.id;
+        room.isSharedWithMe = false;
         room.sheet = {
           spreadsheetId: picked.id,
           spreadsheetName: picked.name,
@@ -513,7 +630,11 @@ export function openCreateWizard(ctx: AppContext): void {
           toast(`สร้างห้องในเครื่องแล้ว แต่สร้าง Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'error');
         }
       } else {
-        if (room.syncMode === 'google') scheduleAppDataSync(0);
+        if (room.syncMode === 'google') {
+          await syncClassroomDriveProperties(room).catch(() => undefined);
+          await syncSpreadsheetSyncMeta(room).catch(() => undefined);
+          scheduleAppDataSync(0);
+        }
         toast(`สร้างห้องเรียนแล้ว (${students.length} คน)`, 'success');
       }
       m.close();

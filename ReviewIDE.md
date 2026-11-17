@@ -448,3 +448,244 @@
 ### 19.3 ผลการตรวจสอบและ Push ขึ้น GitHub
 - รัน `npx.cmd tsc --noEmit` และ `npm.cmd run build` ผ่านสมบูรณ์ (`dist/index.html` และ `dist/classroom.html` ถูกสร้างครบถ้วน)
 - ทำการ Commit และ Push ขึ้น Remote `origin/main` (`https://github.com/Thianrawit/EDUPlan.git`)
+
+---
+
+## 20. สรุปสาเหตุและแนวทางแก้ไข Google Client ID บน GitHub Pages
+
+### 20.1 สาเหตุที่แท้จริง
+- Vite ประมวลผลตัวแปรแวดล้อม (`import.meta.env.VITE_*`) แบบ Static Replacement ในขั้นตอน `npm run build`
+- บนเครื่อง Local มีไฟล์ `.env` ทำให้รันในเครื่องได้ปกติ แต่ไฟล์ `.env` ถูกกันไว้ด้วย `.gitignore` เพื่อความปลอดภัย
+- เมื่อ GitHub Actions ดึงโค้ดไป Build บน Ubuntu Runner จึงไม่มีไฟล์ `.env` ส่งผลให้ `VITE_GOOGLE_CLIENT_ID` มีค่าว่าง (`""`)
+- ระบบ `googleAuth.ts` ได้วางมาตรการ Graceful Fallback ดักจับกรณีนี้ไว้ โดยเปลี่ยนปุ่มเป็นสถานะแจ้งเตือน *"ยังไม่ได้ตั้งค่า Google Client ID (ใช้งานโหมดในเครื่องได้ปกติ)"* แทนการทำให้แอปล่ม
+
+### 20.2 การกำหนดค่าความปลอดภัยที่แนะนำ (Zero Secret Leak & Restricted Origin)
+1. **OAuth 2.0 Web Client ID**:
+   - เป็น Public Identifier ของ Client Application
+   - ควบคุมความปลอดภัยผ่าน Google Cloud Console ด้วย **Authorized JavaScript origins** (`https://thianrawit.github.io`)
+2. **Google API Key**:
+   - ควบคุมผ่าน **Application restrictions** (HTTP Referrers: `https://thianrawit.github.io/*`)
+   - ควบคุมผ่าน **API restrictions** (จำกัดเฉพาะ `Google Sheets API`, `Google Picker API`, `Google Drive API`)
+3. **GitHub Repository Environment Variables**:
+   - ตั้งค่าผ่าน GitHub Repo `Settings > Secrets and variables > Actions > Variables`
+   - ตัวแปร: `VITE_GOOGLE_CLIENT_ID` และ `VITE_GOOGLE_API_KEY`
+   - GitHub Workflow (`.github/workflows/deploy.yml`) รองรับการ Inject ตัวแปรทั้งจาก `secrets` และ `vars` เข้าไปในขั้นตอน Build โดยอัตโนมัติ
+
+---
+
+## 21. อัปเดตเอกสารสรุประบบ can.md ฉบับสมบูรณ์ (Version 3.0.0)
+
+### 21.1 การปรับปรุงโครงสร้างเอกสาร can.md
+- ทำการปรับปรุงเอกสาร `can.md` ใหม่ทั้งหมด 100% ให้ครอบคลุมทุกโมดูลที่พัฒนาเพิ่มขึ้นมาจนถึงปัจจุบัน (เวอร์ชัน 3.0.0 พฤศจิกายน 2026):
+  1. **สถาปัตยกรรมระดับสูง (System Architecture)**: Client-Side Heavy (Zero-Database) + Dexie IndexedDB + SheetJS + Google Identity Services (GIS) + Google Drive/Sheets Sync + Cloudflare Worker Serverless AI Gateway (Multi-Key 1-10, Waterfall Fallback)
+  2. **หน้าหลัก 2x2 Grid Hub**: แถวที่ 1 `[สร้างแผนการสอน วPA, สร้างเกณฑ์รูบริก]` / แถวที่ 2 `[สร้างโครงการระยะยาว, EduPlan Class]`
+  3. **โมดูล 1: แผนการสอน 11 หัวข้อ วPA**: Dual-Mode Input (Wizard 10 ขั้น / All-in-One Form), `curriculum.json` 2,598 ตัวชี้วัด, หน้าพรีวิว A4 เสมือนจริง ฟอนต์ TH SarabunPSK 16pt, Contenteditable, AI Refine, Word Export 9,000 DXA
+  4. **โมดูล 2: เกณฑ์รูบริกสกอร์ (Rubric)**: สกัด `.docx` บนเบราว์เซอร์ด้วย `mammoth.js`, สังเคราะห์ K-P-A Descriptors 3-5 ระดับ, ตารางเกณฑ์คะแนนไร้ขอบ, Word Export
+  5. **โมดูล 3: โครงการจัดการเรียนรู้ / แผนระยะยาว (Course Syllabus)**: Wizard 10 ขั้น, เอกสารราชการ 5 ส่วนมาตรฐาน (คำอธิบายรายวิชา, โครงสร้างรายวิชา, แผนรายสัปดาห์, วิธีเก็บคะแนน 80/20, เกณฑ์ตัดสินผลการเรียน), Word Export พร้อมฟังก์ชันล้างสระลอยวรรคขาด `cleanThaiText()`
+  6. **โมดูล 4: EduPlan Class (ระบบจัดการห้องเรียน classroom.html)**:
+     - Offline-First Dexie IndexedDB (7 ตาราง)
+     - นำเข้า/ส่งออก Excel (.xlsx) และ Smart Column Mapper แบบแยกสี 6 เฉดสี
+     - เช็คชื่อรายวัน/รายคาบ และระบบตรวจงานรายคนพร้อมแถบ Progress Bar
+     - Master Roster Editor พร้อมปุ่มรันเลขที่ใหม่อัตโนมัติ (1-N)
+     - Google OAuth & Real-time Sheets Sync ป้องกัน Formula Injection (`RAW`)
+     - Spotlight Interactive Tour 23 สเต็ป บน Dummy Sandbox Stage
+     - Two-Tier TopBar & Contextual Back Navigation
+  7. **สถาปัตยกรรมความปลอดภัย**: Zero Hardcoded Secret, Authorized JavaScript Origins, HTTP Referrers & Scope Restrictions, Sanitization ป้องกัน XSS
+  8. **ผังไฟล์ในโปรเจกต์ (Project Directory & Inventory)**: แจกแจงไฟล์ทั้งหมดใน `src/`, `src/classroom/`, `worker/`, `public/`
+  9. **การวิเคราะห์ทางเทคนิค**: แจกแจงข้อดี 5 ข้อ, ข้อจำกัด 3 ข้อ และข้อแนะนำในอนาคต (PWA, Chunk หลักสูตร, ดึง Google Classroom) 4 ข้อ
+
+### 21.2 ผลการตรวจสอบ
+- รัน `npm.cmd run build` ผ่านสมบูรณ์ (Exit code: 0) ทั้ง `dist/index.html` และ `dist/classroom.html`
+
+---
+
+## 22. อัปเกรด EduPlan Class (v3.0.0) — ระบบจัดการห้องเรียนร่วม (Collaborators & RBAC) และ Real-time Sync
+
+### 22.1 การตรวจสอบกฎเหล็ก (Strict Isolation & Compatibility)
+- **ไฟล์ระบบหลัก EduPlan AI ไม่ถูกแตะต้อง 100%**: `index.html`, `src/main.ts`, `src/style.css`, `src/config.ts`, `src/curriculum.ts`, `src/gemini.ts`, `src/types.ts`, `src/templates.ts`, `src/exporter.ts`, `src/rubricExporter.ts`, `src/longTermExporter.ts`, `src/longTermModule.ts`, `public/data/curriculum.json`, `vite.config.ts`, `worker/worker.js`
+- **รักษาโครงสร้างเดิมของ `src/classroom/`**: คงตาราง Dexie IndexedDB แบบ Backward-Compatible, คงการใช้ SheetJS (`xlsx`), คงการทำงานของ Spotlight Tutorial 23 สเต็ป และ Two-Tier TopBar, และบังคับ `valueInputOption: 'RAW'` กับ `safeHttpsUrl()` ทุกจุด
+
+### 22.2 รายการไฟล์ที่สร้างใหม่และแก้ไขใน `src/classroom/`
+1. **`src/classroom/types.ts`**:
+   - เพิ่ม `ClassroomRole = 'owner' | 'creator' | 'assistant' | 'viewer'` และ `Collaborator`
+   - เพิ่มฟิลด์ `role`, `ownerEmail`, `collaborators`, `myPermissionId`, `lastModifiedTime` ใน `Classroom`
+   - เพิ่ม `ROLE_BADGE_LABEL`, `COLLAB_ROLE_OPTIONS`, และ `getEffectiveRole()`
+2. **`src/classroom/db.ts`**:
+   - เพิ่ม `replaceClassroomCache()` สำหรับแคชโครงสร้างและข้อมูลล่าสุดจาก Google Sheet ลง Dexie
+   - เพิ่ม `purgeStaleSharedClassrooms()` ลบแคชห้องร่วมที่ถูกถอนสิทธิ์แล้ว
+   - ปรับ `buildSyncSnapshot()` ให้สำรองเฉพาะห้องที่ผู้ใช้เป็น `owner` ลง `appDataFolder`
+3. **`src/classroom/googleSheets.ts`**:
+   - **Drive Public `properties` & Permissions API v3**:
+     - `truncateDriveProperty()` ป้องกัน UTF-8 byte เกิน 124 bytes สำหรับภาษาไทย
+     - `syncClassroomDriveProperties()` บันทึก `eduplan_type='classroom'`, `eduplan_room_name`, `eduplan_subject`, และ `collab_1`..`collab_5` (`"email|role"`)
+     - `fetchRoomCollaborators()`, `addCollaborator()` (จำกัดสูงสุด 5 คน, `sendNotificationEmail=false`, `reader` สำหรับ `viewer` และ `writer` สำหรับ `assistant`/`creator`), `updateCollaboratorRole()`, `removeCollaborator()`
+     - `fetchSharedClassroomsFromDrive()` ค้นหาห้องร่วมด้วย `sharedWithMe = true and trashed = false and properties has { key='eduplan_type' and value='classroom' }` และตรวจสอบสิทธิ์จาก `collab_1`..`collab_5`
+     - `leaveSharedClassroom()` ถอนสิทธิ์ตัวเอง (`DELETE /drive/v3/files/{fileId}/permissions/{myPermissionId}`) และลบออกจากคลังทันที
+     - `pullClassroomFromSheet()` ดึงรายชื่อ รอบเช็คชื่อ และชิ้นงานล่าสุดจาก Google Sheet มาแคชลง Dexie
+   - **Partial Batch Update**:
+     - ปรับ `pushAttendanceSession()` และ `pushAssignment()` ให้ใช้ `POST .../values:batchUpdate` (`valueInputOption: 'RAW'`) อัปเดตเฉพาะคอลัมน์ของวันที่หรือชิ้นงานนั้นๆ โดยไม่เขียนทับทั้งแผ่นงาน
+4. **`src/classroom/realtimeSync.ts` (สร้างใหม่)**:
+   - โพลลิ่งทุก 12 วินาทีเมื่อเปิดหน้าห้องเรียนที่ซิงก์ Google Sheet และแท็บเบราว์เซอร์เปิดอยู่ (`!document.hidden`)
+   - ตรวจสอบ `modifiedTime` และ `lastModifyingUser`:
+     - กรณี `!isDirty`: ดึงข้อมูลล่าสุดจาก Google Sheet อัปเดตตารางทันที พร้อมแสดง Toast `"🔄 ข้อมูลถูกอัปเดตล่าสุดโดย {email}"`
+     - กรณี `isDirty`: ไม่รีเฟรชทับข้อมูลที่กำลังทำค้างไว้ แต่แสดงแถบแจ้งเตือนด้านบนสุดของตาราง `"⚠️ มีการบันทึกข้อมูลใหม่จาก {email} [คลิกเพื่อโหลดข้อมูลล่าสุด]"`
+5. **`src/classroom/components/CollaboratorModal.ts` (สร้างใหม่)**:
+   - หน้าต่างจัดการผู้ร่วมสอนสำหรับ `owner` (`👥 จัดการผู้ร่วมสอน (X/5)`)
+   - รองรับการเพิ่มอีเมล เลือกสิทธิ์ 3 ระดับ (`ผู้ชม`, `ครูผู้ช่วย`, `ครีเอเตอร์`) เปลี่ยนสิทธิ์รายคน และลบออก (ล็อกปุ่มเชิญเมื่อครบ 5 คน)
+   - แสดงป้ายแจ้งเตือนหากเป็นห้อง Local Only ว่าต้องเชื่อมต่อ Google Sheet ก่อนจึงจะเชิญผู้ร่วมสอนได้
+6. **`src/classroom/components/ClassroomHub.ts`, `AttendanceTab.ts`, `AssignmentsTab.ts`, `SettingsTab.ts`, `main.ts`, `classroom.css`**:
+   - แสดงป้ายสิทธิ์บนการ์ดห้องเรียน (`👑 เจ้าของห้อง`, `👁️ ผู้ชม`, `📋 ครูผู้ช่วย`, `🛠️ ครีเอเตอร์`), บรรทัด `เจ้าของห้อง: {ownerEmail}`, และปุ่ม `🚪 ออกจากห้องร่วม`
+   - บังคับสิทธิ์ RBAC ครบทุกบทบาท (`viewer` เป็น Read-only, `assistant` ซ่อน `SettingsTab` และซ่อนปุ่มเปิด Google Sheet, `creator` แก้ไขได้ทั้งหมดแต่ไม่เห็นปุ่มจัดการผู้ร่วมสอน, `owner` มีสิทธิ์เต็ม)
+
+### 22.3 วิธีทดสอบระบบ
+1. รัน `npx.cmd tsc --noEmit` และ `npm.cmd run build` (ผ่าน 100% Exit Code 0)
+2. เปิดหน้า `classroom.html` ล็อกอิน Google สร้างห้องเรียนที่ซิงก์กับ Google Sheet
+3. กดปุ่ม **`👥 จัดการผู้ร่วมสอน (0/5)`** ทดสอบเชิญอีเมลด้วยสิทธิ์ `ผู้ชม`, `ครูผู้ช่วย`, หรือ `ครีเอเตอร์` ทดสอบเปลี่ยนสิทธิ์และลบออก
+4. ล็อกอินด้วยบัญชีที่ถูกเชิญที่หน้า `ClassroomHub` จะพบการ์ดห้องเรียนที่ถูกเชิญแสดงป้ายสิทธิ์ บรรทัด `เจ้าของห้อง: ...` และปุ่ม `🚪 ออกจากห้องร่วม`
+5. ทดสอบเปิดห้องเรียนเดียวกันพร้อมกัน 2 หน้าต่าง เมื่อฝั่งหนึ่งบันทึกการเช็คชื่อหรือคะแนนงาน อีกฝั่งจะอัปเดตอัตโนมัติภายใน 12 วินาที (หรือขึ้นแถบแจ้งเตือน Conflict หากกำลังแก้ไขค้างไว้)
+
+---
+
+## 23. แก้ไขบั๊ก Shared Classroom Discovery & เปลี่ยนไอคอนเป็น Vector SVG 100%
+
+### 23.1 รายการแก้ไขระบบ Shared Classroom Discovery
+1. **`src/classroom/googleAuth.ts`**:
+   - เพิ่ม Scope `'https://www.googleapis.com/auth/drive.metadata.readonly'` ใน `SCOPES` เพื่อให้ผู้ใช้ที่ถูกเชิญมองเห็นไฟล์ที่ถูกแชร์ (`sharedWithMe = true`) และอ่าน Public `properties` ของไฟล์ได้ทันที
+   - เพิ่ม `SCOPE_VERSION = 2` ใน Session Storage Token และตรวจสอบ `hasGrantedAllScopes(resp, SCOPES[3], SCOPES[4], SCOPES[5])` พร้อมขอ `prompt: 'consent'` เมื่อเชื่อมต่อใหม่เพื่ออัปเกรดสิทธิ์อัตโนมัติ
+2. **`src/classroom/googleSheets.ts`**:
+   - Normalize อีเมลทั้งหมดด้วย `.toLowerCase().trim()` ทั้งตอนบันทึก `collab_1`..`collab_5` ลง `properties` และตอนตรวจสอบสิทธิ์ผู้ใช้ที่ล็อกอินอยู่
+   - ปรับ `syncClassroomDriveProperties()` และ `addCollaborator` (`inviteCollaborator`) ให้ยิงทั้ง `POST /permissions?sendNotificationEmail=false` และ `PATCH /drive/v3/files/{fileId}` อัปเดต `properties` พร้อมตรวจสอบ `res.ok` และ `console.error` ชัดเจนหากอัปเดตไม่สำเร็จ
+   - ปรับ `fetchSharedClassrooms` (export ทั้ง `fetchSharedClassrooms` และ `fetchSharedClassroomsFromDrive`) ให้ใช้ Query `sharedWithMe = true and trashed = false and mimeType = 'application/vnd.google-apps.spreadsheet'` แล้วกรอง `properties?.eduplan_type === 'classroom'` และ `collab_1`..`collab_5` ฝั่ง JavaScript (พร้อมรักษาห้องที่นำเข้าผ่าน Picker ตราบเท่าที่ยังไม่ถูกถอนสิทธิ์จริง)
+   - เพิ่มฟังก์ชัน `importSharedRoomViaPicker()` เปิด Google Picker (`google.picker.ViewId.SPREADSHEETS` พร้อม View `sharedOnly`) ดึง Metadata รวม `capabilities(canEdit)` และกำหนดสิทธิ์จาก `properties` หรือ `capabilities.canEdit` (`assistant` / `viewer`) นำเข้าเป็นห้องร่วมลง Dexie ทันที
+   - อัปเดต `fullSync()` ให้เรียก `fetchSharedClassrooms()` ด้วยทุกครั้งที่กด "ซิงก์ข้อมูล" และป้องกันไม่ให้บทบาท `viewer` push ข้อมูลทับ
+3. **`src/classroom/types.ts`, `src/classroom/db.ts`, `src/classroom/components/ClassroomHub.ts`, `src/classroom/components/TopBar.ts`, `src/classroom/main.ts`**:
+   - เพิ่มฟิลด์ Backward-Compatible `isSharedWithMe`, `importedViaPicker`, `sheetId` ใน `Classroom`
+   - ปรับ `purgeStaleSharedClassrooms()` และ `buildSyncSnapshot()` ให้รองรับ `isSharedWithMe` และ `importedViaPicker`
+   - เพิ่มปุ่มลัด **`รับห้องเรียนที่ถูกแชร์`** ข้างปุ่ม `+ เพิ่มห้องเรียน` ใน `ClassroomHub.ts` (แสดงเมื่อล็อกอิน Google แล้ว)
+
+### 23.2 เปลี่ยนอิโมจิทั้งหมดเป็นระบบ Vector SVG Icon (`Zero Emoji`)
+- เพิ่ม Vector SVG Paths ใน `src/classroom/types.ts`: `crown` (`เจ้าของห้อง`), `wrench` (`ครีเอเตอร์`), `eye` (`ผู้ชม`), `download` (`รับห้องเรียนที่ถูกแชร์`) คู่กับ `clipboard` (`ครูผู้ช่วย`), `users` (`จัดการผู้ร่วมสอน`), `logout` (`ออกจากห้องร่วม`), `warning` / `refresh` (`Real-time Sync Toast & Conflict Banner`)
+- เพิ่มฟังก์ชัน `roleBadgeHtml()` และรองรับ `titleIcon` / `toastIcon` ใน `src/classroom/components/ColumnMapperModal.ts` และ CSS alignment ใน `src/classroom/classroom.css`
+- ยืนยันการสแกนทั้งโฟลเดอร์ `src/classroom/` ด้วย Script พบจำนวนอิโมจิคงเหลือ `0` รายการ (`Emoji hits: 0`)
+
+### 23.3 ผลการตรวจสอบและวิธีทดสอบ
+1. **Isolated Scope Check**: ตรวจสอบ `git status` ไม่มีการแก้ไขไฟล์ในระบบหลัก `EduPlan AI` (`index.html`, `src/main.ts`, `public/data/curriculum.json`, `worker/*` ฯลฯ) แม้แต่ไฟล์เดียว
+2. **TypeCheck & Production Build**: รัน `npx.cmd tsc --noEmit` และ `npm.cmd run build` ผ่านสมบูรณ์ Exit Code `0`
+3. **วิธีทดสอบฝั่ง Shared Discovery**:
+   - เจ้าของห้อง: กดปุ่มจัดการผู้ร่วมสอน เชิญอีเมลด้วยรูปแบบตัวพิมพ์ใหญ่/ช่องว่าง ระบบจะ Normalize เป็นตัวพิมพ์เล็ก แล้วยิง `POST permissions` + `PATCH properties`
+   - ผู้ถูกเชิญ: ล็อกอินด้วย Google (หรือกดยินยอมสิทธิ์ `drive.metadata.readonly` เพิ่มเติม) การ์ดห้องเรียนที่ถูกเชิญจะแสดงทันทีใน `ClassroomHub` หรือทดสอบกดปุ่ม **`รับห้องเรียนที่ถูกแชร์`** เพื่อเลือกไฟล์ผ่าน Google Picker ได้โดยตรง
+
+---
+
+## 24. แก้ไข Error HTTP 404 เมื่อเปิดห้องเรียนร่วม (`Requested entity was not found`)
+
+### 24.1 สาเหตุที่แท้จริง (Root Cause)
+- Scope `drive.metadata.readonly` อนุญาตให้อ่านเฉพาะ Metadata ของไฟล์ใน `GET /drive/v3/files` (จึงมองเห็นการ์ดห้องร่วมได้)
+- แต่ Scope `drive.file` จำกัดให้ Google Sheets API v4 อ่าน/เขียนข้อมูลในตาราง (`GET /v4/spreadsheets/{id}`) ได้เฉพาะไฟล์ที่ผู้ใช้นั้นสร้างเองหรือเลือกผ่าน Google Picker เท่านั้น เมื่อผู้ถูกเชิญกดเปิดการ์ดห้องร่วมที่ค้นพบอัตโนมัติโดยตรง Google Sheets API จึงตอบกลับ **HTTP 404: Requested entity was not found**
+
+### 24.2 การแก้ไขเชิงสถาปัตยกรรม (Dual-Layer Fix)
+1. **เพิ่ม Google Sheets Scope ใน `src/classroom/googleAuth.ts`**:
+   - เพิ่ม `'https://www.googleapis.com/auth/spreadsheets'` ใน `SCOPES` และปรับ `SCOPE_VERSION = 3` พร้อมรองรับ `signIn(forceConsent)` เพื่อให้บัญชีผู้ถูกเชิญอ่าน/เขียนตาราง Google Sheets ที่ได้รับแชร์ได้ทันทีโดยไม่ติด Error 404 และไม่ต้องเปิด Google Picker ซ้ำทุกไฟล์
+2. **เพิ่ม Smart 404 Recovery & Type-Safe Error Handling**:
+   - สร้างคลาส `GoogleApiError` และ `isGoogleNotFoundError()` ใน `src/classroom/googleSheets.ts` และให้ `leaveSharedClassroom()` ข้าม Error 404 ของ Permissions API ได้อย่างปลอดภัย
+   - เพิ่ม Banner แจ้งเตือนเชื่อมต่อสิทธิ์ใหม่ (`data-hub-reconnect`) และระบบ Fallback เปิด Google Picker 1 คลิกเมื่อพบ HTTP 404 ระหว่างเปิดห้องเรียนร่วมใน `src/classroom/components/ClassroomHub.ts`
+3. **ผลการตรวจสอบ**:
+   - `Emoji hits: 0` (ปลอดอิโมจิ 100%), `npx.cmd tsc --noEmit` และ `npm.cmd run build` ผ่าน Exit Code `0`
+
+---
+
+## 25. แก้ไขตารางและข้อมูลระหว่างผู้ถูกเชิญกับเจ้าของห้องไม่ตรงกัน (`eduplan_sync_meta` & Exact Row/Mapping Sync)
+
+### 25.1 สาเหตุที่ทำให้ตารางของผู้ถูกเชิญไม่ตรงกับเจ้าของห้อง
+1. **การตั้งค่าคอลัมน์ (`SheetMapping`) ไม่ถูกแชร์ข้ามบัญชี**: สำหรับ Google Sheet ที่เชื่อมจากไฟล์เดิมของครู (`standard: false`) เจ้าของห้องเก็บตำแหน่งแถวหัวตาราง (`headerRow`), โหมดแยกชื่อ (`single`/`split`), แท็บและคอลัมน์เช็คชื่อ/ส่งงานไว้เฉพาะใน `appDataFolder` ส่วนตัว ทำให้ฝั่งผู้ถูกเชิญเดาค่าเริ่มต้น (`headerRow = 0`, แท็บ `'การมาเรียน'`/`'การส่งงาน'`) ซึ่งไม่ตรงกับชีตจริงและอ่านหัวตารางติดมาเป็นรายชื่อนักเรียน
+2. **การจับคู่แถวแบบลำดับ (`hRowIdx + 1 + i`) แทน Key Tracking**: กรณีตารางกำหนดจับคู่ด้วยรหัสนักเรียน (`code`), เลขที่ (`number`), หรือชื่อ (`name`) ตอนดึงข้อมูล `pullClassroomFromSheet()` เดิมอ่านตามลำดับบรรทัดแทนการจับคู่ด้วยคีย์
+3. **การต่อชื่อแบบ Split & ข้อมูลงาน (Metadata)**: ฝั่งผู้ถูกเชิญต่อคำนำหน้า+ชื่อต่างจาก `applyMapping()` ใน `excelService.ts` และขาดวันที่สั่ง กำหนดส่ง คะแนนเต็ม รวมถึง Master Roster
+
+### 25.2 การแก้ไขใน `src/classroom/googleSheets.ts`, `SettingsTab.ts`, `ClassroomHub.ts`, `main.ts`
+1. **แชร์คอนฟิกผ่าน Google Sheets `developerMetadata` (`visibility: 'DOCUMENT'`)**:
+   - เพิ่มฟังก์ชัน `syncSpreadsheetSyncMeta()` และ `parseSpreadsheetSyncMeta()` บันทึกคีย์ `eduplan_sync_meta` (ขนาดกะทัดรัด ปลอดแท็บขยะ และอ่านได้จากทุกสิทธิ์รวมถึง `viewer`) เก็บ `name`, `subject`, `term`, `academicYear`, `standard`, `roster`, `attendance`, `assignments`, `students` (Master Roster), `sessions`, และ `assignmentsMeta`
+   - อัปเดต Metadata อัตโนมัติเมื่อเจ้าของห้องบันทึกเช็คชื่อ/งาน (`pushAttendanceSession`, `pushAssignment`, `pushClassroom`, `upgradeToStandardSheet`), เชิญผู้ร่วมสอน (`addCollaborator`), แก้ไขข้อมูลห้อง/รายชื่อ/คอลัมน์ (`SettingsTab.ts`), สร้างห้อง (`ClassroomHub.ts`), และซิงก์ห้องเดิมอัตโนมัติครั้งแรกเมื่อเจ้าของห้องเปิดห้อง (`main.ts`)
+2. **ปรับปรุง `pullClassroomFromSheet()` ให้ตรงกับเจ้าของห้อง 100%**:
+   - กู้คืน `SheetMapping`, `term`, `academicYear`, และ `Master Roster` จาก `eduplan_sync_meta` โดยตรง (หากเป็นไฟล์เก่าที่ยังไม่มี `syncMeta` และไม่ใช่ไฟล์มาตรฐาน 3 แท็บ จะตั้ง `standard = false`, ใช้ `guessHeaderRow` + `guessMapping` แทนค่าเดิมที่ผิด และตัดแท็บที่ไม่มีจริงออก)
+   - ใช้ `applyMapping()` จาก `excelService.ts` เป็นมาตรฐานเดียวกัน และตัด positional fallback ที่เสี่ยงสลับคนออก
+   - เพิ่ม `buildGridRowMap()` จับคู่แถวตาม `keyType`/`keyCol` เหมือนฝั่งเขียน (`resolveRows()`) และคืนค่าวันที่สั่ง/กำหนดส่ง/คะแนนเต็มของงานทุกชิ้น
+3. **ผลการตรวจสอบ**: `Emoji hits: 0`, `npx.cmd tsc --noEmit` และ `npm.cmd run build` ผ่าน Exit Code `0`
+
+---
+
+## 26. แก้ไขผู้ถูกเชิญกดเข้าห้องเรียนช้าและต้องกดย้ำหลายครั้ง (Single-Click Instant Open & Render Queue Fix)
+
+### 26.1 สาเหตุที่ทำให้กดเข้าห้องเรียนครั้งเดียวไม่ได้และช้า
+1. **Race Condition ใน `render()` (`src/classroom/main.ts`)**: ฟังก์ชัน `render()` เดิมใช้ `if (rendering) return;` ทำให้เมื่อ `onDataChange` หรือการซิงก์พื้นหลังบน Hub สั่งเรนเดอร์ค้างอยู่ แล้วผู้ใช้คลิกเข้าห้องเรียน (`ctx.openRoom(targetId)` -> `navigate()`) คำสั่งเปิดห้องจะถูกทิ้งกลางคันและหน้าจอค้างอยู่บน Hub ต้องกดย้ำอีกครั้ง
+2. **การบล็อกการนำทางด้วย `await pullClassroomFromSheet(room)` (`src/classroom/components/ClassroomHub.ts`)**: เดิมผู้ถูกเชิญกดการ์ดแล้วต้องรอเครือข่าย Google API ดึงข้อมูลทุกแท็บแบบ Sequential จนเสร็จก่อนจึงจะสลับหน้า ทำให้เกิดอาการหน่วงและยิ่งเพิ่มโอกาสชนกับ `onDataChange` ของ `replaceClassroomCache()` ที่เด้งกลับมาเรนเดอร์ Hub ซ้ำระหว่างรอ
+3. **Hub Re-render Storm & Duplicate Drive Queries (`src/classroom/googleSheets.ts` & `ClassroomHub.ts`)**: `fetchSharedClassrooms()` เดิมเรียก `saveClassroom(room)` ทุกครั้งแม้ข้อมูลห้องร่วมใน IndexedDB จะไม่เปลี่ยน ทำให้ `emit(room.id)` สั่งรื้อ DOM หน้า Hub ซ้ำไปมา รวมถึง `bootstrap()` และ `renderHub()` ต่างคนต่างยิง `fetchSharedClassrooms()` พร้อมกัน
+
+### 26.2 การแก้ไขที่ทำ
+1. **คิวเรนเดอร์ที่ไม่ทิ้งการนำทาง (`src/classroom/main.ts`)**:
+   - เปลี่ยน `render()` จากการทิ้งคำสั่ง (`if (rendering) return;`) เป็น `do { ... } while (renderQueued)` พร้อมตรวจสอบ `snapshotRoute` ให้สลับไปยังหน้าปลายทางล่าสุดทันทีเมื่อรอบก่อนหน้าจบลง ไม่ตกหล่นคลิกอีกต่อไป
+2. **เปิดห้องทันที 0ms + ซิงก์พื้นหลังไม่ซ้ำซ้อน (`ClassroomHub.ts` & `main.ts`)**:
+   - ให้คลิกการ์ด `[data-open]` บน Hub เรียก `ctx.openRoom(card.dataset.open!)` ทันทีโดยไม่รอ Network ก่อนเปลี่ยนหน้า
+   - ย้ายการดึงข้อมูลห้องร่วม (`ensureSharedPull()`) เข้ามาจัดการภายใน `renderRoomWorkspace()` แบบ Deduplicate ด้วย `activeSharedPulls` และคูลดาวน์ `SHARED_PULL_COOLDOWN_MS` (5 วินาที) พร้อมรองรับ Error 404 เปิด Google Picker 1 คลิก:
+     - หากมีข้อมูลแคชแล้ว (`students.length > 0`): แสดงตารางทันทีและขึ้นป้ายสถานะ `[data-shared-sync-pill]` (`กำลังอัปเดตข้อมูล...`) จากนั้นรีเฟรชอัตโนมัติอย่างปลอดภัย (หรือขึ้นแบนเนอร์เตือนถ้ากำลังแก้ไข)
+     - หากยังไม่มีข้อมูลในเครื่อง (`students.length === 0`): เปิดหน้าห้องพร้อมแท็บและสปินเนอร์ `.cr-empty` / `.cr-spinner` ทันทีแล้วแสดงผลเมื่อดึงข้อมูลสำเร็จ
+3. **ลดการยิง API และลดการเขียน Dexie เกินจำเป็น (`googleSheets.ts` & `ClassroomHub.ts`)**:
+   - เพิ่ม `inFlightSharedFetch` ใน `fetchSharedClassrooms()` เพื่อรวมคำขอที่ยิงพร้อมกันเป็น 1 ครั้ง และเพิ่ม `sharedRoomMetaChanged()` + `collabsEqual()` ข้าม `saveClassroom()` หากข้อมูล Metadata ไม่เปลี่ยน
+   - ขนานการดึงแท็บ `rosterTab`, `attMap.sheetTitle`, `asgMap.sheetTitle` ใน `pullClassroomFromSheet()` ด้วย `Promise.all` พร้อมเพิ่มคูลดาวน์ `SHARED_FETCH_COOLDOWN_MS` (10 วินาที) ใน `renderHub()`
+4. **ผลการตรวจสอบ**:
+   - `Emoji hits: 0` (ปลอดอิโมจิ 100%)
+   - `npx.cmd tsc --noEmit` ผ่าน Exit Code `0`
+   - `npm.cmd run build` ผ่าน Exit Code `0` (สร้าง `dist/classroom.html` และ `dist/index.html` สำเร็จ)
+
+---
+
+## 27. เพิ่มตัวเลือกรูปแบบชื่อหัวคอลัมน์เช็คชื่อ (วันที่ / คาบเรียน-รอบ / ทั้ง 2 แบบ 2 บรรทัด)
+
+### 27.1 การแก้ไขเชิงโครงสร้างข้อมูลและ UI (`types.ts`, `AttendanceTab.ts`, `classroom.css`)
+1. **สคีมาและฟังก์ชันจัดรูปแบบใน `src/classroom/types.ts`**:
+   - เพิ่ม Type `SessionHeaderMode = 'both' | 'date' | 'period'`
+   - เพิ่มฟิลด์ `Classroom.attendanceHeaderMode?: SessionHeaderMode` (จำค่าล่าสุดของห้องเพื่อนำไปใช้ต่อในรอบถัดไป) และ `AttendanceSession.headerMode?: SessionHeaderMode` (รองรับข้อมูลเดิมย้อนหลังแบบ Backward Compatible)
+   - เพิ่ม `sessionHeaderText()` สำหรับสร้างข้อความลงเซลล์/หัวคอลัมน์จริง โดยโหมด `'both'` จะขึ้น 2 บรรทัดให้ **คาบเรียนอยู่บรรทัดบน และวันที่ (พ.ศ.) อยู่บรรทัดล่าง** (`${periodText}\n${dateText}`), `'period'` แสดงแค่คาบ, `'date'` แสดงแค่วันที่ และอัปเดต `sessionLabel()` สำหรับการแสดงผลแบบบรรทัดเดียวใน Dropdown/Dialog
+2. **ตัวเลือกในหน้าเช็คชื่อและตัวอย่างสด (`src/classroom/components/AttendanceTab.ts` & `classroom.css`)**:
+   - เพิ่มกลุ่มปุ่ม `ชื่อหัวช่อง (Sheet / Excel)` (`data-header-mode="both" | "period" | "date"`) ไว้ใน `.cr-session-bar` ต่อจากช่อง `วันที่` และ `คาบเรียน / รอบ` พร้อมกล่อง **ตัวอย่างในช่อง** (`data-header-preview`, `.cr-header-preview`) อัปเดตแบบเรียลไทม์ขณะพิมพ์ชื่อคาบ เปลี่ยนวันที่ หรือสลับรูปแบบ
+   - เมื่อเลือกโหมดใหม่จะจำค่าลง `room.attendanceHeaderMode` ใน Dexie (`saveClassroom`) และส่งซิงก์ `scheduleAppDataSync()` เพื่อให้รอบใหม่ของห้องนั้นใช้รูปแบบเดิมต่อเนื่องทันที
+   - เพิ่มการตรวจสอบกรณีเลือก `แค่คาบ` แต่ยังไม่ได้กรอกช่อง `คาบเรียน / รอบ` รวมถึงตรวจเช็กรูปแบบหัวช่องซ้ำก่อนบันทึก
+
+### 27.2 การซิงก์ Google Sheets, ตัวอย่างตาราง Settings และ Export Excel
+1. **Google Sheets (`src/classroom/googleSheets.ts`)**:
+   - อัปเดต `pushStandardAll()`, `pushAttendanceSession()`, และ `pushClassroom()` ให้เขียนหัวคอลัมน์ด้วย `sessionHeaderText()` (คงค่า `\n` 2 บรรทัดผ่าน `valueInputOption: 'RAW'`)
+   - ป้องกันคอลัมน์ชนกันใน `pushCustomColumn()` ด้วย `usedLocalSet` กรณีหลายรอบมีชื่อหัวคอลัมน์แสดงเหมือนกัน (เช่น เลือกแสดง `แค่วันที่` ในวันเดียวกันหลายคาบ)
+   - อัปเดต `SheetSyncMetaPayload`, `syncSpreadsheetSyncMeta()`, `buildSharedRoomObject()`, `parseSessionHeaderLabel()`, และ `pullClassroomFromSheet()` ให้รองรับการอ่าน-เขียนหัวตารางทั้งแบบ 2 บรรทัด (`คาบ\ndd/mm/yyyy`) คาบอย่างเดียว และวันที่อย่างเดียว รวมถึงจำค่า `attendanceHeaderMode` ข้ามผู้ร่วมสอนได้ครบถ้วน
+2. **Excel (.xlsx) & Settings Preview (`excelService.ts`, `SettingsTab.ts`)**:
+   - `exportClassroomXlsx()` ใช้ `sessionHeaderText()` ในแท็บ `สรุปการมาเรียน` พร้อมปรับ `ws2.getRow(2).height = 42` เมื่อมีหัวตาราง 2 บรรทัด เพื่อไม่ให้ข้อความถูกตัด
+   - `SettingsTab.ts` (`projectColumns`, `previewHtml`, `standardPreview`) แสดงหัวตารางจำลองเป็น 2 บรรทัดด้วย `<br>` และเปรียบเทียบ Conflict กับหัวตารางจริงได้ตรงกัน
+3. **ผลการตรวจสอบ**:
+   - `Emoji hits: 0` (ปลอดอิโมจิ 100%)
+   - `npx.cmd tsc --noEmit` ผ่าน Exit Code `0`
+   - `npm.cmd run build` ผ่าน Exit Code `0` (`dist/classroom.html` และ `dist/index.html`)
+
+---
+
+## 28. ตรวจสอบความปลอดภัยก่อนอัปโหลดขึ้น GitHub (Security Audit & GitHub Push)
+
+### 28.1 ผลการตรวจสอบความปลอดภัย
+1. **การป้องกันความลับและตัวแปรแวดล้อม (`.env` / CI)**:
+   - ยืนยันผ่าน `git check-ignore -v .env .env.local dist` พบว่า `.gitignore` บล็อก `.env`, `.env.*` และ `dist/` ครบถ้วน ไม่มีไฟล์ความลับถูก Track ใน Git (`git ls-files`)
+   - สแกนทั้งไฟล์ที่ Track แล้ว (`git grep`) และไฟล์ที่แก้ไข/เพิ่มใหม่ (`Select-String`) ไม่พบการฝัง Key/Token ลับ (`AIza...`, `GOCSPX-...`, `ghp_`, `github_pat_`, `sk-`, Private Key) ในโค้ดหรือเอกสาร
+   - `.github/workflows/deploy.yml` ดึงเฉพาะ `VITE_GOOGLE_CLIENT_ID` และ `VITE_GOOGLE_API_KEY` ผ่าน `${{ secrets.* || vars.* }}` และ `vite.config.ts` ปิด Source Map (`sourcemap: false`)
+2. **XSS / Open Redirect / Data Injection / Auth**:
+   - ตรวจสอบ Sink อันตราย (`eval`, `new Function`, `document.write`, `insertAdjacentHTML`, `outerHTML`, `javascript:`, `data:text/html`) ใน `src/classroom/**/*.ts`: ไม่พบ (`0 matches`)
+   - ลิงก์ภายนอกทั้งหมดผ่าน `safeHttpsUrl()` และใส่ `rel="noopener noreferrer"` ครบทุกจุด (`ClassroomHub.ts`, `SettingsTab.ts`, `main.ts`) และข้อความผู้ใช้/ชีตผ่าน `escapeHtml()`
+   - การเขียนลง Google Sheets ใช้ `valueInputOption: 'RAW'` (`googleSheets.ts:301`) และการยืนยันตัวตนใน `googleAuth.ts` เก็บ Access Token ชั่วคราวใน `sessionStorage` พร้อมตรวจสอบ Scope (`hasGrantedAllScopes`) และเรียก `revoke()` เมื่อออกจากระบบ
+3. **Dependency Audit (`npm.cmd audit --omit=dev`)**:
+   - พบ Moderate 2 รายการใน `uuid <11.1.1` (Transient dependency ของ `exceljs` ที่มีอยู่เดิม โดย `npm audit fix --force` จะดาวน์เกรด `exceljs@3.4.0` ซึ่งเป็น Breaking change จึงคงเวอร์ชันเดิมไว้ไม่กระทบระบบหลัก)
+
+### 28.2 สถานะการเตรียมอัปโหลดขึ้น GitHub (`origin/main`)
+- ไฟล์ที่ปรับปรุงครอบคลุมเฉพาะโมดูล `src/classroom/*` พร้อมเอกสาร `can.md`, `eduplan_ai_master_prompts.md` และ `ReviewIDE.md` (ไม่ได้แก้ไขโค้ดระบบหลัก `EduPlan AI`)
+- ตรวจสอบซ้ำ: `Emoji hits: 0`, `npx.cmd tsc --noEmit` (Exit Code `0`), `npm.cmd run build` (Exit Code `0`)
+
+
+
+
+
+
+
