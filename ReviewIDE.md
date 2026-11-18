@@ -1,3 +1,20 @@
+# บันทึกการส่งมอบงานและการ Push โค้ดขึ้น GitHub (ReviewIDE.md)
+**EduPlan AI — Production Git Synchronization**
+- วันที่และเวลา: 2026-11-18 21:49 (UTC+7)
+- Remote Repository: `https://github.com/Thianrawit/EDUPlan.git`
+- Branch: `main`
+
+---
+
+## 1. ผลการตรวจเช็คและการ Push โค้ด (Git Sync)
+- ตรวจสอบ `git status` พบไฟล์ `public/googled1de89f0001188ac.html` (Google Search Console Site Verification)
+- ทำการ commit และ push ขึ้น remote `origin/main` เรียบร้อย:
+  - Commit hash: `cd9429b` (`chore: add Google Search Console site verification file`)
+  - Commit ล่าสุดก่อนหน้า: `1d9adde` (`feat(batch): add docx course structure parser, BYOK fast batch queue, zip export, and XSS hardening`)
+- ตรวจสอบ `git status`: Working tree clean, up to date with `origin/main`.
+
+---
+
 # สรุปผลการพัฒนาระบบสร้างโครงการจัดการเรียนรู้ / แผนระยะยาว (ReviewIDE.md)
 **EduPlan AI — Course Syllabus & Long-Term Plan Generator**
 
