@@ -48,6 +48,10 @@ export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<voi
   const rooms = allRooms.filter((r) => auth.signedIn || (!r.isSharedWithMe && (!r.role || r.role === 'owner')));
   const counts = await Promise.all(rooms.map((r) => countStudents(r.id)));
 
+  if (!auth.signedIn) {
+    lastSharedFetchAt = 0;
+  }
+
   // ค้นหาห้องเรียนที่ถูกแชร์มาให้เพิ่มเติมแบบไม่บล็อกการเรนเดอร์ครั้งแรก และเว้นช่วงไม่ยิงซ้ำถี่เกินไป
   if (auth.signedIn && auth.tokenValid && !sharedFetchInFlight && Date.now() - lastSharedFetchAt > SHARED_FETCH_COOLDOWN_MS) {
     sharedFetchInFlight = true;
@@ -98,7 +102,7 @@ export async function renderHub(root: HTMLElement, ctx: AppContext): Promise<voi
               <span class="cr-local-advisory__tag">อัปเดตระบบ</span>
             </div>
             <p>
-              ระบบได้เพิ่มสิทธิ์อ่านข้อมูลไฟล์ร่วม และสิทธิ์ Google Sheets เพื่อให้เปิดห้องเรียนที่ถูกเชิญได้ทันทีโดยไม่ติด Error 404
+              เซสชันการเชื่อมต่อ Google หมดอายุหรือสิทธิ์การใช้งานมีการอัปเดต กรุณาเชื่อมต่อบัญชี Google ใหม่เพื่อซิงก์ห้องเรียนและรับห้องเรียนที่ถูกแชร์ต่อเนื่อง
             </p>
           </div>
           <button type="button" class="cr-btn cr-btn--primary cr-btn--sm cr-local-advisory__cta" data-hub-reconnect ${auth.busy ? 'disabled' : ''}>

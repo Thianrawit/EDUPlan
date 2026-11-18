@@ -1,3 +1,30 @@
+# บันทึกการปรับ EduPlan Class สู่ Public Mode และ Privacy Policy (ReviewIDE.md)
+**EduPlan AI & EduPlan Class — Public OAuth Verification Readiness**
+- วันที่และเวลา: 2026-11-18 22:03 (UTC+7)
+
+## สรุปผลการแก้ไขตามข้อกำหนด
+1. **ปรับ OAuth Scopes เป็น Public-Safe (`src/classroom/googleAuth.ts`)**
+   - ถอด `'https://www.googleapis.com/auth/drive.metadata.readonly'` และ `'https://www.googleapis.com/auth/spreadsheets'` ออกจาก `SCOPES` คงไว้เฉพาะ 5 Scopes ที่เปิดสาธารณะได้ไม่จำกัดผู้ใช้ (`openid`, `email`, `profile`, `https://www.googleapis.com/auth/drive.file`, `https://www.googleapis.com/auth/drive.appdata`)
+   - ปรับ `SCOPE_VERSION = 4` และ `hasGrantedAllScopes(resp, SCOPES[3], SCOPES[4])`
+2. **ระบบรับและซิงก์ห้องเรียนร่วมภายใต้สิทธิ์ `drive.file` (`src/classroom/googleSheets.ts`, `src/classroom/components/ClassroomHub.ts`)**
+   - เพิ่มระบบจัดการไฟล์ `eduplan_shared_rooms.json` ใน `appDataFolder` ด้วยตัวช่วยใช้ร่วมกัน (`findAppDataFileByName`, `readAppDataJson`, `writeAppDataJson`, `withSharedManifestLock`, `addSharedRoomIdToAppData`, `removeSharedRoomIdFromAppData`)
+   - ปรับ `importSharedRoomViaPicker()` และ `pickSpreadsheet()` ให้เปิด Google Picker (`ViewId.SPREADSHEETS` พร้อมแท็บ "แชร์กับฉัน" `setOwnedByMe(false)`) แล้วบันทึก `fileId` ลง `eduplan_shared_rooms.json` และ Dexie
+   - ปรับ `fetchSharedClassroomsImpl()` ให้โหลดรายการ `fileId` จาก `eduplan_shared_rooms.json` และยิง `GET /drive/v3/files/{fileId}?fields=id,name,modifiedTime,owners(emailAddress,displayName),properties,trashed,capabilities(canEdit)` เพื่ออัปเดตสิทธิ์ (`viewer` / `assistant` / `creator`) อัตโนมัติ และลบออกทันทีเมื่อไฟล์ถูกลบ (`trashed`) หรือถูกถอนสิทธิ์ (`404` / `403`) รวมถึงลบออกจาก manifest เมื่อกด `leaveSharedClassroom()`
+   - ปรับข้อความแนะนำตอน Reconnect ใน `src/classroom/components/ClassroomHub.ts` และรีเซ็ต `lastSharedFetchAt` เมื่อออกจากระบบ
+3. **คำแนะนำสำหรับผู้ร่วมสอนและหน้าจอ Unverified App (`src/classroom/components/CollaboratorModal.ts`, `src/classroom/components/TopBar.ts`, `src/classroom/types.ts`, `src/classroom/classroom.css`)**
+   - เพิ่มข้อความแนะนำใต้รายชื่อผู้ร่วมสอนใน `CollaboratorModal.ts` แจ้งให้ผู้ถูกเชิญกดปุ่ม `'รับห้องเรียนที่ถูกแชร์'`
+   - เพิ่มไอคอน Vector SVG `bulb` ใน `src/classroom/types.ts` และข้อความคำแนะนำข้างปุ่ม Google Sign-In ใน `TopBar.ts` (กรณีขึ้นเตือน Google ยังไม่ได้ยืนยันแอปนี้) พร้อมสไตล์ใน `classroom.css`
+4. **สร้าง Privacy Policy และเพิ่มลิงก์ Footer (`public/privacy.html`, `index.html`, `classroom.html`)**
+   - สร้าง `public/privacy.html` ธีม `EDUPlan` (ฟอนต์ `Sarabun`, `#F8FAFC`, `#FFFFFF`, `#E2E8F0`, `#2563EB`) เนื้อหาครบทั้งภาษาไทยและภาษาอังกฤษ ตรงตาม 5 OAuth Scopes, Zero-Server Storage, ข้อความมาตรฐาน `Google API Services User Data Policy (Limited Use)`, ลิงก์เพิกถอนสิทธิ์ `https://myaccount.google.com/permissions` และอีเมลติดต่อ `thianrawit.9347@gmail.com`
+   - เพิ่ม `<a href="./privacy.html">นโยบายความเป็นส่วนตัว (Privacy Policy)</a>` ที่ Footer ของ `index.html` และ `classroom.html`
+5. **การตรวจสอบความถูกต้องและขอบเขต (Strict Isolation & Build Verification)**
+   - ไม่มีการแก้ไขไฟล์ระบบหลัก `EduPlan AI` (`src/main.ts`, `src/config.ts`, `src/curriculum.ts`, `src/gemini.ts`, `src/types.ts`, `src/templates.ts`, `src/exporter.ts`, `src/rubricExporter.ts`, `src/longTermExporter.ts`, `src/longTermModule.ts`, `public/data/curriculum.json`, `vite.config.ts`, `worker/worker.js`)
+   - คง `valueInputOption: 'RAW'`, `safeHttpsUrl()` และฟังก์ชัน Tutorial (`startTutorialTour` / `maybeShowFirstVisitTutorial`) ครบถ้วน
+   - สแกนอีโมจิใน `src/classroom/*` และ `classroom.html` = `0` รายการ
+   - รัน `npx.cmd tsc --noEmit` และ `npm.cmd run build` ผ่านสมบูรณ์ (`Exit Code 0`, สร้าง `dist/privacy.html` เรียบร้อย)
+
+---
+
 # บันทึกการส่งมอบงานและการ Push โค้ดขึ้น GitHub (ReviewIDE.md)
 **EduPlan AI — Production Git Synchronization**
 - วันที่และเวลา: 2026-11-18 21:49 (UTC+7)

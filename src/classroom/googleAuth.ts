@@ -58,15 +58,13 @@ export const SCOPES = [
   'profile',
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/drive.appdata',
-  'https://www.googleapis.com/auth/drive.metadata.readonly',
-  'https://www.googleapis.com/auth/spreadsheets',
 ];
 
 export const NOT_CONFIGURED_MESSAGE = 'ยังไม่ได้ตั้งค่า Google Client ID (ใช้งานโหมดในเครื่องได้ปกติ)';
 
 const PROFILE_KEY = 'eduplan_classroom_google_profile';
 const TOKEN_KEY = 'eduplan_classroom_google_token';
-const SCOPE_VERSION = 3;
+const SCOPE_VERSION = 4;
 
 const RAW_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '').trim();
 const RAW_API_KEY = String(import.meta.env.VITE_GOOGLE_API_KEY ?? '').trim();
@@ -199,10 +197,10 @@ function requestToken(prompt: string): Promise<string> {
           return;
         }
         const oauth2 = window.google?.accounts?.oauth2;
-        if (oauth2 && !oauth2.hasGrantedAllScopes(resp, SCOPES[3], SCOPES[4], SCOPES[5], SCOPES[6])) {
+        if (oauth2 && !oauth2.hasGrantedAllScopes(resp, SCOPES[3], SCOPES[4])) {
           reject(
             new Error(
-              'ต้องอนุญาตสิทธิ์ Google Drive, อ่านข้อมูลไฟล์ที่แชร์ และ Google Sheets ทั้งหมดเพื่อเปิดอ่านและซิงก์ห้องเรียนร่วม (กรุณาเข้าสู่ระบบใหม่และติ๊กอนุญาตทุกช่อง)',
+              'ต้องอนุญาตสิทธิ์ Google Drive (ไฟล์ที่สร้างหรือเปิดผ่านแอป และโฟลเดอร์ตั้งค่าแอป) เพื่อบันทึกและซิงก์ห้องเรียนร่วม (กรุณาเข้าสู่ระบบใหม่และติ๊กอนุญาตทุกช่อง)',
             ),
           );
           return;

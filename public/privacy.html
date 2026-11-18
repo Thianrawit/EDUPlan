@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="th" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>นโยบายความเป็นส่วนตัว (Privacy Policy) — EDUPlan</title>
+  <meta name="description" content="นโยบายความเป็นส่วนตัวของแอปพลิเคชัน EDUPlan (EduPlan AI & EduPlan Class) สำหรับการใช้งานและการเชื่อมต่อ Google API Services" />
+  <link rel="icon" type="image/png" href="./icons/icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --canvas: #F8FAFC;
+      --card: #FFFFFF;
+      --border: #E2E8F0;
+      --ink: #0F172A;
+      --body: #334155;
+      --muted: #475569;
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-soft: #EFF6FF;
+      --primary-border: #BFDBFE;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--canvas);
+      color: var(--body);
+      line-height: 1.65;
+      font-size: 16px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { color: var(--primary-hover); text-decoration: underline; }
+    .topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .topbar__inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 18px;
+    }
+    .brand img {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      object-fit: cover;
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 9px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--body);
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .btn:hover {
+      background: #F1F5F9;
+      text-decoration: none;
+    }
+    .btn--primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #FFFFFF;
+    }
+    .btn--primary:hover {
+      background: var(--primary-hover);
+      color: #FFFFFF;
+    }
+    .container {
+      flex: 1;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .hero {
+      margin-bottom: 24px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      background: var(--primary-soft);
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--ink);
+      line-height: 1.25;
+    }
+    .meta {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    @media (max-width: 640px) {
+      .card { padding: 20px; }
+      h1 { font-size: 23px; }
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--ink);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card h3 {
+      margin: 16px 0 6px;
+      font-size: 15.5px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .card p {
+      margin: 0 0 10px;
+    }
+    .card ul {
+      margin: 8px 0 12px;
+      padding-left: 22px;
+    }
+    .card li {
+      margin-bottom: 8px;
+    }
+    code.scope {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      background: #F1F5F9;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+      color: #1E293B;
+      word-break: break-all;
+    }
+    .callout {
+      background: var(--primary-soft);
+      border: 1px solid var(--primary-border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-top: 12px;
+      color: #1E3A8A;
+      font-weight: 600;
+    }
+    .bilingual-sub {
+      color: var(--muted);
+      font-size: 14.5px;
+    }
+    .footer {
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 20px;
+      font-size: 13.5px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a href="./index.html" class="brand">
+        <img src="./icons/icon.png" alt="EDUPlan" />
+        <span>EDUPlan</span>
+      </a>
+      <nav class="nav-actions" aria-label="นำทางหลัก">
+        <a href="./index.html" class="btn">หน้าหลัก EduPlan AI</a>
+        <a href="./classroom.html" class="btn btn--primary">เข้าสู่ EduPlan Class</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <span class="pill">Privacy Policy · Google API Services Compliance</span>
+      <h1>นโยบายความเป็นส่วนตัว (Privacy Policy) — EDUPlan</h1>
+      <p class="meta">
+        แอปพลิเคชัน / Application: <strong>EDUPlan</strong> (<a href="https://thianrawit.github.io/EDUPlan/">https://thianrawit.github.io/EDUPlan/</a>)
+        · ปรับปรุงล่าสุด / Last Updated: 18 พฤศจิกายน 2569 (November 18, 2026)
+      </p>
+    </section>
+
+    <article class="card">
+      <h2>1. ภาพรวมและขอบเขต (Overview &amp; Scope)</h2>
+      <p>
+        <strong>EDUPlan</strong> (<a href="https://thianrawit.github.io/EDUPlan/">https://thianrawit.github.io/EDUPlan/</a>)
+        ประกอบด้วยระบบสร้างแผนการจัดการเรียนรู้ (EduPlan AI) และระบบเช็คชื่อ/ติดตามงานห้องเรียน (EduPlan Class)
+        นโยบายความเป็นส่วนตัวฉบับนี้อธิบายถึงวิธีการเข้าถึง จัดเก็บ ใช้งาน และปกป้องข้อมูลผู้ใช้งาน รวมถึงข้อมูลจากบัญชี Google (Google User Data) เมื่อท่านเลือกใช้งานฟีเจอร์เชื่อมต่อ Google Sign-In, Google Drive และ Google Sheets
+      </p>
+      <p class="bilingual-sub">
+        <strong>EDUPlan</strong> (<a href="https://thianrawit.github.io/EDUPlan/">https://thianrawit.github.io/EDUPlan/</a>) provides lesson planning tools (EduPlan AI) and classroom attendance/assignment tracking (EduPlan Class). This Privacy Policy explains how EDUPlan accesses, stores, uses, and protects your information, including Google User Data obtained through Google OAuth 2.0.
+      </p>
+    </article>
+
+    <article class="card">
+      <h2>2. ข้อมูลจากบัญชี Google ที่แอปเข้าถึง (Google User Data &amp; OAuth Scopes)</h2>
+      <p>
+        เมื่อท่านเลือกเข้าสู่ระบบด้วยบัญชี Google ในโมดูล <strong>EduPlan Class</strong> แอปพลิเคชันจะขออนุญาตเข้าถึงสิทธิ์เฉพาะเท่าที่จำเป็นต่อการทำงานจริง <strong>จำนวน 5 Scopes</strong> ดังนี้:
+      </p>
+      <p class="bilingual-sub">
+        When you optionally sign in with Google in EduPlan Class, EDUPlan requests only the following 5 OAuth 2.0 scopes strictly required for app functionality:
+      </p>
+      <ul>
+        <li>
+          <code class="scope">openid</code>, <code class="scope">email</code>, <code class="scope">profile</code><br />
+          <strong>ภาษาไทย:</strong> เข้าถึงชื่อที่แสดงผล อีเมลบัญชี Google และรูปโปรไฟล์ เพื่อยืนยันตัวตน แสดงโปรไฟล์บนหน้าเว็บ และระบุสิทธิ์การใช้งานของผู้ร่วมสอนในห้องเรียน (เจ้าของห้อง / ครีเอเตอร์ / ครูผู้ช่วย / ผู้ชม)<br />
+          <span class="bilingual-sub"><strong>English:</strong> Accesses your display name, email address, and profile picture strictly to authenticate your session, show your profile in the interface, and determine your collaborator role in shared classrooms.</span>
+        </li>
+        <li>
+          <code class="scope">https://www.googleapis.com/auth/drive.file</code><br />
+          <strong>ภาษาไทย:</strong> สร้าง อ่าน และอัปเดต<strong>เฉพาะไฟล์ Google Sheets ของห้องเรียน</strong>ที่ท่านเป็นผู้สร้างขึ้นผ่านแอป หรือเลือกเปิดด้วยตนเองผ่านหน้าต่าง Google Picker (รวมถึงการจัดการสิทธิ์ผู้ร่วมสอนบนไฟล์นั้นเมื่อเจ้าของห้องเชิญหรือลบผู้ร่วมสอน) แอปไม่สามารถเข้าถึงไฟล์อื่นใน Google Drive ของท่านได้<br />
+          <span class="bilingual-sub"><strong>English:</strong> Creates, reads, and updates <strong>only the specific classroom Google Sheets files</strong> that you create using EDUPlan or explicitly open/select through the Google Picker (including sharing permissions when a classroom owner invites or removes co-teachers). EDUPlan cannot browse or access any other files in your Google Drive.</span>
+        </li>
+        <li>
+          <code class="scope">https://www.googleapis.com/auth/drive.appdata</code><br />
+          <strong>ภาษาไทย:</strong> บันทึกและซิงก์ไฟล์สำรองการตั้งค่าห้องเรียน (<code>eduplan_classrooms.json</code>) และรายการอ้างอิงห้องเรียนที่ได้รับแชร์ (<code>eduplan_shared_rooms.json</code>) ภายในโฟลเดอร์ลับเฉพาะของแอป (<code>appDataFolder</code>) ใน Google Drive ของท่านเอง เพื่อให้ใช้งานข้ามอุปกรณ์ได้<br />
+          <span class="bilingual-sub"><strong>English:</strong> Stores backup classroom configuration data (<code>eduplan_classrooms.json</code>) and your saved shared-classroom references (<code>eduplan_shared_rooms.json</code>) inside the hidden, app-specific <code>appDataFolder</code> in your own Google Drive for cross-device syncing.</span>
+        </li>
+      </ul>
+    </article>
+
+    <article class="card">
+      <h2>3. การจัดเก็บข้อมูลแบบ Zero-Server Storage (Data Storage, Security &amp; No Third-Party Sharing)</h2>
+      <h3>ภาษาไทย</h3>
+      <ul>
+        <li><strong>ไม่มีการจัดเก็บข้อมูลนักเรียนหรือไฟล์บนเซิร์ฟเวอร์กลาง (Zero-Server Storage):</strong> ข้อมูลรายชื่อนักเรียน ประวัติการเช็คชื่อ คะแนนงาน รายการห้องเรียน และ Access Token ทั้งหมดถูกจัดเก็บเฉพาะในเบราว์เซอร์ของท่าน (<code>IndexedDB</code>, <code>localStorage</code> และ <code>sessionStorage</code>) และใน Google Drive / Google Sheets ส่วนตัวของท่านเท่านั้น</li>
+        <li><strong>ไม่มีการขายหรือส่งต่อข้อมูล:</strong> EDUPlan ไม่มีการเก็บ รวบรวม ขาย ให้เช่า หรือส่งต่อข้อมูลส่วนบุคคล ข้อมูลนักเรียน หรือข้อมูลจาก Google APIs ให้แก่บุคคลที่สาม นายหน้าโฆษณา หรือระบบฝึกฝนโมเดล AI ใดๆ ทั้งสิ้น</li>
+        <li><strong>ความปลอดภัยในการเชื่อมต่อ:</strong> การรับส่งข้อมูลทั้งหมดระหว่างเบราว์เซอร์ของท่านกับ Google APIs ดำเนินการผ่านการเข้ารหัส HTTPS (TLS) โดยตรงจากฝั่งเบราว์เซอร์ (Client-Side)</li>
+      </ul>
+      <h3>English</h3>
+      <ul>
+        <li><strong>Zero-Server Storage Architecture:</strong> All student rosters, attendance records, assignment scores, classroom settings, and OAuth session tokens are stored strictly inside your own browser (<code>IndexedDB</code>, <code>localStorage</code>, and <code>sessionStorage</code>) and within your personal Google Drive / Google Sheets. EDUPlan does not maintain any external server database holding your classroom or Google Drive data.</li>
+        <li><strong>No Selling or Sharing with Third Parties:</strong> EDUPlan never sells, rents, trades, or transfers your personal information, student data, or Google User Data to third parties, advertisers, data brokers, or external AI training models.</li>
+        <li><strong>Secure Client-Side Communication:</strong> All API requests to Google Identity Services, Google Picker, Google Drive, and Google Sheets run directly from your browser over encrypted HTTPS connections.</li>
+      </ul>
+    </article>
+
+    <article class="card">
+      <h2>4. การปฏิบัติตามนโยบาย Google API Services User Data Policy</h2>
+      <p>
+        EDUPlan มุ่งมั่นในการปฏิบัติตามข้อกำหนดด้านความเป็นส่วนตัวและการใช้งานข้อมูลอย่างจำกัดของ Google อย่างเคร่งครัด:
+      </p>
+      <div class="callout">
+        EDUPlan's use and transfer to any other app of information received from Google APIs will adhere to
+        <a href="https://developers.google.com/terms/api-data-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>,
+        including the Limited Use requirements.
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>5. การจัดการ ลบข้อมูล และการเพิกถอนสิทธิ์ (Data Retention, Deletion &amp; Revoking Access)</h2>
+      <p>
+        ท่านเป็นเจ้าของข้อมูลของตนเอง 100% และสามารถจัดการหรือลบข้อมูลได้ทุกเมื่อ:
+      </p>
+      <ul>
+        <li><strong>เพิกถอนสิทธิ์การเชื่อมต่อบัญชี Google:</strong> เข้าไปที่หน้าจัดการสิทธิ์ของบัญชี Google ได้โดยตรงที่
+          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/permissions</a>
+          แล้วเลือกแอป <strong>EDUPlan</strong> จากนั้นกด "ลบสิทธิ์การเข้าถึงทั้งหมด" (Remove all access) หรือกดปุ่ม "ออกจากระบบ" ภายในแอป</li>
+        <li><strong>ลบข้อมูลบนอุปกรณ์และบน Google Drive:</strong> ท่านสามารถลบข้อมูลห้องเรียนในแอป ล้างข้อมูลเว็บไซต์ในเบราว์เซอร์ และลบไฟล์ Google Sheets ของห้องเรียนใน Google Drive ของท่านได้ตลอดเวลา</li>
+      </ul>
+      <p class="bilingual-sub">
+        You retain full control over your data. You may revoke EDUPlan's access to your Google Account at any time by visiting
+        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/permissions</a>
+        and removing access for <strong>EDUPlan</strong>, or by signing out inside the app. You can also delete local browser storage or delete your spreadsheet files directly from your Google Drive.
+      </p>
+    </article>
+
+    <article class="card">
+      <h2>6. ช่องทางติดต่อผู้พัฒนา (Developer Contact)</h2>
+      <p>
+        หากมีคำถาม ข้อสงสัย หรือข้อเสนอแนะเกี่ยวกับนโยบายความเป็นส่วนตัวและการคุ้มครองข้อมูล สามารถติดต่อผู้พัฒนาได้ที่:
+      </p>
+      <p>
+        <strong>อีเมลผู้พัฒนา / Developer Email:</strong>
+        <a href="mailto:thianrawit.9347@gmail.com">thianrawit.9347@gmail.com</a><br />
+        <strong>เว็บไซต์หลัก / Official URL:</strong>
+        <a href="https://thianrawit.github.io/EDUPlan/">https://thianrawit.github.io/EDUPlan/</a>
+      </p>
+    </article>
+  </main>
+
+  <footer class="footer">
+    © 2026 EDUPlan · <a href="./index.html">EduPlan AI</a> · <a href="./classroom.html">EduPlan Class</a>
+  </footer>
+</body>
+</html>

@@ -189,6 +189,10 @@ export function openCollaboratorModal(
                 </ul>`
               : `<div class="cr-empty-mini">ยังไม่มีผู้ร่วมสอนในห้องเรียนนี้ — กรอกอีเมลด้านบนเพื่อเชิญครูผู้ช่วยหรือผู้ร่วมสอน</div>`
           }
+          <div class="cr-alert cr-alert--info mt-3 mb-0">
+            ${icon('info', 17)}
+            <span>แจ้งผู้ถูกเชิญให้ล็อกอินแล้วกดปุ่ม <b>'${icon('download', 14)} รับห้องเรียนที่ถูกแชร์'</b> เพื่อเลือกไฟล์ของห้องนี้เข้าสู่หน้าหลัก</span>
+          </div>
         </div>
       </div>`;
   };

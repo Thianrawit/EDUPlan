@@ -53,6 +53,7 @@ const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const APPDATA_FILE = 'eduplan_classrooms.json';
+const SHARED_ROOMS_APPDATA_FILE = 'eduplan_shared_rooms.json';
 
 const localWriteTimestamps = new Map<string, number>();
 export function markLocalSpreadsheetWrite(spreadsheetId: string): void {
@@ -998,7 +999,7 @@ function sharedRoomMetaChanged(prev: Classroom | undefined, next: Classroom): bo
 
 let inFlightSharedFetch: Promise<Classroom[]> | null = null;
 
-/** ค้นหาห้องเรียนที่ถูกแชร์มาให้ผู้ใช้ปัจจุบันผ่าน Google Drive API v3 (กรอง eduplan_type & collab_1..5 ฝั่ง JS) */
+/** ซิงก์รายชื่อห้องเรียนที่ถูกแชร์จาก eduplan_shared_rooms.json (appDataFolder) + ดึง Metadata ทีละ fileId ภายใต้สิทธิ์ drive.file */
 export function fetchSharedClassrooms(): Promise<Classroom[]> {
   if (inFlightSharedFetch) return inFlightSharedFetch;
   inFlightSharedFetch = fetchSharedClassroomsImpl().finally(() => {
@@ -1012,74 +1013,89 @@ async function fetchSharedClassroomsImpl(): Promise<Classroom[]> {
   if (!auth.signedIn || !auth.profile?.email) return [];
   const myEmail = auth.profile.email.toLowerCase().trim();
 
-  const q = encodeURIComponent("sharedWithMe = true and trashed = false and mimeType = 'application/vnd.google-apps.spreadsheet'");
-  const fields = encodeURIComponent('nextPageToken,files(id,name,modifiedTime,owners(emailAddress,displayName),properties,capabilities(canEdit))');
-
-  const files: SharedDriveFile[] = [];
-  let pageToken: string | undefined;
-  for (let page = 0; page < 3; page++) {
-    const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
-    const res = await gfetch<{ files?: SharedDriveFile[]; nextPageToken?: string }>(
-      `${DRIVE}?q=${q}&fields=${fields}&pageSize=100${tokenParam}`,
-    );
-    if (res.files?.length) files.push(...res.files);
-    pageToken = res.nextPageToken;
-    if (!pageToken) break;
-  }
-
   const existingAll = await listClassrooms();
-  const activeSharedIds = new Set<string>();
-  const sharedRooms: Classroom[] = [];
+  const localSharedRooms = existingAll.filter((r) => r.isSharedWithMe || (r.role && r.role !== 'owner'));
 
-  for (const f of files) {
-    const roomId = `shared_${f.id}`;
-    const prev = existingAll.find((r) => r.id === roomId);
-    const collabs = parseCollaboratorsFromProperties(f.properties);
-    const myEntry = collabs.find((c) => c.email.toLowerCase().trim() === myEmail);
-    const isEduplanSheet = f.properties?.eduplan_type === 'classroom';
+  const { appFileId, fileIds: manifestIds } = await withSharedManifestLock(() => loadSharedRoomsManifest());
 
-    let resolvedRole: ClassroomRole | null = null;
-    if (isEduplanSheet && myEntry) {
-      resolvedRole = myEntry.role;
-    } else if (prev?.importedViaPicker) {
-      resolvedRole = myEntry?.role ?? (f.capabilities?.canEdit ? 'assistant' : 'viewer');
+  // รองรับการอัปเกรดจากแคชในเครื่องเดิมหากยังไม่เคยสร้าง eduplan_shared_rooms.json ใน appDataFolder
+  const candidateSet = new Set<string>(manifestIds);
+  if (!appFileId) {
+    for (const r of localSharedRooms) {
+      const fid = r.sheet?.spreadsheetId ?? r.sheetId;
+      const matchesAccount =
+        !r.collaborators?.length || r.collaborators.some((c) => c.email.toLowerCase().trim() === myEmail);
+      if (fid && matchesAccount) candidateSet.add(fid);
     }
-    if (!resolvedRole) continue;
+  }
+  const candidateIds = Array.from(candidateSet);
 
-    activeSharedIds.add(roomId);
-    const room = buildSharedRoomObject(f, resolvedRole, collabs, prev);
-    if (sharedRoomMetaChanged(prev, room)) {
-      await saveClassroom(room);
-    }
-    sharedRooms.push(room);
+  if (!candidateIds.length) {
+    await purgeStaleSharedClassrooms(new Set<string>());
+    return [];
   }
 
-  // กรณีห้องที่รับผ่าน Picker เพิ่งถูกแชร์ใหม่และยังไม่ขึ้นในดัชนี sharedWithMe ให้ตรวจสิทธิ์ไฟล์โดยตรงก่อนตัดออก
-  const pendingPickerRooms = existingAll.filter((prev) => prev.importedViaPicker && !activeSharedIds.has(prev.id));
+  const activeSharedIds = new Set<string>();
+  const keptManifestIds: string[] = [];
+  const sharedRooms: Classroom[] = [];
+  let manifestDirty = !appFileId && candidateIds.length > 0;
+  const fields = encodeURIComponent('id,name,modifiedTime,owners(emailAddress,displayName),properties,trashed,capabilities(canEdit)');
+
   await Promise.all(
-    pendingPickerRooms.map(async (prev) => {
-      const fid = prev.sheet?.spreadsheetId ?? prev.sheetId;
-      if (!fid) return;
+    candidateIds.map(async (fid) => {
+      const roomId = `shared_${fid}`;
+      const prev = existingAll.find((r) => r.id === roomId);
       try {
         const direct = await gfetch<SharedDriveFile & { trashed?: boolean }>(
-          `${DRIVE}/${encodeURIComponent(fid)}?fields=${encodeURIComponent('id,name,trashed,modifiedTime,owners(emailAddress,displayName),properties,capabilities(canEdit)')}`,
+          `${DRIVE}/${encodeURIComponent(fid)}?fields=${fields}`,
         );
-        if (direct && !direct.trashed) {
-          const collabs = parseCollaboratorsFromProperties(direct.properties);
-          const myEntry = collabs.find((c) => c.email.toLowerCase().trim() === myEmail);
-          const role: ClassroomRole = myEntry?.role ?? (direct.capabilities?.canEdit ? 'assistant' : 'viewer');
-          const room = buildSharedRoomObject(direct, role, collabs, prev, true);
-          activeSharedIds.add(prev.id);
-          if (sharedRoomMetaChanged(prev, room)) {
-            await saveClassroom(room);
-          }
-          sharedRooms.push(room);
+        if (!direct || direct.trashed) {
+          manifestDirty = true;
+          return;
         }
-      } catch {
-        /* revoked or deleted -> purge cleanly */
+        const ownerEmail = (direct.owners?.[0]?.emailAddress ?? '').toLowerCase().trim();
+        if (ownerEmail && ownerEmail === myEmail) {
+          manifestDirty = true;
+          return;
+        }
+        const collabs = parseCollaboratorsFromProperties(direct.properties);
+        const myEntry = collabs.find((c) => c.email.toLowerCase().trim() === myEmail);
+        const resolvedRole: ClassroomRole = myEntry?.role ?? (direct.capabilities?.canEdit ? 'assistant' : 'viewer');
+
+        const room = buildSharedRoomObject(direct, resolvedRole, collabs, prev, true);
+        activeSharedIds.add(room.id);
+        keptManifestIds.push(fid);
+        if (sharedRoomMetaChanged(prev, room)) {
+          await saveClassroom(room);
+        }
+        sharedRooms.push(room);
+      } catch (err) {
+        if (err instanceof GoogleApiError && (err.status === 404 || err.status === 403)) {
+          // ไฟล์ถูกลบหรือโดนเจ้าของถอนสิทธิ์แชร์ -> นำออกจากรายการอัตโนมัติ
+          manifestDirty = true;
+          return;
+        }
+        // กรณีข้อผิดพลาดชั่วคราวของเครือข่าย ให้คงแคชเดิมไว้ก่อน
+        console.warn(`[EduPlan Class] transient error loading shared room ${fid}:`, err);
+        keptManifestIds.push(fid);
+        if (prev) {
+          activeSharedIds.add(prev.id);
+          sharedRooms.push(prev);
+        }
       }
     }),
   );
+
+  if (manifestDirty || keptManifestIds.length !== manifestIds.length) {
+    await withSharedManifestLock(async () => {
+      const latest = await loadSharedRoomsManifest();
+      const removedSet = new Set(candidateIds.filter((id) => !keptManifestIds.includes(id)));
+      const merged = Array.from(
+        new Set([...keptManifestIds, ...latest.fileIds.filter((id) => !removedSet.has(id))]),
+      );
+      await saveSharedRoomsManifest(latest.appFileId, merged);
+    }).catch((err) => console.warn('[EduPlan Class] update eduplan_shared_rooms.json warning:', err));
+  }
 
   await purgeStaleSharedClassrooms(activeSharedIds);
   return sharedRooms;
@@ -1091,7 +1107,7 @@ export const fetchSharedClassroomsFromDrive = fetchSharedClassrooms;
 export async function leaveSharedClassroom(room: Classroom): Promise<void> {
   const auth = getAuthState();
   const myEmail = auth.profile?.email?.trim().toLowerCase();
-  const fileId = room.sheet?.spreadsheetId;
+  const fileId = room.sheet?.spreadsheetId ?? room.sheetId;
 
   if (fileId && auth.signedIn && myEmail) {
     let myPermissionId = room.myPermissionId;
@@ -1141,6 +1157,9 @@ export async function leaveSharedClassroom(room: Classroom): Promise<void> {
   }
 
   await deleteClassroom(room.id);
+  if (fileId && auth.signedIn) {
+    await removeSharedRoomIdFromAppData(fileId).catch(() => undefined);
+  }
 }
 
 function parseBeDateToken(token: string): string | null {
@@ -1518,25 +1537,28 @@ export async function getDriveFileModificationInfo(fileId: string): Promise<Driv
 }
 
 // ---------------- Drive appDataFolder ----------------
-async function findAppDataFile(): Promise<string | null> {
-  const q = encodeURIComponent(`name='${APPDATA_FILE}' and trashed=false`);
-  const j = await gfetch<{ files?: { id: string }[] }>(`${DRIVE}?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime)&pageSize=10`);
-  return j.files?.[0]?.id ?? null;
+async function findAppDataFileByName(fileName: string): Promise<string | null> {
+  const escaped = fileName.replace(/'/g, "\\'");
+  const q = encodeURIComponent(`name='${escaped}' and trashed=false`);
+  const j = await gfetch<{ files?: { id: string; modifiedTime?: string }[] }>(
+    `${DRIVE}?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime)&pageSize=10`,
+  );
+  const files = (j.files ?? []).slice().sort((a, b) => (b.modifiedTime ?? '').localeCompare(a.modifiedTime ?? ''));
+  return files[0]?.id ?? null;
 }
 
-async function readAppData(fileId: string): Promise<SyncSnapshot | null> {
+async function readAppDataJson<T>(fileId: string): Promise<T | null> {
   try {
-    const j = await gfetch<SyncSnapshot>(`${DRIVE}/${fileId}?alt=media`);
-    return j && j.version === 1 ? j : null;
+    return await gfetch<T>(`${DRIVE}/${encodeURIComponent(fileId)}?alt=media`);
   } catch {
     return null;
   }
 }
 
-async function writeAppData(fileId: string | null, snap: SyncSnapshot): Promise<string> {
-  const body = JSON.stringify(snap);
+async function writeAppDataJson(fileName: string, fileId: string | null, payload: unknown): Promise<string> {
+  const body = JSON.stringify(payload);
   if (fileId) {
-    await gfetch(`${DRIVE_UPLOAD}/${fileId}?uploadType=media`, {
+    await gfetch(`${DRIVE_UPLOAD}/${encodeURIComponent(fileId)}?uploadType=media`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body,
@@ -1546,7 +1568,7 @@ async function writeAppData(fileId: string | null, snap: SyncSnapshot): Promise<
   const boundary = `eduplan${Date.now()}`;
   const multipart =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify({ name: APPDATA_FILE, parents: ['appDataFolder'], mimeType: 'application/json' }) +
+    JSON.stringify({ name: fileName, parents: ['appDataFolder'], mimeType: 'application/json' }) +
     `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
   const j = await gfetch<{ id: string }>(`${DRIVE_UPLOAD}?uploadType=multipart&fields=id`, {
     method: 'POST',
@@ -1554,6 +1576,78 @@ async function writeAppData(fileId: string | null, snap: SyncSnapshot): Promise<
     body: multipart,
   });
   return j.id;
+}
+
+interface SharedRoomsManifest {
+  version: 1;
+  updatedAt: number;
+  fileIds: string[];
+}
+
+let sharedManifestQueue: Promise<unknown> = Promise.resolve();
+function withSharedManifestLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = sharedManifestQueue.then(fn, fn);
+  sharedManifestQueue = run.catch(() => undefined);
+  return run;
+}
+
+async function loadSharedRoomsManifest(): Promise<{ appFileId: string | null; fileIds: string[] }> {
+  const appFileId = await findAppDataFileByName(SHARED_ROOMS_APPDATA_FILE);
+  if (!appFileId) return { appFileId: null, fileIds: [] };
+  const data = await readAppDataJson<Partial<SharedRoomsManifest>>(appFileId);
+  const raw = Array.isArray(data?.fileIds) ? data.fileIds : [];
+  const fileIds = Array.from(
+    new Set(raw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map((x) => x.trim())),
+  );
+  return { appFileId, fileIds };
+}
+
+async function saveSharedRoomsManifest(appFileId: string | null, fileIds: string[]): Promise<string> {
+  const cleanIds = Array.from(
+    new Set(fileIds.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map((x) => x.trim())),
+  );
+  const payload: SharedRoomsManifest = {
+    version: 1,
+    updatedAt: Date.now(),
+    fileIds: cleanIds,
+  };
+  return writeAppDataJson(SHARED_ROOMS_APPDATA_FILE, appFileId, payload);
+}
+
+async function addSharedRoomIdToAppData(fileId: string): Promise<void> {
+  const fid = fileId.trim();
+  if (!fid || !getAuthState().signedIn) return;
+  await withSharedManifestLock(async () => {
+    const { appFileId, fileIds } = await loadSharedRoomsManifest();
+    if (appFileId && fileIds.includes(fid)) return;
+    await saveSharedRoomsManifest(appFileId, [...fileIds, fid]);
+  });
+}
+
+async function removeSharedRoomIdFromAppData(fileId: string): Promise<void> {
+  const fid = fileId.trim();
+  if (!fid || !getAuthState().signedIn) return;
+  await withSharedManifestLock(async () => {
+    const { appFileId, fileIds } = await loadSharedRoomsManifest();
+    if (!appFileId) return;
+    const next = fileIds.filter((id) => id !== fid);
+    if (next.length !== fileIds.length) {
+      await saveSharedRoomsManifest(appFileId, next);
+    }
+  });
+}
+
+async function findAppDataFile(): Promise<string | null> {
+  return findAppDataFileByName(APPDATA_FILE);
+}
+
+async function readAppData(fileId: string): Promise<SyncSnapshot | null> {
+  const j = await readAppDataJson<SyncSnapshot>(fileId);
+  return j && j.version === 1 ? j : null;
+}
+
+async function writeAppData(fileId: string | null, snap: SyncSnapshot): Promise<string> {
+  return writeAppDataJson(APPDATA_FILE, fileId, snap);
 }
 
 export type SyncStatus = { state: 'idle' | 'syncing' | 'ok' | 'error'; at: number | null; message: string };
@@ -1664,12 +1758,18 @@ export async function pickSpreadsheet(opts?: { sharedOnly?: boolean; title?: str
       });
     if (opts?.sharedOnly) {
       const sharedView = new gp.DocsView(gp.ViewId.SPREADSHEETS)
+        .setMimeTypes('application/vnd.google-apps.spreadsheet')
         .setOwnedByMe(false)
         .setMode(gp.DocsViewMode.LIST)
         .setIncludeFolders(false);
+      if (typeof sharedView.setLabel === 'function') sharedView.setLabel('แชร์กับฉัน');
       builder.addView(sharedView);
     }
-    const allView = new gp.DocsView(gp.ViewId.SPREADSHEETS).setMode(gp.DocsViewMode.LIST).setIncludeFolders(false);
+    const allView = new gp.DocsView(gp.ViewId.SPREADSHEETS)
+      .setMimeTypes('application/vnd.google-apps.spreadsheet')
+      .setMode(gp.DocsViewMode.LIST)
+      .setIncludeFolders(false);
+    if (typeof allView.setLabel === 'function') allView.setLabel('สเปรดชีตทั้งหมด');
     builder.addView(allView);
     const appId = getAppId();
     if (/^\d+$/.test(appId)) builder.setAppId(appId);
@@ -1677,7 +1777,7 @@ export async function pickSpreadsheet(opts?: { sharedOnly?: boolean; title?: str
   });
 }
 
-/** รับห้องเรียนที่ถูกแชร์ผ่าน Google Picker เมื่อยังไม่แสดงอัตโนมัติ */
+/** รับห้องเรียนที่ถูกแชร์ผ่าน Google Picker แล้วบันทึกลง Dexie และ eduplan_shared_rooms.json */
 export async function importSharedRoomViaPicker(): Promise<Classroom | null> {
   const auth = getAuthState();
   if (!auth.signedIn) throw new Error('กรุณาเข้าสู่ระบบด้วย Google ก่อน');
@@ -1687,9 +1787,12 @@ export async function importSharedRoomViaPicker(): Promise<Classroom | null> {
   });
   if (!picked) return null;
 
-  const meta = await gfetch<SharedDriveFile>(
-    `${DRIVE}/${encodeURIComponent(picked.id)}?fields=${encodeURIComponent('id,name,modifiedTime,owners(emailAddress,displayName),properties,capabilities(canEdit)')}`,
+  const meta = await gfetch<SharedDriveFile & { trashed?: boolean }>(
+    `${DRIVE}/${encodeURIComponent(picked.id)}?fields=${encodeURIComponent('id,name,modifiedTime,owners(emailAddress,displayName),properties,trashed,capabilities(canEdit)')}`,
   );
+  if (meta.trashed) {
+    throw new Error('ไฟล์ Google Sheet นี้อยู่ในถังขยะบน Google Drive แล้ว');
+  }
   const myEmail = (auth.profile?.email ?? '').toLowerCase().trim();
   const ownerEmail = (meta.owners?.[0]?.emailAddress ?? '').toLowerCase().trim();
   const collabs = parseCollaboratorsFromProperties(meta.properties);
@@ -1745,6 +1848,11 @@ export async function importSharedRoomViaPicker(): Promise<Classroom | null> {
       };
 
   await saveClassroom(room);
+  if (isShared) {
+    await addSharedRoomIdToAppData(meta.id);
+  } else {
+    scheduleAppDataSync(0);
+  }
   return pullClassroomFromSheet(room);
 }
 
