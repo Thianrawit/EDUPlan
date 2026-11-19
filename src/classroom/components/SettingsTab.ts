@@ -7,6 +7,7 @@ import { readWorkbook } from '../excelService';
 import { getAuthState } from '../googleAuth';
 import {
   assignmentHeader,
+  findNextAvailableAssignmentColumn,
   getSpreadsheetMeta,
   getValues,
   loadSheetGrid,
@@ -29,6 +30,7 @@ import {
   getMergedCellValue,
   icon,
   normalizeKey,
+  parseColumnIndex,
   safeHttpsUrl,
   sessionHeaderText,
   sortAssignments,
@@ -90,8 +92,24 @@ export async function renderSettings(
   let meta: SpreadsheetMeta | null = null;
   let metaError = '';
   const valuesCache = new Map<string, string[][]>();
-  let attMap: AttendanceSheetMapping | null = room.sheet?.attendance ? { ...room.sheet.attendance } : null;
-  let asgMap: AssignmentSheetMapping | null = room.sheet?.assignments ? { ...room.sheet.assignments } : null;
+  let attMap: AttendanceSheetMapping | null = room.sheet?.attendance
+    ? {
+        ...room.sheet.attendance,
+        headerRow: Math.max(1, Math.floor(Number(room.sheet.attendance.headerRow) || 1)),
+        keyCol: parseColumnIndex(room.sheet.attendance.keyCol, 0),
+        startCol: parseColumnIndex(room.sheet.attendance.startCol, 0),
+        fixedCount: Math.max(0, Math.floor(Number(room.sheet.attendance.fixedCount) || 0)),
+      }
+    : null;
+  let asgMap: AssignmentSheetMapping | null = room.sheet?.assignments
+    ? {
+        ...room.sheet.assignments,
+        headerRow: Math.max(1, Math.floor(Number(room.sheet.assignments.headerRow) || 1)),
+        keyCol: parseColumnIndex(room.sheet.assignments.keyCol, 0),
+        startCol: parseColumnIndex(room.sheet.assignments.startCol, room.assignmentStartCol ?? 0),
+        ...(Number(room.sheet.assignments.colsPerAssignment) === 2 ? { colsPerAssignment: 2 as const } : {}),
+      }
+    : null;
   let mapDirty = false;
   const sessions = sortSessions(await getSessions(room.id));
   const assignments = sortAssignments(await getAssignments(room.id));
@@ -248,27 +266,56 @@ export async function renderSettings(
     const m = kind === 'attendance' ? attMap : asgMap;
     if (!m) return [] as { col: number; label: string; ghost?: boolean }[];
     const items = kind === 'attendance' ? sessions : assignments;
-    const resetting = room.sheet?.[kind] && (room.sheet[kind]!.sheetTitle !== m.sheetTitle || room.sheet[kind]!.startCol !== m.startCol);
+    const startCol = parseColumnIndex(m.startCol, 0);
+    const headerRowIdx = Math.max(0, Math.floor(Number(m.headerRow) || 1) - 1);
+    const span = kind === 'assignments' && Number((m as AssignmentSheetMapping).colsPerAssignment) === 2 ? 2 : 1;
+    const vals = valuesCache.get(m.sheetTitle) ?? [];
+    const prevM = room.sheet?.[kind];
+    const resetting =
+      !!prevM &&
+      (prevM.sheetTitle !== m.sheetTitle ||
+        parseColumnIndex(prevM.startCol, 0) !== startCol ||
+        Number(prevM.headerRow) !== Number(m.headerRow) ||
+        (kind === 'assignments' &&
+          (Number((prevM as AssignmentSheetMapping).colsPerAssignment) === 2 ? 2 : 1) !== span));
     const used = new Set<number>();
     const out: { col: number; label: string; ghost?: boolean }[] = [];
-    let next = m.startCol;
     const label = (i: number) => (kind === 'attendance' ? sessionHeaderText(sessions[i]) : assignmentHeader(assignments[i]));
+    const pushSlot = (col: number, text: string, ghost = false) => {
+      if (span === 2) {
+        out.push({ col, label: `${text} (สถานะ)`, ghost });
+        out.push({ col: col + 1, label: `${text} (คะแนน)`, ghost });
+        used.add(col);
+        used.add(col + 1);
+      } else {
+        out.push({ col, label: text, ghost });
+        used.add(col);
+      }
+    };
+
+    const headRow = vals[headerRowIdx] ?? [];
     items.forEach((it, i) => {
       if (!resetting && it.sheetColumn !== null && it.sheetColumn !== undefined) {
-        out.push({ col: it.sheetColumn, label: label(i) });
-        used.add(it.sheetColumn);
+        const existingCol = parseColumnIndex(it.sheetColumn, -1);
+        const existingBlank =
+          existingCol > startCol &&
+          vals.length > 0 &&
+          Array.from({ length: span }, (_, offset) => (headRow[existingCol + offset] ?? '').trim()).every((v) => !v);
+        if (existingCol >= startCol && !existingBlank) {
+          pushSlot(existingCol, label(i));
+        }
       }
     });
-    if (out.length) next = Math.max(m.startCol, ...out.map((o) => o.col + 1));
     items.forEach((it, i) => {
-      if (resetting || it.sheetColumn === null || it.sheetColumn === undefined) {
-        while (used.has(next)) next++;
-        out.push({ col: next, label: label(i) });
-        used.add(next);
-        next++;
+      const existingCol = it.sheetColumn !== null && it.sheetColumn !== undefined ? parseColumnIndex(it.sheetColumn, -1) : -1;
+      const placed = !resetting && existingCol >= startCol && used.has(existingCol);
+      if (!placed) {
+        const nextCol = findNextAvailableAssignmentColumn(vals, headerRowIdx, startCol, span, used);
+        pushSlot(nextCol, label(i));
       }
     });
-    out.push({ col: next, label: kind === 'attendance' ? '(รอบถัดไป)' : '(งานถัดไป)', ghost: true });
+    const ghostCol = findNextAvailableAssignmentColumn(vals, headerRowIdx, startCol, span, used);
+    pushSlot(ghostCol, kind === 'attendance' ? '(รอบถัดไป)' : '(งานถัดไป)', true);
     return out.sort((a, b) => a.col - b.col);
   };
 
@@ -630,13 +677,15 @@ export async function renderSettings(
     }
   };
 
-  const firstEmptyCol = (vals: string[][], headerRow: number) => {
-    const head = vals[headerRow - 1] ?? [];
-    let last = -1;
-    head.forEach((v, i) => {
-      if (v && v.trim()) last = i;
-    });
-    return last + 1;
+  const firstEmptyCol = (vals: string[][], headerRow: number, minStart = 0, span = 1): number => {
+    const rowIdx = Math.max(0, Math.floor(Number(headerRow) || 1) - 1);
+    const head = vals[rowIdx] ?? [];
+    let searchFrom = parseColumnIndex(minStart, 0);
+    if (searchFrom === 0) {
+      const firstNonEmpty = head.findIndex((v) => v && v.trim() !== '');
+      if (firstNonEmpty >= 0) searchFrom = firstNonEmpty;
+    }
+    return findNextAvailableAssignmentColumn(vals, rowIdx, searchFrom, span);
   };
 
   const defaultMapping = async (kind: 'attendance' | 'assignments'): Promise<AttendanceSheetMapping | AssignmentSheetMapping> => {
@@ -644,18 +693,27 @@ export async function renderSettings(
     const title = r?.sheetTitle ?? meta?.sheets[0]?.title ?? 'Sheet1';
     await ensureValues(title);
     const vals = valuesCache.get(title) ?? [];
-    const headerRow = r && r.sheetTitle === title ? r.mapping.headerRow + 1 : 1;
+    const headerRow = r && r.sheetTitle === title ? Math.max(1, Number(r.mapping.headerRow) + 1) : 1;
     let keyType: RowKeyType = 'order';
     let keyCol = 0;
+    let minStart = 0;
     if (r) {
-      if (r.mapping.code !== null) [keyType, keyCol] = ['code', r.mapping.code];
-      else if (r.mapping.number !== null) [keyType, keyCol] = ['number', r.mapping.number];
-      else if (r.mapping.nameMode === 'single' && r.mapping.name !== null) [keyType, keyCol] = ['name', r.mapping.name];
+      if (r.mapping.code !== null) [keyType, keyCol] = ['code', parseColumnIndex(r.mapping.code, 0)];
+      else if (r.mapping.number !== null) [keyType, keyCol] = ['number', parseColumnIndex(r.mapping.number, 0)];
+      else if (r.mapping.nameMode === 'single' && r.mapping.name !== null) [keyType, keyCol] = ['name', parseColumnIndex(r.mapping.name, 0)];
+      if (r.sheetTitle === title) {
+        const rosterCols = [r.mapping.number, r.mapping.code, r.mapping.name, r.mapping.prefix, r.mapping.first, r.mapping.last]
+          .filter((x): x is number => x !== null && x !== undefined)
+          .map((x) => parseColumnIndex(x, 0));
+        if (rosterCols.length) minStart = Math.max(...rosterCols) + 1;
+      }
     }
-    let startCol = firstEmptyCol(vals, headerRow);
     if (kind === 'assignments' && attMap && attMap.sheetTitle === title) {
-      startCol = Math.max(startCol, attMap.startCol + Math.max(attMap.mode === 'fixed' ? attMap.fixedCount : sessions.length + 20, 1));
+      const attStart = parseColumnIndex(attMap.startCol, 0);
+      const attOffset = attMap.mode === 'fixed' && Number(attMap.fixedCount) > 0 ? Number(attMap.fixedCount) : Math.max(sessions.length, 1);
+      minStart = Math.max(minStart, attStart + attOffset);
     }
+    const startCol = firstEmptyCol(vals, headerRow, minStart);
     const base = { sheetTitle: title, headerRow, keyCol, keyType, startCol };
     return kind === 'attendance' ? { ...base, mode: 'append', fixedCount: 20 } : base;
   };
@@ -738,13 +796,16 @@ export async function renderSettings(
       m.sheetTitle = v;
       await ensureValues(v);
       const vals = valuesCache.get(v) ?? [];
-      m.startCol = firstEmptyCol(vals, m.headerRow);
+      const minStart = m.keyType !== 'order' ? parseColumnIndex(m.keyCol, 0) + 1 : 0;
+      const span = kind === 'assignments' && Number(m.colsPerAssignment) === 2 ? 2 : 1;
+      m.startCol = firstEmptyCol(vals, m.headerRow, minStart, span);
     } else if (field === 'headerRow') m.headerRow = Math.max(1, Math.floor(Number(v) || 1));
-    else if (field === 'startCol') m.startCol = Number(v);
-    else if (field === 'keyCol') m.keyCol = Number(v);
+    else if (field === 'startCol') m.startCol = parseColumnIndex(v, 0);
+    else if (field === 'keyCol') m.keyCol = parseColumnIndex(v, 0);
     else if (field === 'keyType') m.keyType = v as RowKeyType;
     else if (field === 'mode') m.mode = v as 'append' | 'fixed';
     else if (field === 'fixedCount') m.fixedCount = Math.max(1, Math.min(400, Math.floor(Number(v) || 20)));
+    else if (field === 'colsPerAssignment') m.colsPerAssignment = Number(v) === 2 ? 2 : 1;
     if (m.mode === 'fixed' && !m.fixedCount) m.fixedCount = 20;
     focusedField = key;
     mapDirty = true;
@@ -815,16 +876,49 @@ export async function renderSettings(
   async function saveMapping(btn: HTMLButtonElement): Promise<void> {
     if (!room.sheet) return;
     const prev = room.sheet;
+    const cleanAtt: AttendanceSheetMapping | null = attMap
+      ? {
+          sheetTitle: attMap.sheetTitle,
+          headerRow: Math.max(1, Math.floor(Number(attMap.headerRow) || 1)),
+          keyCol: parseColumnIndex(attMap.keyCol, 0),
+          keyType: attMap.keyType,
+          startCol: parseColumnIndex(attMap.startCol, 0),
+          mode: attMap.mode === 'fixed' ? 'fixed' : 'append',
+          fixedCount: Math.max(0, Math.floor(Number(attMap.fixedCount) || 0)),
+        }
+      : null;
+    const cleanAsg: AssignmentSheetMapping | null = asgMap
+      ? {
+          sheetTitle: asgMap.sheetTitle,
+          headerRow: Math.max(1, Math.floor(Number(asgMap.headerRow) || 1)),
+          keyCol: parseColumnIndex(asgMap.keyCol, 0),
+          keyType: asgMap.keyType,
+          startCol: parseColumnIndex(asgMap.startCol, 0),
+          ...(Number(asgMap.colsPerAssignment) === 2 ? { colsPerAssignment: 2 as const } : {}),
+        }
+      : null;
+
     const reset = (kind: 'attendance' | 'assignments') => {
       const before = prev[kind];
-      const after = kind === 'attendance' ? attMap : asgMap;
-      return !!after && (!before || before.sheetTitle !== after.sheetTitle || before.startCol !== after.startCol);
+      const after = kind === 'attendance' ? cleanAtt : cleanAsg;
+      if (!after) return false;
+      if (!before) return true;
+      const beforeCols = kind === 'assignments' ? (Number((before as AssignmentSheetMapping).colsPerAssignment) === 2 ? 2 : 1) : 1;
+      const afterCols = kind === 'assignments' ? (Number((after as AssignmentSheetMapping).colsPerAssignment) === 2 ? 2 : 1) : 1;
+      return (
+        before.sheetTitle !== after.sheetTitle ||
+        parseColumnIndex(before.startCol, 0) !== after.startCol ||
+        Number(before.headerRow) !== after.headerRow ||
+        beforeCols !== afterCols
+      );
     };
+    const hasOutOfBoundsAsg =
+      !!cleanAsg && assignments.some((a) => a.sheetColumn !== null && a.sheetColumn !== undefined && parseColumnIndex(a.sheetColumn, 0) < cleanAsg.startCol);
     const resetAtt = reset('attendance') && sessions.length > 0;
-    const resetAsg = reset('assignments') && assignments.length > 0;
-    if (attMap && asgMap && attMap.sheetTitle === asgMap.sheetTitle) {
-      const attEnd = attMap.mode === 'fixed' ? attMap.startCol + attMap.fixedCount : Infinity;
-      if (asgMap.startCol >= attMap.startCol && asgMap.startCol < attEnd) {
+    const resetAsg = (reset('assignments') || hasOutOfBoundsAsg) && assignments.length > 0;
+    if (cleanAtt && cleanAsg && cleanAtt.sheetTitle === cleanAsg.sheetTitle) {
+      const attEnd = cleanAtt.mode === 'fixed' ? cleanAtt.startCol + cleanAtt.fixedCount : Infinity;
+      if (cleanAsg.startCol >= cleanAtt.startCol && cleanAsg.startCol < attEnd) {
         const ok = await confirmDialog('การมาเรียนและการส่งงานอยู่แท็บเดียวกันและคอลัมน์อาจทับกัน แนะนำให้ใช้คนละแท็บ หรือกำหนดจำนวนช่องเช็คชื่อแบบตายตัว บันทึกต่อหรือไม่?', { confirmText: 'บันทึกต่อ' });
         if (!ok) return;
       }
@@ -832,18 +926,25 @@ export async function renderSettings(
     if ((resetAtt || resetAsg) && !(await confirmDialog('ตำแหน่งแท็บ/คอลัมน์เริ่มต้นเปลี่ยนไป ระบบจะเขียนข้อมูลที่บันทึกไว้ทั้งหมดลงตำแหน่งใหม่ (ข้อมูลเดิมในตำแหน่งเก่าจะไม่ถูกลบ) ดำเนินการต่อ?', { confirmText: 'ดำเนินการต่อ' })))
       return;
     await withBusy(btn, 'กำลังบันทึก...', async () => {
-      room.sheet = { ...prev, attendance: attMap ? { ...attMap } : null, assignments: asgMap ? { ...asgMap } : null };
+      attMap = cleanAtt;
+      asgMap = cleanAsg;
+      room.sheet = { ...prev, attendance: cleanAtt ? { ...cleanAtt } : null, assignments: cleanAsg ? { ...cleanAsg } : null };
+      room.assignmentStartCol = cleanAsg ? Number(cleanAsg.startCol) : undefined;
       room = await saveClassroom(room);
       if (resetAtt) await Promise.all(sessions.map((s) => markSessionSync(s.id, { sheetColumn: null, sheetSynced: false })));
       if (resetAsg) await Promise.all(assignments.map((a) => markAssignmentSync(a.id, { sheetColumn: null, sheetSynced: false })));
       mapDirty = false;
       markDirty();
       scheduleAppDataSync();
-      if (room.syncMode === 'google') {
+      if (room.syncMode === 'google' && auth.signedIn) {
+        await syncClassroomDriveProperties(room).catch((err) =>
+          console.warn('[EduPlan Class] syncClassroomDriveProperties on saveMapping:', err),
+        );
         try {
           await pushClassroom(room.id);
           toast('บันทึกการตั้งค่าคอลัมน์และส่งข้อมูลที่ค้างขึ้น Google Sheet แล้ว', 'success');
         } catch (err) {
+          await syncSpreadsheetSyncMeta(room).catch(() => undefined);
           toast(`บันทึกการตั้งค่าแล้ว แต่ส่งข้อมูลไม่สำเร็จ: ${errorMessage(err)}`, 'error');
         }
       } else toast('บันทึกการตั้งค่าคอลัมน์แล้ว', 'success');
@@ -924,7 +1025,7 @@ export async function renderSettings(
       const kind = table?.dataset.previewKind as 'attendance' | 'assignments' | undefined;
       const m = kind === 'attendance' ? attMap : kind === 'assignments' ? asgMap : null;
       if (m && kind) {
-        m.startCol = Number(pickCol.dataset.pickCol);
+        m.startCol = parseColumnIndex(pickCol.dataset.pickCol, 0);
         focusedField = `${kind}.startCol`;
         mapDirty = true;
         markDirty();

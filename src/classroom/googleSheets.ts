@@ -26,7 +26,9 @@ import {
   colToLetter,
   currentAcademicYear,
   currentTerm,
+  getRoomAssignmentStartCol,
   normalizeKey,
+  parseColumnIndex,
   safeHttpsUrl,
   sessionHeaderText,
   sortAssignments,
@@ -34,7 +36,9 @@ import {
   todayISO,
   uid,
   type Assignment,
+  type AssignmentSheetMapping,
   type AttendanceSession,
+  type AttendanceSheetMapping,
   type AttendanceStatus,
   type Classroom,
   type ClassroomRole,
@@ -221,8 +225,8 @@ export async function syncSpreadsheetSyncMeta(c: Classroom, existingMeta?: Sprea
     academicYear: isAssistant && remoteMeta ? remoteMeta.academicYear : c.academicYear,
     standard: isAssistant && remoteMeta ? remoteMeta.standard : c.sheet.standard,
     roster: isAssistant && remoteMeta ? remoteMeta.roster : c.sheet.roster,
-    attendance: isAssistant && remoteMeta ? remoteMeta.attendance : c.sheet.attendance,
-    assignments: isAssistant && remoteMeta ? remoteMeta.assignments : c.sheet.assignments,
+    attendance: isAssistant && remoteMeta ? normalizeAttendanceMapping(remoteMeta.attendance) : normalizeAttendanceMapping(c.sheet.attendance),
+    assignments: isAssistant && remoteMeta ? normalizeAssignmentMapping(remoteMeta.assignments) : normalizeAssignmentMapping(c.sheet.assignments, c.assignmentStartCol),
     attendanceHeaderMode: isAssistant && remoteMeta?.attendanceHeaderMode ? remoteMeta.attendanceHeaderMode : c.attendanceHeaderMode,
     students:
       isAssistant && remoteMeta?.students
@@ -388,7 +392,7 @@ export async function createStandardSpreadsheet(c: Classroom): Promise<SheetMapp
     attendance: { sheetTitle: STANDARD_TABS.attendance, headerRow: 1, keyCol: 1, keyType: 'order', startCol: 3, mode: 'append', fixedCount: 0 },
     assignments: { sheetTitle: STANDARD_TABS.assignments, headerRow: 1, keyCol: 1, keyType: 'order', startCol: 3 },
   };
-  await syncClassroomDriveProperties({ ...c, sheet: mapping }).catch(() => undefined);
+  await syncClassroomDriveProperties({ ...c, sheet: mapping, assignmentStartCol: 3 }).catch(() => undefined);
   return mapping;
 }
 
@@ -411,6 +415,73 @@ export function assignmentHeader(a: Assignment): string {
   return a.maxScore ? `${a.title} (${a.maxScore})` : a.title;
 }
 
+function normalizeAttendanceMapping(m: AttendanceSheetMapping | null | undefined): AttendanceSheetMapping | null {
+  if (!m) return null;
+  return {
+    sheetTitle: String(m.sheetTitle ?? ''),
+    headerRow: Math.max(1, Math.floor(Number(m.headerRow) || 1)),
+    keyCol: parseColumnIndex(m.keyCol, 0),
+    keyType: m.keyType,
+    startCol: parseColumnIndex(m.startCol, 0),
+    mode: m.mode === 'fixed' ? 'fixed' : 'append',
+    fixedCount: Math.max(0, Math.floor(Number(m.fixedCount) || 0)),
+  };
+}
+
+function normalizeAssignmentMapping(
+  m: AssignmentSheetMapping | null | undefined,
+  fallbackStartCol?: number | null,
+): AssignmentSheetMapping | null {
+  if (!m) return null;
+  const fallback = fallbackStartCol !== undefined && fallbackStartCol !== null ? parseColumnIndex(fallbackStartCol, 0) : 0;
+  return {
+    sheetTitle: String(m.sheetTitle ?? ''),
+    headerRow: Math.max(1, Math.floor(Number(m.headerRow) || 1)),
+    keyCol: parseColumnIndex(m.keyCol, 0),
+    keyType: m.keyType,
+    startCol: parseColumnIndex(m.startCol, fallback),
+    ...(Number(m.colsPerAssignment) === 2 ? { colsPerAssignment: 2 as const } : {}),
+  };
+}
+
+/**
+ * หาคอลัมน์ว่างแรกสำหรับเขียนข้อมูล โดยเริ่มสแกนตั้งแต่ startColIndex (0-based) ไปทางขวา
+ * - แปลง startColIndex เป็น Number เสมอเพื่อป้องกัน String Concatenation
+ * - ไม่ใช้ values.append และไม่ใช้ headerRow.length เพื่อข้ามไปท้ายชีต
+ * - หาก 1 งานใช้ 2 คอลัมน์ (สถานะ + คะแนน เช่น F และ G) จะตรวจว่าทั้ง col และ col + 1 ว่างคู่กัน
+ */
+export function findNextAvailableAssignmentColumn(
+  sheetRows: string[][],
+  headerRowIndex: number,
+  startColIndex: number | string,
+  columnsPerItem = 1,
+  reservedCols?: ReadonlySet<number>,
+): number {
+  const start = parseColumnIndex(startColIndex, 0);
+  const rowIdx = Math.max(0, Math.floor(Number(headerRowIndex) || 0));
+  const span = Math.max(1, Math.floor(Number(columnsPerItem) || 1));
+  const headerRow = Array.isArray(sheetRows) && Array.isArray(sheetRows[rowIdx]) ? sheetRows[rowIdx] : [];
+  const maxScan = Math.max(start + 500, headerRow.length + span + 10);
+
+  for (let col = start; col < maxScan; col++) {
+    let slotAvailable = true;
+    for (let offset = 0; offset < span; offset++) {
+      const targetCol = Number(col) + offset;
+      if (reservedCols?.has(targetCol)) {
+        slotAvailable = false;
+        break;
+      }
+      const cell = headerRow[targetCol];
+      if (cell !== undefined && cell !== null && String(cell).trim() !== '') {
+        slotAvailable = false;
+        break;
+      }
+    }
+    if (slotAvailable) return Number(col);
+  }
+  return start;
+}
+
 /** เขียนข้อมูลทั้งหมดลงไฟล์มาตรฐานใหม่ทั้งหมด (ใช้เฉพาะตอนสร้างไฟล์ครั้งแรกหรืออัปเดตรายชื่อ Master Roster) */
 async function pushStandardAll(c: Classroom): Promise<void> {
   const sheet = c.sheet!;
@@ -420,10 +491,12 @@ async function pushStandardAll(c: Classroom): Promise<void> {
   const assignments = sortAssignments(assignmentsRaw);
   const rows = students.length + 1;
   const T = STANDARD_TABS;
+  const attStartCol = parseColumnIndex(sheet.attendance?.startCol, 3);
+  const asgStartCol = parseColumnIndex(sheet.assignments?.startCol ?? c.assignmentStartCol, 3);
 
   await ensureGrid(id, T.roster, rows + 5, 3);
-  await ensureGrid(id, T.attendance, rows + 5, 3 + sessions.length + 1);
-  await ensureGrid(id, T.assignments, rows + 5, 3 + assignments.length + 1);
+  await ensureGrid(id, T.attendance, rows + 5, attStartCol + sessions.length + 1);
+  await ensureGrid(id, T.assignments, rows + 5, asgStartCol + assignments.length + 1);
 
   await Promise.all([
     clearValues(id, quoteSheet(T.roster)),
@@ -447,8 +520,8 @@ async function pushStandardAll(c: Classroom): Promise<void> {
   ]);
 
   await Promise.all([
-    ...sessions.map((s, i) => markSessionSync(s.id, { sheetSynced: true, sheetColumn: 3 + i })),
-    ...assignments.map((a, i) => markAssignmentSync(a.id, { sheetSynced: true, sheetColumn: 3 + i })),
+    ...sessions.map((s, i) => markSessionSync(s.id, { sheetSynced: true, sheetColumn: attStartCol + i })),
+    ...assignments.map((a, i) => markAssignmentSync(a.id, { sheetSynced: true, sheetColumn: asgStartCol + i })),
   ]);
 }
 
@@ -496,12 +569,20 @@ export interface PushResult {
   column?: string;
 }
 
+function assignmentStatusAndScoreCells(a: Assignment, studentId: string): [string, string | number] {
+  const sub = a.submissions[studentId];
+  const statusText = SUBMISSION_LABEL[sub?.status ?? 'missing'];
+  const scoreVal = sub && sub.score !== null && sub.score !== undefined && !Number.isNaN(sub.score) ? sub.score : '';
+  return [statusText, scoreVal];
+}
+
 async function pushCustomColumn(
   c: Classroom,
   kind: 'attendance' | 'assignments',
   item: AttendanceSession | Assignment,
   header: string,
   cell: (studentId: string) => string | number,
+  overrideStartCol?: number,
 ): Promise<PushResult> {
   const sheet = c.sheet!;
   const m =
@@ -513,66 +594,123 @@ async function pushCustomColumn(
       : null);
   if (!m) throw new Error(kind === 'attendance' ? 'ยังไม่ได้ตั้งค่าแท็บ/คอลัมน์การมาเรียน' : 'ยังไม่ได้ตั้งค่าแท็บ/คอลัมน์การส่งงาน');
 
-  let col = item.sheetColumn;
-  if (col === null || col === undefined) {
-    const others = kind === 'attendance' ? await getSessions(c.id) : await getAssignments(c.id);
-    const usedLocal = others
-      .filter((o) => o.id !== item.id && o.sheetColumn !== null && o.sheetColumn !== undefined)
-      .map((o) => o.sheetColumn!);
-    const usedLocalSet = new Set(usedLocal);
+  const headerRow = Math.max(1, Math.floor(Number(m.headerRow) || 1));
+  const keyCol = parseColumnIndex(m.keyCol, 0);
+  const startCol = parseColumnIndex(
+    overrideStartCol !== undefined
+      ? overrideStartCol
+      : kind === 'assignments'
+        ? (m.startCol ?? c.assignmentStartCol)
+        : m.startCol,
+    0,
+  );
+  const colsPerItem = kind === 'assignments' && 'colsPerAssignment' in m && Number(m.colsPerAssignment) === 2 ? 2 : 1;
+
+  const others = kind === 'attendance' ? await getSessions(c.id) : await getAssignments(c.id);
+  const usedLocalSet = new Set<number>();
+  for (const o of others) {
+    if (o.id === item.id || o.sheetColumn === null || o.sheetColumn === undefined) continue;
+    const oc = parseColumnIndex(o.sheetColumn, -1);
+    if (oc >= 0) {
+      for (let k = 0; k < colsPerItem; k++) usedLocalSet.add(oc + k);
+    }
+  }
+
+  let hVals: string[][] = [[]];
+  let headerReadOk = false;
+  try {
+    hVals = await getValues(sheet.spreadsheetId, `${quoteSheet(m.sheetTitle)}!${headerRow}:${headerRow}`);
+    headerReadOk = true;
+  } catch {
+    /* ignore header inspect error */
+  }
+  const hRow = hVals[0] ?? [];
+
+  let col: number | null =
+    item.sheetColumn !== null && item.sheetColumn !== undefined ? parseColumnIndex(item.sheetColumn, -1) : null;
+  if (col !== null && col < 0) col = null;
+
+  if (col !== null) {
+    const belowStart = col < startCol;
+    const existingSlotBlank =
+      headerReadOk &&
+      col > startCol &&
+      Array.from({ length: colsPerItem }, (_, offset) => (hRow[col! + offset] ?? '').trim()).every((v) => !v);
+    if (belowStart || existingSlotBlank) {
+      col = null;
+    }
+  }
+
+  if (col === null) {
+    const trimmedHeader = header.trim();
+    const primaryHeader = colsPerItem === 2 ? `${trimmedHeader} (สถานะ)` : trimmedHeader;
     let matchedCol: number | null = null;
-    const usedRemote: number[] = [];
-    try {
-      const hVals = await getValues(sheet.spreadsheetId, `${quoteSheet(m.sheetTitle)}!${m.headerRow}:${m.headerRow}`);
-      const hRow = hVals[0] ?? [];
-      for (let cIdx = m.startCol; cIdx < hRow.length; cIdx++) {
-        const hv = (hRow[cIdx] ?? '').trim();
-        if (!hv) continue;
-        if (hv === header.trim() && !usedLocalSet.has(cIdx)) {
-          matchedCol = cIdx;
+    for (let cIdx = startCol; cIdx < hRow.length; cIdx++) {
+      const hv = (hRow[cIdx] ?? '').trim();
+      if (!hv) continue;
+      let reserved = false;
+      for (let k = 0; k < colsPerItem; k++) {
+        if (usedLocalSet.has(cIdx + k)) {
+          reserved = true;
           break;
         }
-        usedRemote.push(cIdx);
       }
-    } catch {
-      /* ignore header inspect error */
+      if (!reserved && (hv === primaryHeader || hv === trimmedHeader)) {
+        matchedCol = cIdx;
+        break;
+      }
     }
     if (matchedCol !== null) {
       col = matchedCol;
     } else {
-      const allUsed = [...usedLocal, ...usedRemote];
-      col = allUsed.length ? Math.max(m.startCol - 1, ...allUsed) + 1 : m.startCol;
+      col = findNextAvailableAssignmentColumn(hVals, 0, startCol, colsPerItem, usedLocalSet);
     }
   }
-  if (kind === 'attendance' && sheet.attendance?.mode === 'fixed' && sheet.attendance.fixedCount > 0) {
-    const limit = sheet.attendance.startCol + sheet.attendance.fixedCount;
+
+  if (kind === 'attendance' && sheet.attendance?.mode === 'fixed' && Number(sheet.attendance.fixedCount) > 0) {
+    const fixedCount = Math.floor(Number(sheet.attendance.fixedCount));
+    const limit = startCol + fixedCount;
     if (col >= limit) {
       throw new Error(
-        `ช่องเช็คชื่อเต็มแล้ว (กำหนดไว้ ${sheet.attendance.fixedCount} ช่อง ถึงคอลัมน์ ${colToLetter(limit - 1)}) — เพิ่มจำนวนช่องในแท็บ "ตั้งค่าตารางและคอลัมน์"`,
+        `ช่องเช็คชื่อเต็มแล้ว (กำหนดไว้ ${fixedCount} ช่อง ถึงคอลัมน์ ${colToLetter(limit - 1)}) — เพิ่มจำนวนช่องในแท็บ "ตั้งค่าตารางและคอลัมน์"`,
       );
     }
   }
 
   const students = await getStudents(c.id);
-  const { rows, unmatched } = await resolveRows(sheet.spreadsheetId, m.sheetTitle, m.headerRow, m.keyCol, m.keyType, students);
-  const maxRow = Math.max(m.headerRow, ...rows.values());
-  await ensureGrid(sheet.spreadsheetId, m.sheetTitle, maxRow + 1, col + 1);
+  const { rows, unmatched } = await resolveRows(sheet.spreadsheetId, m.sheetTitle, headerRow, keyCol, m.keyType, students);
+  const maxRow = Math.max(headerRow, ...rows.values());
+  await ensureGrid(sheet.spreadsheetId, m.sheetTitle, maxRow + 1, col + colsPerItem);
 
   const L = colToLetter(col);
+  const L2 = colsPerItem === 2 ? colToLetter(col + 1) : L;
   const q = quoteSheet(m.sheetTitle);
   const data: { range: string; values: (string | number)[][] }[] = [];
 
   // หากเป็นไฟล์มาตรฐาน ให้แน่ใจว่าคอลัมน์ A-C (รายชื่อ) มีอยู่ครบโดยไม่แตะคอลัมน์อื่น
-  if (sheet.standard && m.keyType === 'order' && m.headerRow === 1) {
+  if (sheet.standard && m.keyType === 'order' && headerRow === 1) {
     const base = ['เลขที่', 'รหัสนักเรียน', 'ชื่อ-สกุล'];
     data.push({ range: `${q}!A1:C${students.length + 1}`, values: [base, ...rosterBlock(students)] });
   }
 
-  if (m.keyType === 'order') {
+  if (colsPerItem === 2 && kind === 'assignments') {
+    const asgItem = item as Assignment;
+    const pairHeaders: (string | number)[] = [`${header} (สถานะ)`, `${header} (คะแนน)`];
+    if (m.keyType === 'order') {
+      const colValues: (string | number)[][] = [pairHeaders, ...students.map((s) => assignmentStatusAndScoreCells(asgItem, s.id))];
+      data.push({ range: `${q}!${L}${headerRow}:${L2}${headerRow + students.length}`, values: colValues });
+    } else {
+      data.push({ range: `${q}!${L}${headerRow}:${L2}${headerRow}`, values: [pairHeaders] });
+      for (const s of students) {
+        const r = rows.get(s.id);
+        if (r) data.push({ range: `${q}!${L}${r}:${L2}${r}`, values: [assignmentStatusAndScoreCells(asgItem, s.id)] });
+      }
+    }
+  } else if (m.keyType === 'order') {
     const colValues: (string | number)[][] = [[header], ...students.map((s) => [cell(s.id)])];
-    data.push({ range: `${q}!${L}${m.headerRow}:${L}${m.headerRow + students.length}`, values: colValues });
+    data.push({ range: `${q}!${L}${headerRow}:${L}${headerRow + students.length}`, values: colValues });
   } else {
-    data.push({ range: `${q}!${L}${m.headerRow}`, values: [[header]] });
+    data.push({ range: `${q}!${L}${headerRow}`, values: [[header]] });
     for (const s of students) {
       const r = rows.get(s.id);
       if (r) data.push({ range: `${q}!${L}${r}`, values: [[cell(s.id)]] });
@@ -584,12 +722,16 @@ async function pushCustomColumn(
   else await markAssignmentSync(item.id, { sheetColumn: col, sheetSynced: true });
   item.sheetColumn = col;
   item.sheetSynced = true;
-  return { written: rows.size, unmatched: unmatched.map((s) => s.fullName), column: L };
+  return { written: rows.size, unmatched: unmatched.map((s) => s.fullName), column: colsPerItem === 2 ? `${L}–${L2}` : L };
 }
 
 // ---------------- Public push API ----------------
 function canSync(c: Classroom | undefined): c is Classroom & { sheet: SheetMapping } {
   return !!c && c.syncMode === 'google' && !!c.sheet && getAuthState().signedIn;
+}
+
+export interface PushAssignmentOptions {
+  startCol?: number;
 }
 
 export async function pushAttendanceSession(classroomId: string, session: AttendanceSession): Promise<PushResult | null> {
@@ -602,12 +744,27 @@ export async function pushAttendanceSession(classroomId: string, session: Attend
   return res;
 }
 
-export async function pushAssignment(classroomId: string, a: Assignment): Promise<PushResult | null> {
+export async function pushAssignment(
+  classroomId: string,
+  a: Assignment,
+  opts?: PushAssignmentOptions,
+): Promise<PushResult | null> {
   const c = await getClassroom(classroomId);
   if (!canSync(c)) return null;
   if (!c.sheet.standard && !c.sheet.assignments) return null;
   await markAssignmentSync(a.id, { sheetSynced: false });
-  const res = await pushCustomColumn(c, 'assignments', a, assignmentHeader(a), (sid) => assignmentCell(a, sid));
+  const effectiveStartCol =
+    opts?.startCol !== undefined && opts.startCol !== null
+      ? parseColumnIndex(opts.startCol, 0)
+      : getRoomAssignmentStartCol(c) ?? undefined;
+  const res = await pushCustomColumn(
+    c,
+    'assignments',
+    a,
+    assignmentHeader(a),
+    (sid) => assignmentCell(a, sid),
+    effectiveStartCol,
+  );
   await syncSpreadsheetSyncMeta(c).catch((err) => console.warn('[EduPlan Class] syncSpreadsheetSyncMeta warning:', err));
   return res;
 }
@@ -628,8 +785,11 @@ export async function pushClassroom(classroomId: string): Promise<void> {
     }
   }
   if (c.sheet.assignments) {
+    const asgStartCol = getRoomAssignmentStartCol(c) ?? undefined;
     for (const a of sortAssignments(await getAssignments(c.id))) {
-      if (!a.sheetSynced) await pushCustomColumn(c, 'assignments', a, assignmentHeader(a), (sid) => assignmentCell(a, sid));
+      if (!a.sheetSynced) {
+        await pushCustomColumn(c, 'assignments', a, assignmentHeader(a), (sid) => assignmentCell(a, sid), asgStartCol);
+      }
     }
   }
   await syncSpreadsheetSyncMeta(c).catch((err) => console.warn('[EduPlan Class] syncSpreadsheetSyncMeta warning:', err));
@@ -644,6 +804,7 @@ export async function upgradeToStandardSheet(classroomId: string): Promise<Class
   const assignments = await getAssignments(c.id);
   c.sheet = await createStandardSpreadsheet(c);
   c.sheetId = c.sheet.spreadsheetId;
+  c.assignmentStartCol = parseColumnIndex(c.sheet.assignments?.startCol, 3);
   c.syncMode = 'google';
   await saveClassroom(c);
   await Promise.all([
@@ -697,6 +858,19 @@ function buildDrivePropertiesPayload(c: Classroom, collabs?: Collaborator[]): Re
     eduplan_room_name: truncateDriveProperty('eduplan_room_name', c.name || 'ห้องเรียน', 40),
     eduplan_subject: truncateDriveProperty('eduplan_subject', c.subject || 'ไม่ระบุวิชา', 40),
   };
+  const asgStartCol = getRoomAssignmentStartCol(c);
+  if (asgStartCol !== null) {
+    props.eduplan_asg_start_col = String(Number(asgStartCol));
+    props.eduplan_asg_cols = String(c.sheet?.assignments?.colsPerAssignment === 2 ? 2 : 1);
+  } else {
+    props.eduplan_asg_start_col = '';
+    props.eduplan_asg_cols = '';
+  }
+  if (c.sheet?.attendance) {
+    props.eduplan_att_start_col = String(parseColumnIndex(c.sheet.attendance.startCol, 0));
+  } else {
+    props.eduplan_att_start_col = '';
+  }
   if (collabs) {
     const list = collabs.slice(0, 5);
     for (let i = 0; i < 5; i++) {
@@ -941,6 +1115,16 @@ function buildSharedRoomObject(
   const subjectName = f.properties?.eduplan_subject || prev?.subject || f.name;
   const sheetUrl = safeHttpsUrl(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(f.id)}/edit`);
 
+  const rawPropAsgStart = (f.properties?.eduplan_asg_start_col ?? '').trim();
+  const parsedAsgStartCol =
+    rawPropAsgStart !== ''
+      ? parseColumnIndex(rawPropAsgStart, 3)
+      : prev?.assignmentStartCol !== undefined && prev.assignmentStartCol !== null
+        ? parseColumnIndex(prev.assignmentStartCol, 3)
+        : prev?.sheet?.assignments
+          ? parseColumnIndex(prev.sheet.assignments.startCol, 3)
+          : 3;
+
   return {
     id: roomId,
     name: roomName,
@@ -956,6 +1140,7 @@ function buildSharedRoomObject(
     collaborators: collabs,
     lastModifiedTime: f.modifiedTime ?? prev?.lastModifiedTime,
     attendanceHeaderMode: prev?.attendanceHeaderMode,
+    assignmentStartCol: parsedAsgStartCol,
     sheet: prev?.sheet ?? {
       spreadsheetId: f.id,
       spreadsheetName: f.name,
@@ -966,7 +1151,7 @@ function buildSharedRoomObject(
         mapping: { headerRow: 0, number: 0, code: 1, nameMode: 'single', name: 2, prefix: null, first: null, last: null },
       },
       attendance: { sheetTitle: STANDARD_TABS.attendance, headerRow: 1, keyCol: 1, keyType: 'order', startCol: 3, mode: 'append', fixedCount: 0 },
-      assignments: { sheetTitle: STANDARD_TABS.assignments, headerRow: 1, keyCol: 1, keyType: 'order', startCol: 3 },
+      assignments: { sheetTitle: STANDARD_TABS.assignments, headerRow: 1, keyCol: 1, keyType: 'order', startCol: parsedAsgStartCol },
     },
     createdAt: prev?.createdAt ?? now,
     updatedAt: f.modifiedTime ? Date.parse(f.modifiedTime) || now : prev?.updatedAt ?? now,
@@ -1292,21 +1477,27 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
     sheetTitles.has(STANDARD_TABS.attendance) &&
     sheetTitles.has(STANDARD_TABS.assignments);
 
+  const propAsgStartRaw = (driveMeta?.properties?.eduplan_asg_start_col ?? '').trim();
+  const propAsgStartCol = propAsgStartRaw !== '' ? parseColumnIndex(propAsgStartRaw, 0) : null;
+
   if (syncMeta) {
     if (syncMeta.name) room.name = syncMeta.name;
     if (syncMeta.subject) room.subject = syncMeta.subject;
     if (syncMeta.term) room.term = syncMeta.term;
     if (syncMeta.academicYear) room.academicYear = syncMeta.academicYear;
     if (syncMeta.attendanceHeaderMode) room.attendanceHeaderMode = syncMeta.attendanceHeaderMode;
+    const normAtt = normalizeAttendanceMapping(syncMeta.attendance);
+    const normAsg = normalizeAssignmentMapping(syncMeta.assignments, propAsgStartCol ?? room.assignmentStartCol);
     room.sheet = {
       spreadsheetId,
       spreadsheetName: meta.title || room.sheet!.spreadsheetName,
       spreadsheetUrl: safeHttpsUrl(meta.url) || room.sheet!.spreadsheetUrl,
       standard: syncMeta.standard,
       roster: syncMeta.roster,
-      attendance: syncMeta.attendance,
-      assignments: syncMeta.assignments,
+      attendance: normAtt,
+      assignments: normAsg,
     };
+    room.assignmentStartCol = normAsg ? Number(normAsg.startCol) : propAsgStartCol ?? undefined;
   } else if (hasStandardTabs) {
     room.sheet = {
       spreadsheetId,
@@ -1320,17 +1511,25 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
       attendance: { sheetTitle: STANDARD_TABS.attendance, headerRow: 1, keyCol: 1, keyType: 'order', startCol: 3, mode: 'append', fixedCount: 0 },
       assignments: { sheetTitle: STANDARD_TABS.assignments, headerRow: 1, keyCol: 1, keyType: 'order', startCol: 3 },
     };
+    room.assignmentStartCol = 3;
   } else if (room.sheet) {
     const firstSheet = meta.sheets[0];
     const firstTab = firstSheet?.title ?? 'Sheet1';
     room.sheet.spreadsheetName = meta.title || room.sheet.spreadsheetName;
     room.sheet.spreadsheetUrl = safeHttpsUrl(meta.url) || room.sheet.spreadsheetUrl;
     room.sheet.standard = false;
+    room.sheet.attendance = normalizeAttendanceMapping(room.sheet.attendance);
+    room.sheet.assignments = normalizeAssignmentMapping(room.sheet.assignments, propAsgStartCol ?? room.assignmentStartCol);
     if (room.sheet.attendance && !sheetTitles.has(room.sheet.attendance.sheetTitle)) {
       room.sheet.attendance = null;
     }
     if (room.sheet.assignments && !sheetTitles.has(room.sheet.assignments.sheetTitle)) {
       room.sheet.assignments = null;
+    }
+    if (room.sheet.assignments) {
+      room.assignmentStartCol = Number(room.sheet.assignments.startCol);
+    } else if (propAsgStartCol !== null) {
+      room.assignmentStartCol = propAsgStartCol;
     }
     if (!room.sheet.roster || !sheetTitles.has(room.sheet.roster.sheetTitle)) {
       const firstGrid = firstSheet ? await getValues(spreadsheetId, quoteSheet(firstTab)).catch(() => []) : [];
@@ -1418,7 +1617,8 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
     });
     const restrictCustomCols = !room.sheet?.standard && syncSesByCol.size > 0;
 
-    for (let col = attMap.startCol; col < headers.length; col++) {
+    const attStartCol = parseColumnIndex(attMap.startCol, 0);
+    for (let col = attStartCol; col < headers.length; col++) {
       if (restrictCustomCols && !syncSesByCol.has(col)) continue;
       const hText = (headers[col] ?? '').trim();
       const metaSes = syncSesByCol.get(col);
@@ -1468,12 +1668,17 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
     });
     const restrictCustomCols = !room.sheet?.standard && syncAsgByCol.size > 0;
 
-    for (let col = asgMap.startCol; col < headers.length; col++) {
+    const asgStartCol = parseColumnIndex(asgMap.startCol, room.assignmentStartCol ?? 0);
+    const colsPerAsg = Number(asgMap.colsPerAssignment) === 2 ? 2 : 1;
+    const step = restrictCustomCols ? 1 : colsPerAsg;
+
+    for (let col = asgStartCol; col < headers.length; col += step) {
       if (restrictCustomCols && !syncAsgByCol.has(col)) continue;
       const hText = (headers[col] ?? '').trim();
       const metaAsg = syncAsgByCol.get(col);
       if (!hText && !metaAsg) continue;
-      const headerParsed = parseAssignmentHeaderLabel(hText);
+      const cleanHText = colsPerAsg === 2 ? hText.replace(/\s*\(สถานะ\)\s*$/, '').trim() : hText;
+      const headerParsed = parseAssignmentHeaderLabel(cleanHText);
       const title = metaAsg?.title || headerParsed.title;
       const maxScore = metaAsg ? metaAsg.maxScore : headerParsed.maxScore;
 
@@ -1482,6 +1687,17 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
         const rIdx = asgRowMap.get(st.id);
         if (rIdx === undefined) {
           submissions[st.id] = { status: 'missing', score: null };
+          return;
+        }
+        if (colsPerAsg === 2) {
+          const rawStatus = (asgGrid[rIdx]?.[col] ?? '').trim();
+          const rawScore = (asgGrid[rIdx]?.[col + 1] ?? '').trim();
+          const parsedScore = rawScore !== '' && !Number.isNaN(Number(rawScore)) ? Number(rawScore) : null;
+          const isSubmitted =
+            parsedScore !== null ||
+            rawStatus === SUBMISSION_LABEL.submitted ||
+            rawStatus.toLowerCase() === 'submitted';
+          submissions[st.id] = { status: isSubmitted ? 'submitted' : 'missing', score: parsedScore };
           return;
         }
         const rawVal = (asgGrid[rIdx]?.[col] ?? '').trim();

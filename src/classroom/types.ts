@@ -33,6 +33,7 @@ export interface Classroom {
   myPermissionId?: string;           // permissionId ของตัวเอง (สำหรับห้องร่วม)
   lastModifiedTime?: string;         // เวลาแก้ไขล่าสุดจาก Google Drive
   attendanceHeaderMode?: SessionHeaderMode; // รูปแบบหัวคอลัมน์เช็คชื่อล่าสุดของห้อง
+  assignmentStartCol?: number;       // 0-based index คอลัมน์เริ่มต้นของการส่งงาน (Number)
   createdAt: number;
   updatedAt: number;
 }
@@ -129,6 +130,7 @@ export interface AssignmentSheetMapping {
   keyCol: number;
   keyType: RowKeyType;
   startCol: number;
+  colsPerAssignment?: 1 | 2; // 1 = คอลัมน์เดียว (คะแนน/สถานะ), 2 = 2 คอลัมน์ (สถานะ + คะแนน)
 }
 
 export interface SheetMapping {
@@ -228,7 +230,7 @@ export function escapeHtml(v: unknown): string {
 }
 
 export function colToLetter(index: number): string {
-  let n = index + 1;
+  let n = Math.floor(Number(index)) + 1;
   let s = '';
   while (n > 0) {
     const r = (n - 1) % 26;
@@ -236,6 +238,44 @@ export function colToLetter(index: number): string {
     n = Math.floor((n - 1) / 26);
   }
   return s;
+}
+
+/** แปลงค่าคอลัมน์ (ตัวเลข 0-based, สตริงตัวเลข เช่น "5", หรือตัวอักษร A1 เช่น "F", "F, G", "AA") เป็น index แบบ Number เสมอ */
+export function parseColumnIndex(raw: unknown, fallback = 0): number {
+  const safeFallback = Number.isFinite(Number(fallback)) ? Math.max(0, Math.floor(Number(fallback))) : 0;
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : safeFallback;
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return safeFallback;
+    if (/^\d+$/.test(trimmed)) return Math.max(0, Math.floor(Number(trimmed)));
+    const letterMatch = /^([A-Za-z]+)/.exec(trimmed);
+    if (letterMatch) {
+      const letters = letterMatch[1].toUpperCase();
+      let acc = 0;
+      for (let i = 0; i < letters.length; i++) {
+        acc = acc * 26 + (letters.charCodeAt(i) - 64);
+      }
+      return Math.max(0, acc - 1);
+    }
+    const asNum = Number(trimmed);
+    if (Number.isFinite(asNum)) return Math.max(0, Math.floor(asNum));
+  }
+  return safeFallback;
+}
+
+/** ดึงค่าคอลัมน์เริ่มต้นของการส่งงาน (0-based Number) จากการตั้งค่าของห้องเรียน */
+export function getRoomAssignmentStartCol(room: Pick<Classroom, 'sheet' | 'assignmentStartCol'> | null | undefined): number | null {
+  if (!room) return null;
+  if (room.sheet?.assignments && room.sheet.assignments.startCol !== undefined && room.sheet.assignments.startCol !== null) {
+    return parseColumnIndex(room.sheet.assignments.startCol, 0);
+  }
+  if (room.assignmentStartCol !== undefined && room.assignmentStartCol !== null) {
+    return parseColumnIndex(room.assignmentStartCol, 0);
+  }
+  if (room.sheet?.standard) return 3;
+  return null;
 }
 
 export function todayISO(): string {

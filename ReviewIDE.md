@@ -1,3 +1,31 @@
+# บันทึกการแก้ไขบั๊กระบบเช็คงานข้ามคอลัมน์ (ReviewIDE.md)
+**EduPlan Class — Assignment Column Allocation & `assignmentStartCol` Sync Fix**
+- วันที่และเวลา: 2026-11-19 12:12 (UTC+7)
+
+## สาเหตุของปัญหา
+1. `pushCustomColumn()` ใน `src/classroom/googleSheets.ts` หาคอลัมน์ถัดไปด้วย `Math.max(m.startCol - 1, ...allUsed) + 1` โดยเก็บคอลัมน์หัวตารางที่ไม่ว่างทุกตัวจนสุดแถว (`hRow.length`) ส่งผลให้หากมีคอลัมน์สรุปท้ายชีต (เช่น รวมคะแนน/เกรด คอลัมน์ W) ระบบจะกระโดดข้ามช่องว่าง F, G ไปเขียนที่คอลัมน์ X, Y ทันที
+2. `firstEmptyCol()` และ `defaultMapping()` ใน `src/classroom/components/SettingsTab.ts` หา `last + 1` และบวก `+ 20` แบบ hardcode เมื่ออยู่แท็บเดียวกับการเช็คชื่อ ทำให้ค่าเริ่มต้นกระโดดไปคอลัมน์ X
+3. `SettingsTab.ts` ยังไม่ได้บันทึกค่า `assignmentStartCol` (แบบ `Number`) ลง Dexie (`classrooms`) และ Google Drive `properties` (`eduplan_asg_start_col`) โดยตรง และ `AssignmentsTab.ts` ยังไม่ได้ดึงค่า `assignmentStartCol` ล่าสุดของห้องมาใช้ตอนสร้างงาน/บันทึกคะแนน รวมถึงไม่อัปเดต `a.sheetColumn` กลับเข้า object หลัง `pushAssignment()`
+
+## สรุปผลการแก้ไข
+1. **แปลงและอ่านค่าคอลัมน์แบบ Number เสมอ (`src/classroom/types.ts`)**
+   - เพิ่ม `assignmentStartCol?: number` ใน `Classroom` และ `colsPerAssignment?: 1 | 2` ใน `AssignmentSheetMapping`
+   - เพิ่มตัวช่วย `parseColumnIndex(raw, fallback)` รองรับทั้งตัวเลข 0-based, สตริงตัวเลข และตัวอักษร A1 (`"F"`, `"F, G"`, `"AA"`) แปลงเป็น `Number` เสมอ และ `getRoomAssignmentStartCol(room)`
+2. **เปลี่ยนวิธีหาคอลัมน์ว่างเป็นสแกนจาก `startColIndex` (`src/classroom/googleSheets.ts`)**
+   - เพิ่มและ export `findNextAvailableAssignmentColumn(sheetRows, headerRowIndex, startColIndex, columnsPerItem = 1, reservedCols?)` แปลง `startColIndex` เป็น `Number` และวนหาช่องว่างแรกตั้งแต่ `startColIndex` โดยไม่ใช้ `values.append` หรือ `headerRow.length` และรองรับการตรวจคู่คอลัมน์ว่าง (`col` และ `col + 1`) สำหรับโหมด 2 คอลัมน์ (สถานะ + คะแนน)
+   - ปรับ `pushCustomColumn()`, `pushAssignment()`, `pushClassroom()`, `pushStandardAll()` ให้ใช้ `findNextAvailableAssignmentColumn` และเขียนลงพิกัด A1-Notation ตรงๆ ด้วย `values:batchUpdate` (`valueInputOption: 'RAW'`) รวมถึงรองรับการย้ายกลับจากคอลัมน์ที่หลุดขอบ/ถูกลบหัวตารางแล้ว
+   - เพิ่ม `eduplan_asg_start_col`, `eduplan_asg_cols`, `eduplan_att_start_col` ใน `buildDrivePropertiesPayload()` และ normalize ค่าตัวเลขใน `pullClassroomFromSheet()` / `buildSharedRoomObject()` / `syncSpreadsheetSyncMeta()`
+3. **การบันทึก/พรีวิวคอลัมน์และการใช้งานจริง (`src/classroom/components/SettingsTab.ts`, `src/classroom/components/AssignmentsTab.ts`)**
+   - `SettingsTab.ts`: ปรับ `firstEmptyCol()`, `defaultMapping()`, `projectColumns()` ให้ใช้ `findNextAvailableAssignmentColumn()` (ตัดการหา `last + 1` และ `+ 20` ออก), แปลงค่าทุก index ด้วย `parseColumnIndex()` และใน `saveMapping()` บันทึก `room.assignmentStartCol = Number(cleanAsg.startCol)` ลง Dexie + ยิง `syncClassroomDriveProperties(room)` ลง Google Drive `properties`
+   - `AssignmentsTab.ts`: เพิ่ม `resolveAssignmentStartCol()` ดึงค่าห้องล่าสุดจาก Dexie (`getClassroom`) และส่ง `{ startCol: Number(assignmentStartCol) }` ให้ `pushAssignment()` ทั้งตอนสร้าง/แก้ไขงานและบันทึกคะแนน พร้อมซิงก์ `Object.assign(a, updated)` หลัง push สำเร็จ
+
+## การตรวจสอบ (Verification)
+- Isolation Check (`git status`): แก้ไขเฉพาะ 4 ไฟล์ใน `src/classroom/*` ไม่แตะระบบหลัก EduPlan AI
+- Build Check: `npm.cmd run build` (`tsc && vite build`) ผ่าน 100% (Exit code 0)
+- Unit Assertions: ตรวจสอบ `parseColumnIndex` และ `findNextAvailableAssignmentColumn` ทั้งเคสคอลัมน์ท้ายชีตไม่ว่าง (W='รวมคะแนน'), โหมด 1 คอลัมน์ (F -> G) และโหมด 2 คอลัมน์ (F,G -> H,I) ผ่านทั้งหมด
+
+---
+
 # บันทึกการปรับ EduPlan Class สู่ Public Mode และ Privacy Policy (ReviewIDE.md)
 **EduPlan AI & EduPlan Class — Public OAuth Verification Readiness**
 - วันที่และเวลา: 2026-11-18 22:03 (UTC+7)

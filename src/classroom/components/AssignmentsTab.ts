@@ -1,7 +1,7 @@
 // ============================================================
 // EDUPLAN Classroom — แท็บการส่งงาน (Assignments)
 // ============================================================
-import { deleteAssignment, getAssignments, getStudents, saveAssignment } from '../db';
+import { deleteAssignment, getAssignments, getClassroom, getStudents, saveAssignment } from '../db';
 import { pushAssignment, pushClassroom, scheduleAppDataSync } from '../googleSheets';
 import { getAuthState } from '../googleAuth';
 import {
@@ -10,7 +10,9 @@ import {
   escapeHtml,
   formatThaiDate,
   getEffectiveRole,
+  getRoomAssignmentStartCol,
   icon,
+  parseColumnIndex,
   roleBadgeHtml,
   sortAssignments,
   todayISO,
@@ -66,6 +68,12 @@ export async function renderAssignments(
   let assignments = sortAssignments(await getAssignments(room.id));
   const openId = openedAssignment[room.id];
   const current = openId ? assignments.find((a) => a.id === openId) : undefined;
+
+  async function resolveAssignmentStartCol(): Promise<number | null> {
+    const latestRoom = (await getClassroom(room.id)) ?? room;
+    return getRoomAssignmentStartCol(latestRoom);
+  }
+
   if (current) renderDetail(current);
   else renderCards();
 
@@ -225,15 +233,27 @@ export async function renderAssignments(
         return;
       }
       const now = Date.now();
+      const assignmentStartCol = await resolveAssignmentStartCol();
+      let existingCol =
+        edit && edit.sheetColumn !== null && edit.sheetColumn !== undefined ? parseColumnIndex(edit.sheetColumn, -1) : null;
+      if (existingCol !== null && (existingCol < 0 || (assignmentStartCol !== null && existingCol < assignmentStartCol))) {
+        existingCol = null;
+      }
       const a: Assignment = edit
-        ? { ...edit, title, assignedDate, dueDate, maxScore, sheetSynced: false }
+        ? { ...edit, title, assignedDate, dueDate, maxScore, sheetColumn: existingCol, sheetSynced: false }
         : { id: uid(), classroomId: room.id, title, assignedDate, dueDate, maxScore, submissions: {}, sheetColumn: null, sheetSynced: false, createdAt: now, updatedAt: now };
       await saveAssignment(a);
       m.close();
       assignments = sortAssignments([...assignments.filter((x) => x.id !== a.id), a]);
       toast(edit ? 'บันทึกการแก้ไขงานแล้ว' : 'เพิ่มงานแล้ว', 'success');
       if (google) {
-        if (getAuthState().signedIn) pushAssignment(room.id, a).catch((err) => toast(`อัปเดต Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'error'));
+        if (getAuthState().signedIn) {
+          pushAssignment(
+            room.id,
+            a,
+            assignmentStartCol !== null ? { startCol: Number(assignmentStartCol) } : undefined,
+          ).catch((err) => toast(`อัปเดต Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'error'));
+        }
         scheduleAppDataSync();
       }
       renderCards();
@@ -424,13 +444,28 @@ export async function renderAssignments(
         return;
       }
       await withBusy(btn, 'กำลังบันทึก...', async () => {
-        const updated: Assignment = { ...a, submissions: JSON.parse(JSON.stringify(draft)) as Record<string, Submission>, sheetSynced: false };
+        const assignmentStartCol = await resolveAssignmentStartCol();
+        let currentCol = a.sheetColumn !== null && a.sheetColumn !== undefined ? parseColumnIndex(a.sheetColumn, -1) : null;
+        if (currentCol !== null && (currentCol < 0 || (assignmentStartCol !== null && currentCol < assignmentStartCol))) {
+          currentCol = null;
+        }
+        const updated: Assignment = {
+          ...a,
+          submissions: JSON.parse(JSON.stringify(draft)) as Record<string, Submission>,
+          sheetColumn: currentCol,
+          sheetSynced: false,
+        };
         await saveAssignment(updated);
         Object.assign(a, updated);
         setDirty(false);
         if (google && getAuthState().signedIn) {
           try {
-            const r = await pushAssignment(room.id, updated);
+            const r = await pushAssignment(
+              room.id,
+              updated,
+              assignmentStartCol !== null ? { startCol: Number(assignmentStartCol) } : undefined,
+            );
+            Object.assign(a, updated);
             if (r?.unmatched.length) toast(`บันทึกแล้ว แต่หาแถวใน Google Sheet ไม่พบ ${r.unmatched.length} คน: ${r.unmatched.slice(0, 5).join(', ')}`, 'warn', 9000);
             else toast(`บันทึกการส่งงานและอัปเดต Google Sheet แล้ว${r?.column ? ` (คอลัมน์ ${r.column})` : ''}`, 'success');
           } catch (err) {
