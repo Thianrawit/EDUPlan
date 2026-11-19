@@ -1,3 +1,35 @@
+# บันทึกการปรับ Mobile Responsive สำหรับ EduPlan Class (ReviewIDE.md)
+**EduPlan Class — Mobile Full-Line Name Readability & Responsive Layout**
+- วันที่และเวลา: 2026-11-19 14:08 (UTC+7)
+
+## ปัญหาเดิมบนหน้าจอโทรศัพท์
+1. ตารางเช็คชื่อ (`AttendanceTab.ts`) และตารางตรวจงาน/คะแนน (`AssignmentsTab.ts`) เรียง 4–5 คอลัมน์แนวนอนที่มีความกว้างคงที่ ทำให้ช่อง `ชื่อ-นามสกุล` ถูกบีบจนคำตกบรรทัดเป็นท่อนๆ อ่านไม่เต็มบรรทัด และต้องเลื่อนซ้าย-ขวา
+2. ตารางแก้ไขรายชื่อ (`SettingsTab.ts` และ Create Wizard ใน `ClassroomHub.ts`) บีบช่อง `<input>` ชื่อจนพิมพ์/อ่านไม่เห็นเต็มบรรทัด
+3. แถบ `TopBar`, `Workspace Header`, `Tabs`, `Session Bar`, และ `Sticky Footer` เรียงตัวไม่สมมาตร ซ้อนสูงเกินไปบนมือถือ และมีบาง badge ที่ตั้ง `white-space: nowrap` เสี่ยงล้นขอบจอ
+
+## สรุปผลการแก้ไข (เฉพาะ `src/classroom/*`)
+1. **เพิ่ม Semantic Classes สำหรับ Mobile Card Layout**:
+   - `src/classroom/components/AttendanceTab.ts`: เพิ่ม `.cr-table-wrap--cards`, `.cr-table--att-check`, `.cr-cell-no`, `.cr-cell-code`, `.cr-cell-name`, `.cr-cell-status`
+   - `src/classroom/components/AssignmentsTab.ts`: เพิ่ม `.cr-table-wrap--cards`, `.cr-table--asg-check`, `.cr-cell-no`, `.cr-cell-code`, `.cr-cell-name`, `.cr-cell-status`, `.cr-cell-score`
+   - `src/classroom/components/SettingsTab.ts` และ `src/classroom/components/ClassroomHub.ts`: เพิ่ม `.cr-table-wrap--edit-cards`, `.cr-table--edit-roster`, `.cr-table--edit-wizard`, `.cr-edit-*`
+   - `src/classroom/components/TopBar.ts`: เพิ่มคลาสเดียวกันให้ตารางจำลองในโหมด Tutorial
+2. **ปรับ Responsive CSS (`src/classroom/classroom.css`)**:
+   - **Mobile Student Cards (`<= 768px`)**: แปลงตารางเช็คชื่อและตรวจงานเป็นการ์ดรายคน โดยวางเลขที่แบบป้าย 36×36px ด้านซ้าย และขยายชื่อ-นามสกุลเต็มความกว้างที่เหลือ (`16px`, `font-weight: 700`, `word-break: keep-all`) ให้อ่านเต็มบรรทัด วางรหัสนักเรียนไว้ใต้ชื่อ (ซ่อนอัตโนมัติเมื่อว่าง) ปุ่มสถานะเต็มความกว้าง (`40px`) และแถวกรอกคะแนนแบบมีป้ายกำกับชัดเจน (`font-size: 16px` กัน iOS Safari auto-zoom)
+   - **Mobile Roster Edit Cards (`<= 768px`)**: แปลงตารางแก้ไขรายชื่อเป็นการ์ด โดยจัดเลขที่/รหัส/ปุ่มจัดการไว้ด้านบน และขยายช่อง `<input>` ชื่อ-นามสกุลกว้างเต็ม 100%
+   - **Mobile Layout (`<= 640px` & `<= 374px`)**:
+     - เพิ่ม `overflow-x: clip` บน `body.cr-body` ป้องกันหน้าจอเลื่อนซ้าย-ขวา และปลด sticky บน `.cr-topbar` เฉพาะมือถือเพื่อเพิ่มพื้นที่มองเห็นรายชื่อ
+     - จัด `.cr-ws-bar__right`, `.cr-hub-hero__actions`, `.cr-subnav`, `.cr-sticky-footer__sum` เป็น Grid 2 คอลัมน์สมมาตร (ปุ่มสุดท้ายที่อยู่เดี่ยวขยายเต็มแถว)
+     - ปรับ `.cr-tabs` แสดงครบทุกแท็บในแถวเดียว (ไอคอนบน+ข้อความล่าง) ประหยัดพื้นที่แนวตั้ง
+     - จัด `.cr-session-bar` เป็น Grid 2 คอลัมน์ (รอบเช็คชื่อเต็มแถว / วันที่คู่กับคาบเรียน 50-50 / โหมดหัวช่อง ตัวอย่าง และปุ่มลัดเต็มแถว)
+     - ปรับ `.cr-modal`, `.cr-toasts`, `.cr-badge`, `.cr-collab-*` ให้พอดีจอมือถือทุกขนาด โดยไม่กระทบ Layout บน Desktop (`> 768px`)
+
+## การตรวจสอบ (Verification)
+- `npm.cmd run build` (`tsc && vite build`): ผ่าน 100% (Exit Code 0)
+- Emoji check ในไฟล์ที่แก้ไขทั้ง 6 ไฟล์: `0` รายการ
+- Scope Isolation: แก้ไขเฉพาะ 6 ไฟล์ใน `src/classroom/*` ไม่แตะระบบหลัก EduPlan AI
+
+---
+
 # บันทึกการแก้ไขบั๊กระบบเช็คงานข้ามคอลัมน์ (ReviewIDE.md)
 **EduPlan Class — Assignment Column Allocation & `assignmentStartCol` Sync Fix**
 - วันที่และเวลา: 2026-11-19 12:12 (UTC+7)

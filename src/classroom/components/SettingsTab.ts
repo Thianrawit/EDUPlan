@@ -210,26 +210,26 @@ export async function renderSettings(
           }
         </div>
       </div>
-      <div class="cr-table-wrap cr-table-wrap--scroll mt-3">
-        <table class="cr-table cr-table--edit">
+      <div class="cr-table-wrap cr-table-wrap--scroll cr-table-wrap--edit-cards mt-3">
+        <table class="cr-table cr-table--edit cr-table--edit-roster">
           <thead><tr><th class="w-14 text-center">ลำดับ</th><th class="w-24 text-center">เลขที่</th><th class="w-44">รหัสนักเรียน</th><th>คำนำหน้า/ชื่อ-นามสกุล</th><th class="w-28 text-center">จัดการแถว</th></tr></thead>
           <tbody>
             ${
               roster
                 .map(
                   (r, i) => `<tr>
-                    <td class="text-center cr-faint cr-num">${i + 1}</td>
-                    <td><input class="cr-input cr-input--cell text-center cr-num" data-ri="${i}" data-rf="number" value="${escapeHtml(r.number)}" aria-label="เลขที่ลำดับ ${i + 1}" /></td>
-                    <td><input class="cr-input cr-input--cell cr-num" data-ri="${i}" data-rf="code" value="${escapeHtml(r.code)}" aria-label="รหัสนักเรียนลำดับ ${i + 1}" /></td>
-                    <td><input class="cr-input cr-input--cell" data-ri="${i}" data-rf="name" value="${escapeHtml(r.name)}" aria-label="ชื่อลำดับ ${i + 1}" /></td>
-                    <td class="text-center whitespace-nowrap">
+                    <td class="text-center cr-faint cr-num cr-edit-order" data-label="ลำดับที่">${i + 1}</td>
+                    <td class="cr-edit-no" data-label="เลขที่"><input class="cr-input cr-input--cell text-center cr-num" data-ri="${i}" data-rf="number" value="${escapeHtml(r.number)}" aria-label="เลขที่ลำดับ ${i + 1}" /></td>
+                    <td class="cr-edit-code" data-label="รหัสนักเรียน"><input class="cr-input cr-input--cell cr-num" data-ri="${i}" data-rf="code" value="${escapeHtml(r.code)}" aria-label="รหัสนักเรียนลำดับ ${i + 1}" /></td>
+                    <td class="cr-edit-name" data-label="คำนำหน้า/ชื่อ-นามสกุล"><input class="cr-input cr-input--cell" data-ri="${i}" data-rf="name" value="${escapeHtml(r.name)}" aria-label="ชื่อลำดับ ${i + 1}" /></td>
+                    <td class="text-center whitespace-nowrap cr-edit-actions">
                       <button type="button" class="cr-icon-btn" data-move="${i}" data-dir="-1" aria-label="เลื่อนขึ้น" title="เลื่อนขึ้น" ${i === 0 ? 'disabled' : ''}>${icon('arrow-up', 15)}</button>
                       <button type="button" class="cr-icon-btn" data-move="${i}" data-dir="1" aria-label="เลื่อนลง" title="เลื่อนลง" ${i === roster.length - 1 ? 'disabled' : ''}>${icon('arrow-down', 15)}</button>
                       <button type="button" class="cr-icon-btn cr-icon-btn--danger" data-rdel="${i}" aria-label="ลบ ${escapeHtml(r.name)}" title="ลบแถวนี้">${icon('x', 15)}</button>
                     </td>
                   </tr>`,
                 )
-                .join('') || `<tr><td colspan="5" class="text-center cr-faint py-6">ยังไม่มีรายชื่อ — กด "+ เพิ่มนักเรียน" หรืออัปโหลดไฟล์ Excel</td></tr>`
+                .join('') || `<tr><td colspan="5" class="text-center cr-faint py-6 cr-edit-empty">ยังไม่มีรายชื่อ — กด "+ เพิ่มนักเรียน" หรืออัปโหลดไฟล์ Excel</td></tr>`
             }
           </tbody>
         </table>

@@ -744,15 +744,15 @@ function renderDummyScene(scene: DummyScene): string {
               </button>
             </div>
           </div>
-          <div class="cr-table-wrap">
-            <table class="cr-table cr-table--att">
+          <div class="cr-table-wrap cr-table-wrap--cards">
+            <table class="cr-table cr-table--att cr-table--att-check">
               <thead><tr><th class="w-16 text-center">เลขที่</th><th class="w-36">รหัสนักเรียน</th><th>ชื่อ-นามสกุล</th><th class="w-[310px] text-center">สถานะการมาเรียน</th></tr></thead>
               <tbody>
                 <tr class="is-present" data-tour="att-row-status">
-                  <td class="text-center cr-num">1</td>
-                  <td class="cr-num">69101</td>
-                  <td>ด.ช.กิตติพงศ์ ใจดี</td>
-                  <td>
+                  <td class="text-center cr-num cr-cell-no">1</td>
+                  <td class="cr-num cr-cell-code">69101</td>
+                  <td class="cr-cell-name">ด.ช.กิตติพงศ์ ใจดี</td>
+                  <td class="cr-cell-status">
                     <div class="cr-seg cr-seg--status">
                       <button type="button" class="cr-seg__btn cr-seg__btn--present is-on" tabindex="-1">${icon('check', 14)}<span>มา</span></button>
                       <button type="button" class="cr-seg__btn cr-seg__btn--absent" tabindex="-1">${icon('x', 14)}<span>ลา/ขาด</span></button>
@@ -761,10 +761,10 @@ function renderDummyScene(scene: DummyScene): string {
                   </td>
                 </tr>
                 <tr class="is-late">
-                  <td class="text-center cr-num">2</td>
-                  <td class="cr-num">69102</td>
-                  <td>ด.ญ.ชนิกานต์ รักเรียน</td>
-                  <td>
+                  <td class="text-center cr-num cr-cell-no">2</td>
+                  <td class="cr-num cr-cell-code">69102</td>
+                  <td class="cr-cell-name">ด.ญ.ชนิกานต์ รักเรียน</td>
+                  <td class="cr-cell-status">
                     <div class="cr-seg cr-seg--status">
                       <button type="button" class="cr-seg__btn cr-seg__btn--present" tabindex="-1">${icon('check', 14)}<span>มา</span></button>
                       <button type="button" class="cr-seg__btn cr-seg__btn--absent" tabindex="-1">${icon('x', 14)}<span>ลา/ขาด</span></button>
@@ -854,33 +854,33 @@ function renderDummyScene(scene: DummyScene): string {
             </div>
             <span class="cr-btn cr-btn--soft-green cr-btn--sm ml-auto">${icon('check-all', 16)}<span>ส่งแล้วทั้งหมด</span></span>
           </div>
-          <div class="cr-table-wrap">
-            <table class="cr-table cr-table--att">
+          <div class="cr-table-wrap cr-table-wrap--cards">
+            <table class="cr-table cr-table--att cr-table--asg-check">
               <thead><tr><th class="w-16 text-center">เลขที่</th><th class="w-36">รหัสนักเรียน</th><th>ชื่อ-นามสกุล</th><th class="w-[230px] text-center">สถานะการส่ง</th><th class="w-44 text-center">คะแนน (เต็ม 10)</th></tr></thead>
               <tbody>
                 <tr class="is-present" data-tour="asg-grading-row">
-                  <td class="text-center cr-num">1</td>
-                  <td class="cr-num">69101</td>
-                  <td>ด.ช.กิตติพงศ์ ใจดี</td>
-                  <td>
+                  <td class="text-center cr-num cr-cell-no">1</td>
+                  <td class="cr-num cr-cell-code">69101</td>
+                  <td class="cr-cell-name">ด.ช.กิตติพงศ์ ใจดี</td>
+                  <td class="cr-cell-status">
                     <div class="cr-seg cr-seg--status">
                       <button type="button" class="cr-seg__btn cr-seg__btn--present is-on" tabindex="-1">${icon('check', 14)}<span>ส่งแล้ว</span></button>
                       <button type="button" class="cr-seg__btn cr-seg__btn--absent" tabindex="-1">${icon('x', 14)}<span>ยังไม่ส่ง</span></button>
                     </div>
                   </td>
-                  <td><input type="number" class="cr-input cr-input--score" value="9.5" readonly /></td>
+                  <td class="cr-cell-score" data-label="คะแนน (เต็ม 10)"><input type="number" class="cr-input cr-input--score" value="9.5" readonly /></td>
                 </tr>
                 <tr>
-                  <td class="text-center cr-num">2</td>
-                  <td class="cr-num">69102</td>
-                  <td>ด.ญ.ชนิกานต์ รักเรียน</td>
-                  <td>
+                  <td class="text-center cr-num cr-cell-no">2</td>
+                  <td class="cr-num cr-cell-code">69102</td>
+                  <td class="cr-cell-name">ด.ญ.ชนิกานต์ รักเรียน</td>
+                  <td class="cr-cell-status">
                     <div class="cr-seg cr-seg--status">
                       <button type="button" class="cr-seg__btn cr-seg__btn--present" tabindex="-1">${icon('check', 14)}<span>ส่งแล้ว</span></button>
                       <button type="button" class="cr-seg__btn cr-seg__btn--absent is-on" tabindex="-1">${icon('x', 14)}<span>ยังไม่ส่ง</span></button>
                     </div>
                   </td>
-                  <td><input type="number" class="cr-input cr-input--score" placeholder="ใส่คะแนน" readonly /></td>
+                  <td class="cr-cell-score" data-label="คะแนน (เต็ม 10)"><input type="number" class="cr-input cr-input--score" placeholder="ใส่คะแนน" readonly /></td>
                 </tr>
               </tbody>
             </table>

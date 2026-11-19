@@ -349,17 +349,17 @@ export function openCreateWizard(ctx: AppContext): void {
     </div>`;
 
   const manualTable = () => `
-    <div class="cr-table-wrap cr-table-wrap--scroll">
-      <table class="cr-table cr-table--edit">
+    <div class="cr-table-wrap cr-table-wrap--scroll cr-table-wrap--edit-cards">
+      <table class="cr-table cr-table--edit cr-table--edit-wizard">
         <thead><tr><th class="w-20 text-center">เลขที่</th><th class="w-40">รหัสนักเรียน</th><th>คำนำหน้า/ชื่อ-นามสกุล</th><th class="w-12 text-center"><span class="sr-only">ลบ</span></th></tr></thead>
         <tbody>
           ${rows
             .map(
               (r, i) => `<tr>
-                <td><input class="cr-input cr-input--cell text-center" data-i="${i}" data-f="number" value="${escapeHtml(r.number)}" aria-label="เลขที่แถว ${i + 1}" /></td>
-                <td><input class="cr-input cr-input--cell" data-i="${i}" data-f="code" value="${escapeHtml(r.code)}" aria-label="รหัสนักเรียนแถว ${i + 1}" /></td>
-                <td><input class="cr-input cr-input--cell" data-i="${i}" data-f="name" value="${escapeHtml(r.name)}" placeholder="เช่น ด.ช.สมชาย ใจดี" aria-label="ชื่อแถว ${i + 1}" /></td>
-                <td class="text-center"><button type="button" class="cr-icon-btn cr-icon-btn--danger" data-delrow="${i}" aria-label="ลบแถว ${i + 1}">${icon('x', 15)}</button></td>
+                <td class="cr-edit-no" data-label="เลขที่"><input class="cr-input cr-input--cell text-center" data-i="${i}" data-f="number" value="${escapeHtml(r.number)}" aria-label="เลขที่แถว ${i + 1}" /></td>
+                <td class="cr-edit-code" data-label="รหัสนักเรียน"><input class="cr-input cr-input--cell" data-i="${i}" data-f="code" value="${escapeHtml(r.code)}" aria-label="รหัสนักเรียนแถว ${i + 1}" /></td>
+                <td class="cr-edit-name" data-label="คำนำหน้า/ชื่อ-นามสกุล"><input class="cr-input cr-input--cell" data-i="${i}" data-f="name" value="${escapeHtml(r.name)}" placeholder="เช่น ด.ช.สมชาย ใจดี" aria-label="ชื่อแถว ${i + 1}" /></td>
+                <td class="text-center cr-edit-actions"><button type="button" class="cr-icon-btn cr-icon-btn--danger" data-delrow="${i}" aria-label="ลบแถว ${i + 1}">${icon('x', 15)}</button></td>
               </tr>`,
             )
             .join('')}

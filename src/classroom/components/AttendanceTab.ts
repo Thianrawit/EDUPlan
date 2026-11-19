@@ -207,17 +207,17 @@ export async function renderAttendance(
       </div>
       ${
         students.length
-          ? `<div class="cr-table-wrap">
-              <table class="cr-table cr-table--att">
+          ? `<div class="cr-table-wrap cr-table-wrap--cards">
+              <table class="cr-table cr-table--att cr-table--att-check">
                 <thead><tr><th class="w-16 text-center">เลขที่</th><th class="w-36">รหัสนักเรียน</th><th>ชื่อ-นามสกุล</th><th class="w-[310px] text-center">สถานะการมาเรียน</th></tr></thead>
                 <tbody>
                   ${students
                     .map(
                       (st) => `<tr data-row="${st.id}" class="${draft[st.id] ? `is-${draft[st.id]}` : ''}">
-                        <td class="text-center cr-num">${escapeHtml(st.number)}</td>
-                        <td class="cr-num">${escapeHtml(st.studentCode) || '<span class="cr-faint">-</span>'}</td>
-                        <td>${escapeHtml(st.fullName)}</td>
-                        <td>${segHtml(st)}</td>
+                        <td class="text-center cr-num cr-cell-no">${escapeHtml(st.number)}</td>
+                        <td class="cr-num cr-cell-code" data-empty="${st.studentCode ? '0' : '1'}">${escapeHtml(st.studentCode) || '<span class="cr-faint">-</span>'}</td>
+                        <td class="cr-cell-name">${escapeHtml(st.fullName)}</td>
+                        <td class="cr-cell-status">${segHtml(st)}</td>
                       </tr>`,
                     )
                     .join('')}

@@ -313,18 +313,18 @@ export async function renderAssignments(
       </div>
       ${
         students.length
-          ? `<div class="cr-table-wrap">
-              <table class="cr-table cr-table--att">
+          ? `<div class="cr-table-wrap cr-table-wrap--cards">
+              <table class="cr-table cr-table--att cr-table--asg-check">
                 <thead><tr><th class="w-16 text-center">เลขที่</th><th class="w-36">รหัสนักเรียน</th><th>ชื่อ-นามสกุล</th><th class="w-[230px] text-center">สถานะการส่ง</th><th class="w-44 text-center">คะแนน${a.maxScore !== null ? ` (เต็ม ${a.maxScore})` : ''}</th></tr></thead>
                 <tbody>
                   ${students
                     .map((s: Student) => {
                       const d = draft[s.id];
                       return `<tr data-row="${s.id}" class="${d.status === 'submitted' ? 'is-present' : ''}">
-                        <td class="text-center cr-num">${escapeHtml(s.number)}</td>
-                        <td class="cr-num">${escapeHtml(s.studentCode) || '<span class="cr-faint">-</span>'}</td>
-                        <td>${escapeHtml(s.fullName)}</td>
-                        <td>
+                        <td class="text-center cr-num cr-cell-no">${escapeHtml(s.number)}</td>
+                        <td class="cr-num cr-cell-code" data-empty="${s.studentCode ? '0' : '1'}">${escapeHtml(s.studentCode) || '<span class="cr-faint">-</span>'}</td>
+                        <td class="cr-cell-name">${escapeHtml(s.fullName)}</td>
+                        <td class="cr-cell-status">
                           <div class="cr-seg cr-seg--status" role="radiogroup" aria-label="สถานะการส่งของ ${escapeHtml(s.fullName)}">
                             ${(['submitted', 'missing'] as SubmissionStatus[])
                               .map(
@@ -333,7 +333,7 @@ export async function renderAssignments(
                               .join('')}
                           </div>
                         </td>
-                        <td><input type="number" inputmode="decimal" min="0" ${a.maxScore !== null ? `max="${a.maxScore}"` : ''} step="0.5" class="cr-input cr-input--score" data-score="${s.id}" value="${d.score ?? ''}" placeholder="${isViewer ? '-' : 'ใส่คะแนน'}" aria-label="คะแนนของ ${escapeHtml(s.fullName)}" ${isViewer ? 'disabled readonly' : ''} /></td>
+                        <td class="cr-cell-score" data-label="คะแนน${a.maxScore !== null ? ` (เต็ม ${a.maxScore})` : ''}"><input type="number" inputmode="decimal" min="0" ${a.maxScore !== null ? `max="${a.maxScore}"` : ''} step="0.5" class="cr-input cr-input--score" data-score="${s.id}" value="${d.score ?? ''}" placeholder="${isViewer ? '-' : 'ใส่คะแนน'}" aria-label="คะแนนของ ${escapeHtml(s.fullName)}" ${isViewer ? 'disabled readonly' : ''} /></td>
                       </tr>`;
                     })
                     .join('')}
