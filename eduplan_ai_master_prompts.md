@@ -1,233 +1,116 @@
-# PROMPT: เพิ่มระบบวิเคราะห์โครงสร้างรายวิชา (.docx) และสร้างแผนการจัดการเรียนรู้แบบชุด (Batch Lesson Plan Generator — BYOK Fast Mode Only)
+# MASTER PROMPT: อัปเกรดและแก้ไขระบบ EduPlan Class ฉบับสมบูรณ์ (Single-File Specification)
 
-## 0. ขั้นตอนสำรวจโค้ดเดิมก่อนลงมือทำ (MANDATORY INSPECTION FIRST)
-
-ก่อนสร้างหรือแก้ไขไฟล์ใดๆ ให้ตรวจสอบไฟล์ที่มีอยู่จริงในโปรเจกต์ (`index.html`, `src/main.ts`, `src/gemini.ts`, `src/types.ts`, `src/templates.ts`, `src/exporter.ts`, `package.json`) เพื่อดึงค่าและฟังก์ชันจริงมาเชื่อมต่อโดยตรง:
-
-1. ตรวจสอบชื่อ Key ใน `localStorage` ที่ใช้เก็บ:
-   - สถานะเปิด/ปิด BYOK (เช่น `byok_enabled`)
-   - Gemini API Key ของผู้ใช้ (เช่น `byok_api_key`)
-   - รายชื่อโมเดลในกลุ่ม **โหมดสร้างเร็ว (`fast` tier)** ที่ผู้ใช้ติ๊กเลือกไว้ในหน้าตั้งค่า
-   - ข้อมูลส่วนหัวเดิมที่เคยกรอกค้างไว้ (`ชื่อโรงเรียน`, `ชื่อผู้สอน`, `ตำแหน่ง`)
-2. ตรวจสอบ ID และฟังก์ชันสำหรับเปิดหน้าต่าง **ตั้งค่าระบบ & Gemini API Key** (Settings Modal) และช่อง Input ของ API Key
-3. ตรวจสอบโครงสร้าง Interface `LessonPlanData`, ฟังก์ชันสร้าง Prompt (`src/templates.ts`), ฟังก์ชันแสดงผลพรีวิว A4 (`index.html` / `src/main.ts`) และฟังก์ชันส่งออก Word (`exportDocxFromTemplate` / `exportToDocx` ใน `src/exporter.ts`)
+โปรดทำงานแบบ **Token-Saving** (กระชับ ตรงประเด็น ไม่เกริ่นนำเยิ่นเย้อ อ่านไฟล์จริงในโปรเจกต์ก่อนแก้ไขเพื่อไม่ให้ชื่อตัวแปรขัดกัน และสรุปผลการเปลี่ยนแปลงทั้งหมดลง `ReviewIDE.md` เมื่อเสร็จงาน)
 
 ---
 
-## 1. กฎเหล็กด้านขอบเขตและความปลอดภัย (STRICT BOUNDARIES)
-
-1. **ห้ามแก้ไข ลบ หรือย้ายไฟล์ข้อมูลหลักสูตรและแม่แบบเอกสาร:**
-   - ห้ามแตะต้อง `public/data/curriculum.json`
-   - ห้ามแก้ไขหรือย้าย `public/templates/Template_EDUPlan.docx`
-2. **ห้ามกระทบระบบเดิมที่ทำงานสมบูรณ์แล้ว:**
-   - ระบบสร้างแผนทีละแผน (Wizard / All-in-One), ระบบสร้างเกณฑ์รูบริก, ระบบสร้างโครงการจัดการเรียนรู้ระยะยาว, หน้า `classroom.html` (`src/classroom/*`) และ `worker/worker.js` ต้องทำงานได้ตามปกติ 100%
-3. **จำกัดสิทธิ์ BYOK + โหมดด่วนเท่านั้น:**
-   - ฟีเจอร์นี้ **ห้ามยิงผ่าน Cloudflare Worker ส่วนกลางโดยเด็ดขาด** ต้องใช้ Gemini API Key ส่วนตัว (BYOK) ของผู้ใช้ยิงตรงไปยัง Google Generative Language API และใช้เฉพาะโมเดลในกลุ่ม **โหมดด่วน (`fast` tier)** เท่านั้น
-4. **มาตรฐาน Design System:**
-   - ยึดตาม `DESIGN.md` ของโปรเจกต์เดิม: ฟอนต์ `Sarabun` สำหรับ UI และ `TH SarabunPSK` สำหรับพรีวิว A4, พื้นหลัง `#F8FAFC`, การ์ด `#FFFFFF`, ปุ่มหลัก `#2563EB` (Hover `#1D4ED8`), เส้นขอบ `#E2E8F0`, ขอบมนปุ่ม/Input `8.5px`, ขอบมนการ์ด/Modal `20px`
-
----
-
-## 2. จุดเข้าเมนูและด่านบังคับ BYOK (Home Hub Card & Strict BYOK Gatekeeper)
-
-### 2.1 เพิ่ม Card เมนูใหม่บนหน้าแรก (`index.html`)
-
-- เพิ่มการ์ดเมนูใบใหม่แยกอิสระบน Home Hub Grid (ปรับ Grid ให้จัดวางสมดุลสวยงามทั้งบน Desktop และ Mobile):
-  - **ชื่อการ์ด:** `สร้างแผนจากโครงสร้างรายวิชา (.docx)`
-  - **ป้ายกำกับ (Badge):** `BYOK • โหมดด่วน`
-  - **คำอธิบาย:** `อัปโหลดไฟล์ Word โครงสร้างรายวิชาหรือโครงการสอน ระบบจะตรวจจับแผนทั้งหมด พร้อมให้ตรวจสอบรายละเอียดและสั่งสร้างแผนครบชุดอัตโนมัติ`
-  - **ปุ่ม Action:** `[ สร้างแผนจากโครงสร้าง → ]`
-- ภายในหน้า Workspace ของฟีเจอร์นี้ ต้องมีปุ่ม `[ ⬅️ กลับหน้าหลัก ]` ที่แถบด้านบนเสมอ
-
-### 2.2 ด่านตรวจสอบ BYOK ก่อนเข้าใช้งาน (Strict BYOK Gatekeeper)
-
-- ทันทีที่ผู้ใช้คลิกการ์ด **`สร้างแผนจากโครงสร้างรายวิชา (.docx)`** ให้ตรวจสอบสถานะ BYOK ใน `localStorage` ทันที:
-  - **กรณีที่ 1 (ยังไม่เปิดสวิตช์ BYOK หรือยังไม่มี API Key):**
-    - ห้ามเปิดหน้าอัปโหลดไฟล์ ให้แสดง **Popup Modal แจ้งเตือน** ทันที:
-      - หัวข้อ: `🔒 ต้องเปิดใช้งาน Gemini API Key ส่วนตัว (BYOK)`
-      - ข้อความอธิบาย: `ฟีเจอร์วิเคราะห์โครงสร้างรายวิชาและสร้างแผนการสอนแบบชุด รองรับเฉพาะการเชื่อมต่อผ่าน Gemini API Key ส่วนตัว (BYOK) และใช้โมเดลโหมดด่วนเท่านั้น เพื่อความรวดเร็วในการสร้างหลายแผนต่อเนื่องและไม่กระทบโควต้าส่วนกลางของระบบ`
-      - ปุ่มหลัก: **`[ ⚙️ ตั้งค่าระบบ & ใส่ Gemini API Key ]`** -> เมื่อกดให้ปิด Popup นี้ เปิดหน้าต่าง Settings Modal เดิมของเว็บ และโฟกัสเคอร์เซอร์ไปที่ช่องกรอก API Key ทันที (พร้อมเลื่อนให้เห็นวิธีขอคีย์ฟรี)
-      - ปุ่มรอง: `[ ปิดหน้าต่าง ]`
-    - เมื่อผู้ใช้บันทึก API Key และเปิดสวิตช์ BYOK เรียบร้อย หากกดเข้าเมนูนี้ใหม่จะสามารถเข้าสู่หน้าอัปโหลดได้ทันที
-  - **กรณีที่ 2 (เปิด BYOK และมี Key เรียบร้อยแล้ว):**
-    - เปิดเข้าสู่หน้า Workspace **`สร้างแผนจากโครงสร้างรายวิชา (.docx)`** ทันที
+## 1. กฎเหล็กด้านขอบเขตงานและสถาปัตยกรรมเดิม (STRICT ISOLATION & COMPATIBILITY)
+1. **ห้ามแก้ไข ลบ หรือแตะต้องลอจิกของระบบหลัก `EduPlan AI` เด็ดขาด** ได้แก่ `src/main.ts`, `src/style.css`, `src/config.ts`, `src/curriculum.ts`, `src/gemini.ts`, `src/types.ts`, `src/templates.ts`, `src/exporter.ts`, `src/rubricExporter.ts`, `src/longTermExporter.ts`, `src/longTermModule.ts`, `public/data/curriculum.json`, `vite.config.ts` และ `worker/worker.js`
+2. **ขอบเขตไฟล์ที่อนุญาตให้สร้าง/แก้ไข:**
+   - ไฟล์ภายใน `src/classroom/*` และ `classroom.html`
+   - สร้างไฟล์ใหม่ `public/privacy.html`
+   - เพิ่มเฉพาะลิงก์ `<a href="./privacy.html">` ขนาดเล็กที่ส่วนท้าย (Footer) ของ `index.html` และ `classroom.html` เท่านั้น
+3. **รักษาโครงสร้างเดิมของ `src/classroom/`:**
+   - คงตาราง Dexie IndexedDB ทั้ง 7 ตารางใน `src/classroom/db.ts` (`rooms`, `students`, `attendance_sessions`, `attendance_records`, `assignments`, `assignment_submissions`, `meta`) โดยเพิ่มเฉพาะฟิลด์ที่จำเป็นแบบ Backward-Compatible
+   - คงการใช้ **SheetJS (`xlsx`)** ใน `src/classroom/excelService.ts` ตามเดิม
+   - คงการทำงานของ **InteractiveTour.ts (23 สเต็ป)** และ **Two-Tier TopBar (`TopBar.ts`)** ไม่ให้พังระหว่างรันทัวร์
+   - **ความปลอดภัย (Security):** ทุกการเขียนข้อมูลลง Google Sheets ต้องกำหนด `valueInputOption: 'RAW'` เสมอ และทุก URL ภายนอกต้องผ่านฟังก์ชันกรอง `safeHttpsUrl()`
 
 ---
 
-## 3. ระบบวิเคราะห์โครงสร้างไฟล์ Word แบบ 2 ชั้น (`src/structureParser.ts`)
-
-สร้างโมดูล `src/structureParser.ts` โดยใช้ไลบรารี `mammoth` (ตรวจสอบ `package.json` หากยังไม่มีให้ติดตั้ง `npm install mammoth`) แปลงไฟล์ `.docx` ผ่าน **`mammoth.convertToHtml({ arrayBuffer })`** (ห้ามใช้ `extractRawText` อย่างเดียว เพราะจะทำให้โครงสร้างตารางแตก):
-
-### 3.1 โครงสร้างข้อมูลกลาง (Data Schema)
-
-```typescript
-export interface ExtractedPlanItem {
-  id: string;
-  planNumber: number; // ลำดับแผน เช่น 1, 2, 3...
-  weekLabel: string; // เช่น "สัปดาห์ที่ 2-3" หรือ "สัปดาห์ที่ 1"
-  unit: string; // หน่วยการเรียนรู้
-  topic: string; // ชื่อแผน / เรื่อง
-  hours: number; // จำนวนชั่วโมง (คำนวณจากจำนวนสัปดาห์/คาบ)
-  standards: string; // มาตรฐานการเรียนรู้
-  indicators: string; // ตัวชี้วัด เช่น "ว 4.2 ม.2/4"
-  k_objective: string; // ด้านความรู้ (K)
-  p_objective: string; // ด้านทักษะกระบวนการ (P)
-  a_objective: string; // ด้านคุณลักษณะอันพึงประสงค์ (A)
-  key_concepts: string; // หัวข้อ / สาระสำคัญ
-  teaching_method: string; // วิธีจัดการเรียนรู้
-  media_resources: string; // สื่อ / แหล่งเรียนรู้
-  evaluation_method: string; // วิธีการวัดและประเมินผล
-  selected: boolean; // ค่าเริ่มต้น = true (ติ๊กเลือกทั้งหมด)
-  status: "idle" | "queued" | "generating" | "completed" | "error";
-  generatedPlan?: LessonPlanData;
-  errorMessage?: string;
-}
-
-export interface CourseStructureBatchJob {
-  jobId: string;
-  fileName: string;
-  subjectGroup: string; // กลุ่มสาระการเรียนรู้
-  courseCode: string; // รหัสวิชา เช่น "ว22101"
-  courseName: string; // ชื่อรายวิชา เช่น "ออกแบบฯ"
-  grade: string; // ระดับชั้น เช่น "ม.2"
-  totalHours: string; // จำนวนชั่วโมงรวม
-  semester: string; // ภาคเรียน
-  academicYear: string; // ปีการศึกษา
-  teacherName: string; // ชื่อผู้สอน
-  teacherPosition: string; // ตำแหน่งผู้สอน
-  schoolName: string; // ชื่อโรงเรียน
-  teachingDate: string; // วันที่สอน (ค่าเริ่มต้น "………………………………")
-  parseSource: "template-match" | "ai-fallback";
-  plans: ExtractedPlanItem[];
-}
-```
-
-### 3.2 ชั้นที่ 1: ตัวแกะฟอร์แมตมาตรฐานของเว็บ (Zero-Token DOM Parser)
-
-ใช้ `DOMParser` อ่าน HTML ที่ได้จาก `mammoth.convertToHtml()`:
-
-1. **ดึงข้อมูลส่วนหัวรายวิชา:** อ่านข้อความจากย่อหน้า/ตารางส่วนต้นของเอกสารเพื่อดึง `กลุ่มสาระการเรียนรู้`, `รายวิชา`, `รหัสวิชา`, `ชั้น`, `จำนวนชั่วโมง`, `ภาคเรียน`, `ปีการศึกษา`, `ผู้สอน` และ `ตัวชี้วัดรวม`
-2. **ตรวจจับตารางแผนการจัดการเรียนรู้รายสัปดาห์ (8 คอลัมน์):**
-   - ค้นหา `<table>` ที่มีหัวคอลัมน์ตรงกับรูปแบบของเว็บ: `สัปดาห์ที่` | `ตัวชี้วัด` | `หน่วยการเรียนรู้/เรื่อง` | `จุดประสงค์การเรียนรู้` | `หัวข้อ/สาระสำคัญ` | `วิธีจัดการเรียนรู้` | `สื่อ/แหล่งเรียนรู้` | `การวัดและการประเมินผล`
-3. **กฎการยุบรวมแผน `(ต่อ)` และการนับจำนวนแผนที่แท้จริง (สำคัญมาก):**
-   - ตรวจจับแถวคั่นชื่อแผน (`colspan` เต็มแถว หรือแถวที่ขึ้นต้นด้วยคำว่า `แผนการจัดการเรียนรู้ที่ (\d+)`)
-   - **หากเลขที่แผนซ้ำกับแถวก่อนหน้า หรือชื่อแผนลงท้ายด้วย `(ต่อ)`:** ให้ **ยุบรวมข้อมูลของสัปดาห์นั้นเข้ากับแผนหมายเลขเดียวกัน** (ไม่แยกเป็นคนละแผน):
-     - บวก `hours` เพิ่มตามจำนวนสัปดาห์ที่รวมกัน (เช่น แผนที่ 2 มีสัปดาห์ที่ 2 และสัปดาห์ที่ 3 = `2` ชั่วโมง)
-     - อัปเดต `weekLabel` เป็นช่วงสัปดาห์ (เช่น `สัปดาห์ที่ 2-3`)
-     - รวมข้อความ `topic`, `indicators` (ตัดตัวซ้ำออก), `k_objective`, `p_objective`, `a_objective`, `key_concepts`, `teaching_method`, `media_resources` และ `evaluation_method` ของทั้ง 2 สัปดาห์เข้าด้วยกันอย่างเป็นระเบียบ
-   - แยกข้อความในช่อง `จุดประสงค์การเรียนรู้` ที่ขึ้นต้นด้วย `K:`, `P:`, `A:` ลงในฟิลด์ `k_objective`, `p_objective`, `a_objective` ตามลำดับ
-   - ดึงคำอธิบายรหัสมาตรฐานการเรียนรู้จากส่วนหัวเอกสารหรือ `public/data/curriculum.json` มาเติมลงใน `standards` ให้สอดคล้องกับ `indicators` ของแต่ละแผน
-
-### 3.3 ชั้นที่ 2: ตัววิเคราะห์สำรองด้วย AI (AI Smart Extractor Fallback — Fast Mode Only)
-
-- **เงื่อนไขการทำงาน:** ทำงานเฉพาะเมื่อไฟล์ `.docx` ที่ผู้ใช้อัปโหลด **ไม่ตรงกับฟอร์แมตตาราง 8 คอลัมน์ในชั้นที่ 1** (เช่น ไฟล์โครงสร้างรายวิชาหรือกำหนดการสอนของโรงเรียนอื่น)
-- **การเตรียมข้อมูล (ลด Token สูงสุด):**
-  - แปลง `.docx` ด้วย `mammoth.convertToHtml` โดยตั้งค่าตัดรูปภาพออกทั้งหมด (`convertImage: mammoth.images.imgElement(() => Promise.resolve({ src: '' }))`)
-  - แปลงโครงสร้าง HTML Table เป็นข้อความ/ตาราง Markdown ที่กระชับ ลบ Tag HTML ที่ไม่จำเป็นออก
-- **การเรียก AI (Fast Mode Only):**
-  - ยิงคำขอไปที่โมเดล **โหมดด่วน (`fast` tier)** ของ BYOK เพียง 1 ครั้ง พร้อมแจ้งสถานะบนหน้าจอ: _"กำลังใช้ AI โหมดด่วนวิเคราะห์โครงสร้างรายวิชาจากไฟล์ของคุณ..."_
-  - บังคับตอบกลับเป็น JSON (`responseMimeType: "application/json"`) ให้สกัดข้อมูลรายวิชาและแยกออกมาเป็นรายการ `plans` ครบทุกแผน พร้อมระบุ `standards`, `indicators`, `unit`, `topic`, `hours`, `k_objective`, `p_objective`, `a_objective`, `key_concepts`, `teaching_method`, `media_resources`, และ `evaluation_method`
+## 2. ปรับ OAuth Scopes เป็น Public Mode (รองรับผู้ใช้สาธารณะไม่จำกัดจำนวน)
+แก้ไขใน `src/classroom/googleAuth.ts`:
+1. **ลบ** `'https://www.googleapis.com/auth/drive.metadata.readonly'` ออกจาก `SCOPES` (เพราะเป็น Restricted Scope ที่จำกัดผู้ใช้ 100 คนและไม่ผ่านการตรวจแอปสาธารณะ)
+2. **คงไว้เฉพาะ 5 Scopes** ที่เปิดสาธารณะได้ไม่จำกัดจำนวนผู้ใช้:
+   - `'openid'`
+   - `'email'`
+   - `'profile'`
+   - `'https://www.googleapis.com/auth/drive.file'`
+   - `'https://www.googleapis.com/auth/drive.appdata'`
+3. **เพิ่มคำแนะนำการเข้าสู่ระบบใน `TopBar.ts`:**
+   - แสดงข้อความขนาดเล็กใกล้ปุ่มเข้าสู่ระบบ Google:
+     `"💡 หากขึ้นหน้าจอ 'Google ยังไม่ได้ยืนยันแอปนี้' ให้กด ขั้นสูง (Advanced) > ไปที่ thianrawit.github.io"`
 
 ---
 
-## 4. หน้าสรุปผล ตรวจสอบรายละเอียด และเลือกแผนก่อนเจน (Summary & Inspector UI)
+## 3. ระบบจัดการห้องเรียนร่วมและสิทธิ์ 4 ระดับ (Collaborators & RBAC — Option A)
 
-เมื่อวิเคราะห์ไฟล์เสร็จสิ้น ให้แสดงหน้า **"สรุปผลการวิเคราะห์โครงสร้างรายวิชา"** ประกอบด้วย 3 ส่วน:
+### 3.1 โครงสร้างสิทธิ์ (`src/classroom/types.ts`)
+กำหนด Type:
+`export type ClassroomRole = 'owner' | 'creator' | 'assistant' | 'viewer';`
+`export interface Collaborator { email: string; role: Exclude<ClassroomRole, 'owner'>; permissionId?: string; }`
 
-### 4.1 การ์ดข้อมูลรายวิชาและค่าเริ่มต้นส่วนหัวแผน (Course & Header Defaults)
+บังคับสิทธิ์ใน UI ทุกจุดดังนี้:
+- **`owner` (เจ้าของห้อง):** ทำได้ทุกอย่าง + กดปุ่ม `👥 จัดการผู้ร่วมสอน (X/5)` + ลบห้องเรียนถาวร
+- **`creator` (ครีเอเตอร์):** แก้ไขได้ทุกอย่างเหมือนเจ้าของห้อง (รายชื่อนักเรียน, ตั้งค่าคอลัมน์, เช็คชื่อ, เช็คงาน, เพิ่ม/ลบงาน, เปิด Google Sheet ต้นฉบับ) **ยกเว้น** จัดการผู้ร่วมสอนและลบห้องเรียน (แสดงปุ่ม `🚪 ออกจากห้องร่วม` แทน)
+- **`assistant` (ครูผู้ช่วย):** เช็คชื่อการมาเรียน, เช็คการส่งงาน/ใส่คะแนน, **เพิ่ม/ลบชิ้นงานได้** และ Export Excel ได้ โดย **ซ่อนแท็บตั้งค่าห้องเรียน (`SettingsTab`) และซ่อนปุ่มเปิด Google Sheet ต้นฉบับบนหน้าเว็บ** (หลังบ้านแชร์สิทธิ์ `writer` บนไฟล์ Drive เพื่อให้ API บันทึกข้อมูลได้)
+- **`viewer` (ผู้ชม):** ดูข้อมูลเช็คชื่อ/เช็คงาน และ Export Excel ได้อย่างเดียว ปิดการคลิกแก้ไขทั้งหมด (`disabled`), ซ่อนปุ่มบันทึก, ซ่อนปุ่มเพิ่ม/ลบงาน, ซ่อน `SettingsTab` และซ่อนปุ่มเปิด Google Sheet ต้นฉบับ
 
-- แสดงป้ายบอกวิธีการวิเคราะห์:
-  - `🟢 ตรวจพบโครงสร้างมาตรฐานของเว็บ (วิเคราะห์ทันที 0 Token)` หรือ `🤖 วิเคราะห์โครงสร้างจากไฟล์ภายนอกด้วย AI (โหมดด่วน)`
-- แสดงสรุปจำนวน: **`พบทั้งหมด X แผนการจัดการเรียนรู้`** (เลือกไว้ `Y / X` แผน)
-- ช่องกรอก/แก้ไขข้อมูลส่วนหัวที่จะนำไปใส่ลงในทุกแผน (ดึงค่าเริ่มต้นจากไฟล์ + `localStorage` ของฟอร์มสร้างแผนเดิม):
-  - `รหัสวิชา` & `ชื่อรายวิชา` & `ระดับชั้น` & `ภาคเรียน/ปีการศึกษา`
-  - `ชื่อโรงเรียน`: ดึงค่าที่เคยบันทึกไว้ใน `localStorage` (ถ้าไม่มีให้ใส่ `"……………………………………………"`)
-  - `ชื่อผู้สอน`: ดึงจากไฟล์ `.docx` หากไม่มีให้ดึงจาก `localStorage`
-  - `ตำแหน่ง`: ดึงจาก `localStorage` (ค่าเริ่มต้น `"ครู"`)
-  - `วันที่สอน`: ค่าเริ่มต้น `"………………………………"` (เปิดให้แก้ไขได้)
-
-### 4.2 แถบเครื่องมือควบคุมการเลือกและสั่งสร้าง (Batch Action Toolbar)
-
-- ปุ่มเลือกด่วน:
-  - `[ ☑️ เลือกทั้งหมด ]`
-  - `[ ☐ ไม่เลือกทั้งหมด ]`
-  - `[ 🎯 ข้ามแผนปฐมนิเทศ / สอบ ]` (สำหรับติ๊กเอาแผนที่ไม่มีตัวชี้วัดหรือแผนสอบออกอย่างรวดเร็ว)
-- ปุ่มคำสั่งหลัก:
-  - **`[ 🚀 สั่งเจนแผนที่เลือกทั้งหมด (Y แผน) • โหมดด่วน ]`**
-  - ปุ่ม **`[ 📦 ดาวน์โหลดทั้งหมดเป็นไฟล์ .zip ]`** (เปิดให้กดได้เมื่อมีแผนที่สถานะ `completed` อย่างน้อย 1 แผน)
-
-### 4.3 รายการแผนทั้งหมด & หน้าต่างดู/แก้ไขรายละเอียด (Plan List & Inspector Modal)
-
-- แสดงรายการแผน `แผนที่ 1` ถึง `แผนที่ N` เป็นการ์ดเรียงตามลำดับ:
-  - **Checkbox** ด้านซ้าย (ค่าเริ่มต้น = `checked` ทุกแผน)
-  - แสดงเลขแผน, ชื่อเรื่อง, หน่วยการเรียนรู้, สัปดาห์/จำนวนชั่วโมง, ตัวชี้วัด และป้ายสถานะ (`รอสร้าง`, `อยู่ในคิว`, `กำลังสร้าง...`, `✅ สร้างเสร็จแล้ว`, `❌ ผิดพลาด`)
-  - **ปุ่ม `[ 👁️ ดู / แก้ไขรายละเอียด ]`:**
-    - เปิด Drawer หรือ Modal แสดงรายละเอียดทั้งหมดของแผนนั้นแบบครบทุกช่อง พร้อมเปิดให้ครูพิมพ์แก้ไขข้อมูลตั้งต้นได้ก่อนกดเจน:
-      1. `มาตรฐานการเรียนรู้` และ `ตัวชี้วัด`
-      2. `หน่วยการเรียนรู้`, `ชื่อเรื่อง`, `จำนวนชั่วโมง`
-      3. `จุดประสงค์ด้านความรู้ (K)`
-      4. `จุดประสงค์ด้านทักษะกระบวนการ (P)`
-      5. `จุดประสงค์ด้านคุณลักษณะอันพึงประสงค์ (A)`
-      6. `หัวข้อ / สาระสำคัญ`
-      7. `วิธีจัดการเรียนรู้`
-      8. `สื่อ / แหล่งเรียนรู้`
-      9. `วิธีการวัดและประเมินผล`
-    - มีปุ่ม `[ บันทึกการแก้ไข ]` และ `[ บันทึก & เจนแผนนี้ทันที ]`
-  - **ปุ่ม `[ ⚡ เจนแผนนี้ ]`** (เมื่อยังไม่เสร็จ): สั่งเจนเฉพาะแผนนี้ 1 แผนทันทีด้วยโหมดด่วน
-  - **เมื่อแผนนั้นเจนเสร็จแล้ว (`status === 'completed'`):**
-    - เปลี่ยนปุ่มเป็น **`[ 📄 พรีวิว A4 / แก้ไข ]`** (เปิดในหน้าพรีวิวกระดาษ A4 มาตรฐาน 11 หัวข้อของเว็บ พร้อมปุ่มคัดลอกแยกหัวข้อ/คัดลอกทั้งแผน) และ **`[ 💾 โหลด .docx ]`** (ดาวน์โหลดไฟล์ Word ของแผนนั้นทันที)
+### 3.2 การแชร์และรับห้องเรียนร่วมภายใต้สิทธิ์ `drive.file` (`googleSheets.ts`, `ClassroomHub.ts`, `CollaboratorModal.ts`)
+1. **Normalize อีเมลทั้งหมดด้วย `.toLowerCase().trim()`** ทั้งตอนบันทึกและตอนตรวจสอบสิทธิ์
+2. **บันทึกสิทธิ์ลง Public File `properties` ของ Google Drive** (ห้ามใช้ `appProperties` เพราะคนถูกเชิญมองไม่เห็น) แยกเก็บเป็นรายสล็อตเพื่อไม่ให้เกิน 124 bytes/key:
+   - `eduplan_type`: `'classroom'`
+   - `eduplan_room_name`: ชื่อห้องเรียน (ไม่เกิน 40 ตัวอักษร)
+   - `eduplan_subject`: ชื่อวิชา (ไม่เกิน 40 ตัวอักษร)
+   - `collab_1` ถึง `collab_5`: เก็บในรูปแบบ `"email@domain.com|role"`
+3. **การเชิญ / เปลี่ยนสิทธิ์ / ลบผู้ร่วมสอน (`CollaboratorModal.ts` — สูงสุด 5 คนต่อห้อง, เฉพาะห้องที่ซิงก์ Sheet แล้ว):**
+   - เชิญใหม่: ยิง `POST /drive/v3/files/{fileId}/permissions?sendNotificationEmail=false` (`reader` สำหรับ `viewer`, `writer` สำหรับ `assistant` และ `creator`) แล้ว `PATCH /drive/v3/files/{fileId}` อัปเดต `properties`
+   - เปลี่ยนสิทธิ์: `PATCH /drive/v3/files/{fileId}/permissions/{permissionId}` และอัปเดต `properties`
+   - ลบออก: หา `permissionId` ของอีเมลนั้นแล้วสั่ง `DELETE /drive/v3/files/{fileId}/permissions/{permissionId}` พร้อมล้างค่าสล็อต `collab_X` ใน `properties`
+   - แสดงข้อความแนะนำใน Modal ว่า: *"แจ้งผู้ถูกเชิญให้ล็อกอินแล้วกดปุ่ม '📥 รับห้องเรียนที่ถูกแชร์' เพื่อเลือกไฟล์ของห้องนี้เข้าสู่หน้าหลัก"*
+4. **การรับห้องเรียนที่ถูกแชร์ (`📥 รับห้องเรียนที่ถูกแชร์` via Google Picker):**
+   - เพิ่มปุ่ม **`📥 รับห้องเรียนที่ถูกแชร์`** ข้างปุ่ม `+ เพิ่มห้องเรียน` ใน `ClassroomHub.ts` (แสดงเมื่อล็อกอิน Google แล้ว)
+   - เมื่อคลิก ให้เปิด Google Picker (`google.picker.ViewId.SPREADSHEETS`) เพื่อให้ผู้ใช้จิ้มเลือกไฟล์จากแท็บ "แชร์กับฉัน" (สิทธิ์ `drive.file` จะปลดล็อกให้อ่าน/เขียนไฟล์นั้นทันที)
+   - อ่าน `properties` เพื่อระบุ `role` และ `ownerEmail` บันทึกลงตาราง `rooms` ใน Dexie และเก็บรายการ `sharedRoomIds` ไว้ใน `appDataFolder` (`eduplan_shared_rooms.json`) เพื่อให้เปิดครั้งถัดไปโหลด Card ห้องเรียนร่วมขึ้นหน้าหลักอัตโนมัติ (หากไฟล์ถูกลบหรือโดนถอนสิทธิ์ ให้ลบออกจากรายการอัตโนมัติ)
+   - บน Card ห้องเรียนร่วมใน `ClassroomHub.ts`: แสดงป้ายสัญลักษณ์ตามสิทธิ์ (`👁️ ผู้ชม`, `📋 ครูผู้ช่วย`, `🛠️ ครีเอเตอร์`), แสดง **`เจ้าของห้อง: {ownerEmail}`**, และมีปุ่ม **`🚪 ออกจากห้องร่วม`** (กดแล้วสั่ง `DELETE` permission ของตัวเองออกจากไฟล์)
 
 ---
 
-## 5. ระบบคิวเบื้องหลัง + แถบสถานะลอยตัว (`src/batchQueue.ts`)
-
-สร้างโมดูล `src/batchQueue.ts` เพื่อจัดการคิวสร้างแผนหลายฉบับอย่างเสถียร:
-
-1. **Sequential Queue + Rate-Limit Pacing (กันติด HTTP 429):**
-   - ประมวลผล **ทีละ 1 แผนตามลำดับคิว** โดยบังคับใช้ **API Key ส่วนตัว (BYOK) + โมเดลโหมดด่วน (`fast` tier)** เท่านั้น
-   - ส่งข้อมูลที่สกัดได้ของแต่ละแผน (`unit`, `topic`, `hours`, `standards`, `indicators`, `k_objective`, `p_objective`, `a_objective`, `key_concepts`, `teaching_method`, `media_resources`, `evaluation_method` และข้อมูลส่วนหัววิชา/โรงเรียน/ผู้สอน) เข้าสู่ Prompt Builder เดิมของเว็บ เพื่อสร้างแผนฉบับสมบูรณ์ 11 หัวข้อ (`LessonPlanData`)
-   - หน่วงเวลาพัก **2.5 วินาที** ระหว่างแผนแต่ละฉบับเพื่อไม่ให้เกิน Rate Limit (RPM) ของ Google AI Studio Free Tier
-   - **Auto-Resume เมื่อเจอ HTTP 429:** หากเกิด Rate Limit ให้คิวหยุดรอ 15 วินาที (แสดงเวลานับถอยหลังบนแถบสถานะ) แล้วทำแผนเดิมต่ออัตโนมัติโดยไม่ยกเลิกคิวที่เหลือ
-   - เพิ่ม `window.addEventListener('beforeunload', ...)` แจ้งเตือนหากผู้ใช้พยายามปิดหรือรีเฟรชแท็บขณะที่คิวยังทำงานไม่เสร็จ
-
-2. **บันทึกผลลง IndexedDB ทันทีที่เสร็จทีละแผน:**
-   - ใช้ IndexedDB เก็บสถานะงาน Batch และผลลัพธ์ `LessonPlanData` ของแต่ละแผนลงในเครื่องทันทีที่แผนนั้นเจนเสร็จ เพื่อไม่ให้ข้อมูลหายและให้ผู้ใช้กดพรีวิว/ดาวน์โหลดแผนที่เสร็จก่อนได้ทันทีโดยไม่ต้องรอครบทุกแผน
-
-3. **ย่อหน้าต่างได้ + แถบสถานะลอยตัว (Persistent Floating Status Bar):**
-   - ขณะที่คิวกำลังทำงาน ผู้ใช้สามารถกดปุ่ม **`[ ย่อหน้าต่าง / ทำงานอื่นรอ ]`** หรือปิด Modal รายการแผนเพื่อกลับไปใช้งานหน้าอื่นของเว็บได้ตามปกติ โดยระบบจะไม่ยกเลิกการทำงานเบื้องหลัง
-   - แสดง **Floating Status Bar** ติดไว้มุมขวาล่างของหน้าจอ (แสดงผลข้ามทุกหน้าใน `index.html`):
-     - **ขณะกำลังเจน:** แสดงไอคอนหมุน, Progress Bar, ข้อความ `⏳ กำลังสร้างแผนจากโครงสร้าง (เสร็จแล้ว X/Y แผน) • กำลังทำ: แผนที่ Z...`, ปุ่ม `[ เปิดดูคิว ]` และปุ่ม `[ ⏹️ หยุดคิว ]`
-     - **เมื่อเจนครบทั้งหมด:** เปลี่ยนพื้นหลังเป็นสีเขียวอ่อน/ขอบเขียว แสดงข้อความ `✅ สร้างแผนครบทั้งหมด X แผนเรียบร้อยแล้ว` พร้อมปุ่ม `[ ดูผลลัพธ์ / โหลด ZIP ]` และปุ่ม `[ ✕ ]` ปิดแถบแจ้งเตือน
+## 4. ระบบอัปเดตอัตโนมัติแบบ Real-time (`src/classroom/realtimeSync.ts`)
+1. **Smart Polling ทุก 12 วินาที:** ทำงานเฉพาะตอนเปิด Workspace ห้องเรียนที่ซิงก์ Google Sheet และหน้าแท็บเบราว์เซอร์เปิดอยู่ (`!document.hidden`)
+2. ยิง `GET https://www.googleapis.com/drive/v3/files/{fileId}?fields=modifiedTime,lastModifyingUser(emailAddress,displayName)` เทียบกับ `lastKnownModifiedTime`:
+   - **กรณี `!isDirty` (ไม่ได้กำลังติ๊กเช็คชื่อหรือพิมพ์คะแนนค้างไว้):** ดึงข้อมูลล่าสุดจาก Sheet มาอัปเดตหน้าจอทันที พร้อมเด้ง Toast: `"🔄 ข้อมูลถูกอัปเดตล่าสุดโดย {lastModifyingUser.emailAddress}"`
+   - **กรณี `isDirty` (กำลังแก้ไขค้างไว้ยังไม่กด Save):** ห้ามรีเฟรชทับข้อมูลที่กำลังทำอยู่ แต่แสดงแถบแจ้งเตือนด้านบนสุดของตาราง: `"⚠️ มีการบันทึกข้อมูลใหม่จาก {lastModifyingUser.emailAddress} [คลิกเพื่อโหลดข้อมูลล่าสุด]"`
+3. **Partial Batch Update:** ทุกครั้งที่บันทึกการมาเรียนหรือบันทึกการส่งงาน ให้ใช้ `POST https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values:batchUpdate` (`valueInputOption: 'RAW'`) อัปเดตเฉพาะคอลัมน์ของวันที่หรือชิ้นงานนั้นๆ ห้ามเขียนทับทั้งแผ่นงาน
 
 ---
 
-## 6. ระบบส่งออกไฟล์รวม `.zip` (`src/batchExporter.ts`)
-
-สร้างฟังก์ชัน `exportBatchPlansAsZip(job: CourseStructureBatchJob)` โดยใช้ `PizZip` และ `file-saver` ที่มีอยู่ในโปรเจกต์:
-
-1. ดึงแผนทั้งหมดที่มีสถานะ `completed` และมีข้อมูล `generatedPlan`
-2. วนลูปสร้างไฟล์ `.docx` ของแต่ละแผนโดยใช้ Logic เดียวกับ `src/exporter.ts` (รองรับ `Template_EDUPlan.docx` หรือ `exportToDocx` ตามระบบหลักปัจจุบันของโปรเจกต์ เพื่อให้ฟอนต์ TH SarabunPSK ขอบกระดาษ 1 นิ้ว และตาราง 11 หัวข้อตรงปก 100%) และรับผลลัพธ์เป็น `Blob` / `ArrayBuffer`
-3. เพิ่มไฟล์ย่อยแต่ละฉบับลงใน `PizZip` พร้อมตั้งชื่อไฟล์อย่างเป็นระเบียบ เช่น `แผนที่_01_${sanitizeFilename(plan.topic)}.docx`, `แผนที่_02_${sanitizeFilename(plan.topic)}.docx`
-4. บีบอัดรวมเป็นไฟล์เดียวและสั่งดาวน์โหลดชื่อ:
-   `${job.courseCode || 'แผนการจัดการเรียนรู้'}_${sanitizeFilename(job.courseName)}_รวม_${completedPlans.length}_แผน.zip`
+## 5. แก้ไขบั๊ก 1: ระบบเช็คงานเขียนข้อมูลข้ามไปคอลัมน์ X, Y แทนที่จะเริ่มที่คอลัมน์ F, G
+แก้ไขใน `src/classroom/googleSheets.ts`, `SettingsTab.ts` และ `AssignmentsTab.ts`:
+1. **สาเหตุที่ต้องแก้:** ห้ามใช้ `values.append` และห้ามใช้ `headerRow.length` (ซึ่งชีตเปล่ามีความยาว 26 ช่อง A–Z) ในการหาคอลัมน์ถัดไป รวมถึงต้องแปลงค่าคอลัมน์เริ่มต้นเป็น `Number` เสมอ (ป้องกัน String Concatenation เช่น `"5" + 1 = "51"`)
+2. **ฟังก์ชัน `findNextAvailableAssignmentColumn(sheetRows, headerRowIndex, startColIndex)`:**
+   - แปลง `startColIndex = Number(startColIndex)` เสมอ (เช่น คอลัมน์ `F` = index `5`)
+   - วนลูปตรวจสอบตั้งแต่ `col = startColIndex` เป็นต้นไป หาคอลัมน์แรกที่เซลล์หัวตาราง (`sheetRows[headerRowIndex][col]`) เป็นค่าว่าง (`""` หรือ `undefined`)
+   - หาก 1 งานใช้ 2 คอลัมน์ (เช่น F และ G) ให้ตรวจสอบว่าทั้ง `col` และ `col + 1` ว่างทั้งคู่ แล้วเขียนลงพิกัด A1-Notation ตรงๆ ด้วย `values:batchUpdate` (`valueInputOption: 'RAW'`)
+   - ตรวจสอบให้แน่ใจว่าค่า `assignmentStartCol` ที่ตั้งไว้ใน `SettingsTab.ts` ถูกบันทึกและดึงมาใช้จริงทุกครั้งใน `AssignmentsTab.ts`
 
 ---
 
-## 7. โครงสร้างไฟล์และขั้นตอนการส่งมอบงาน
+## 6. แก้ไขบั๊ก 2: เพิ่ม/แก้ไขรายชื่อนักเรียนในหน้าเว็บแล้วไม่ซิงก์ลง Google Sheet
+แก้ไขใน `src/classroom/googleSheets.ts` และ `src/classroom/components/SettingsTab.ts`:
+1. **สร้างฟังก์ชัน `syncStudentsToGoogleSheet(room, students)` ใน `googleSheets.ts`:**
+   - เมื่อห้องเรียนมีการเชื่อมต่อ Google Sheet (`room.sheetId` มีค่า) และผู้ใช้มีสิทธิ์ `owner` หรือ `creator`:
+   - อัปเดตรายชื่อนักเรียน (`เลขที่`, `รหัสนักเรียน`, `ชื่อ-นามสกุล`) ลงใน Google Sheet เริ่มตั้งแต่แถวถัดจาก `headerRowIndex` โดยใช้ `valueInputOption: 'RAW'`
+   - **กรณีโครงสร้างมาตรฐาน 3 แท็บ (`รายชื่อนักเรียน`, `การมาเรียน`, `การส่งงาน`):** ให้อัปเดตคอลัมน์ `A:C` (`เลขที่`, `รหัสนักเรียน`, `ชื่อ-สกุล`) ให้ตรงกันทั้ง 3 แท็บ เพื่อไม่ให้แถวนักเรียนใหม่เยื้องกับข้อมูลเช็คชื่อและการส่งงาน
+   - หากจำนวนนักเรียนใหม่น้อยกว่าจำนวนแถวเดิมใน Sheet (กรณีลบนักเรียนออก) ให้สั่ง `values:clear` เคลียร์เศษแถวเก่าด้านล่างออกด้วย
+2. **เชื่อมต่อใน `SettingsTab.ts`:**
+   - ทุกครั้งที่ครูกดเพิ่มแถวนักเรียน แก้ไขชื่อ/เลขที่ เรียงลำดับใหม่ หรือกดบันทึกใน Master Roster และห้องนั้นเปิดซิงก์ Google Sheet อยู่ ให้เรียก `syncStudentsToGoogleSheet()` ทันที พร้อมอัปเดต `lastKnownModifiedTime` และแสดง Toast แจ้งเตือนว่าบันทึกและซิงก์ลง Google Sheet สำเร็จ
 
-```text
-src/
-├── structureParser.ts        # Dual-Mode Parser (Zero-Token DOM Table Parser + AI Fast Fallback)
-├── batchQueue.ts             # Sequential Background Queue, Rate-Limit Pacing, IndexedDB & Floating Bar
-├── batchExporter.ts          # Batch .zip Exporter ด้วย PizZip + Docxtemplater / Exporter Engine
-└── batchStructureView.ts     # UI Workspace หน้าอัปโหลด, หน้าสรุป, Inspector/Editor Modal & A4 Preview Bridge
-```
+---
 
-### Checklist การตรวจสอบก่อนส่งมอบ:
+## 7. สร้างหน้านโยบายความเป็นส่วนตัว (`public/privacy.html`) และลิงก์ Footer
+1. **สร้างไฟล์ `public/privacy.html`** (เพื่อให้ Vite คัดลอกไปที่ `./privacy.html` ตอน Build บน GitHub Pages) คุมธีม `EDUPlan` (ฟอนต์ `Sarabun`, พื้นหลัง `#F8FAFC`, การ์ด `#FFFFFF`, ขอบ `#E2E8F0`, ปุ่ม/ลิงก์ `#2563EB`) มีเนื้อหาครบทั้ง **ภาษาไทยและภาษาอังกฤษ**:
+   - **ชื่อแอปและเว็บไซต์:** `EDUPlan` (`https://thianrawit.github.io/EDUPlan/`)
+   - **ข้อมูล Google User Data ที่เข้าถึง (ตรงตาม 5 Scopes จริง):** `openid`, `email`, `profile`, `drive.file`, `drive.appdata`
+   - **การจัดเก็บข้อมูล (Zero-Server Storage):** ข้อมูลรายชื่อนักเรียน การเช็คชื่อ และคะแนนทั้งหมดถูกเก็บเฉพาะในเบราว์เซอร์ของผู้ใช้ (IndexedDB) และ Google Drive / Google Sheets ส่วนตัวของผู้ใช้เท่านั้น ไม่มีการจัดเก็บ ขาย หรือส่งต่อข้อมูลส่วนบุคคลให้บุคคลที่สาม
+   - **Google API Services User Data Policy:** ระบุข้อความมาตรฐาน *"EDUPlan's use and transfer to any other app of information received from Google APIs will adhere to Google API Services User Data Policy, including the Limited Use requirements."*
+   - **การเพิกถอนสิทธิ์:** แจ้งวิธีถอดสิทธิ์แอปผ่าน `https://myaccount.google.com/permissions` และแสดงอีเมลติดต่อผู้พัฒนา
+2. **เพิ่มลิงก์ใน Footer ของ `index.html` และ `classroom.html`:**
+   - เพิ่ม `<a href="./privacy.html">นโยบายความเป็นส่วนตัว (Privacy Policy)</a>` ไว้ที่ส่วนท้ายสุดของทั้ง 2 หน้า
 
-1. รัน `npm run build` ต้องผ่าน 100% ปราศจาก TypeScript Error
-2. ทดสอบเมื่อปิด BYOK หรือไม่มี API Key: กดการ์ดเมนูต้องขึ้น Popup บังคับไปหน้าตั้งค่าระบบ & ใส่ Gemini API Key ทันที
-3. ทดสอบอัปโหลดไฟล์โครงสร้างรูปแบบของเว็บ (ที่มีการแบ่งแผน `(ต่อ)` ข้ามสัปดาห์): ระบบต้องยุบรวมเป็นจำนวนแผนที่ถูกต้องโดยไม่เสีย Token และแสดงรายละเอียด K, P, A, สื่อ, การวัดผล ครบถ้วนในหน้า Inspector
-4. ทดสอบอัปโหลดไฟล์โครงสร้างรูปแบบอื่น: ระบบต้องใช้ AI โหมดด่วนวิเคราะห์ออกมาเป็นรายการแผนได้ถูกต้อง
-5. ทดสอบกดเจนทั้งหมด -> ย่อหน้าต่างดู Floating Status Bar -> เปิดดู A4 Preview รายแผน -> และกดดาวน์โหลดเป็นไฟล์ `.zip` ได้สมบูรณ์
-6. สรุปการทำงานทั้งหมดลงในไฟล์ `ReviewIDE.MD`
+---
+
+## 8. การตรวจสอบและส่งมอบงาน
+1. ตรวจสอบว่าไฟล์ระบบหลักของ `EduPlan AI` (`src/main.ts`, `public/data/curriculum.json`, `worker/worker.js` ฯลฯ) ไม่ถูกแก้ไข
+2. รัน `npm run build` ต้องผ่าน 100% ปราศจาก TypeScript Error และมีไฟล์ `dist/privacy.html` สร้างออกมาเรียบร้อย
+3. บันทึกสรุปไฟล์ที่สร้าง/แก้ไขและวิธีทดสอบทั้งหมดลงใน `ReviewIDE.md`

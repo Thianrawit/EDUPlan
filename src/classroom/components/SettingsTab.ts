@@ -2,7 +2,7 @@
 // EDUPLAN Classroom — แท็บตั้งค่าตารางและคอลัมน์
 // (Sub-menu + Collapsible Sections + Auto-Renumber + Merged Cells & Edge Stroke Preview)
 // ============================================================
-import { getAssignments, getSessions, getStudents, markAssignmentSync, markSessionSync, replaceStudents, saveClassroom } from '../db';
+import { getAssignments, getClassroom, getSessions, getStudents, markAssignmentSync, markSessionSync, replaceStudents, saveClassroom } from '../db';
 import { readWorkbook } from '../excelService';
 import { getAuthState } from '../googleAuth';
 import {
@@ -13,6 +13,7 @@ import {
   loadSheetGrid,
   pickSpreadsheet,
   pushClassroom,
+  pushCustomRosterToSheet,
   quoteSheet,
   scheduleAppDataSync,
   syncClassroomDriveProperties,
@@ -122,7 +123,7 @@ export async function renderSettings(
   let asgCollapsed = false;
   let focusedField: string | null = null; // เช่น 'attendance.startCol', 'attendance.keyCol', 'attendance.headerRow'
 
-  const auth = getAuthState();
+  const getAuth = () => getAuthState();
   const markDirty = () => ctx.setDirty(rosterDirty || mapDirty);
 
   // ---------- Sub-navigation bar ----------
@@ -201,7 +202,7 @@ export async function renderSettings(
             <input type="file" accept=".xlsx" class="sr-only" data-roster-file />
           </label>
           ${
-            room.sheet && !room.sheet.standard && auth.signedIn
+            room.sheet && !room.sheet.standard && getAuth().signedIn
               ? `<button type="button" class="cr-btn cr-btn--outline cr-btn--sm" data-roster-sheet>
                   ${icon('spreadsheet', 15)}
                   <span>ดึงจาก Google Sheet</span>
@@ -560,6 +561,7 @@ export async function renderSettings(
   };
 
   const googleHtml = () => {
+    const auth = getAuth();
     const sheet = room.sheet;
     let body: string;
     if (!auth.configured) {
@@ -662,7 +664,7 @@ export async function renderSettings(
   };
 
   const loadMeta = async () => {
-    if (!room.sheet || room.sheet.standard || !auth.signedIn) return;
+    if (!room.sheet || room.sheet.standard || !getAuth().signedIn) return;
     meta = null;
     metaError = '';
     renderSection('google');
@@ -850,26 +852,52 @@ export async function renderSettings(
     if (dup.length && !(await confirmDialog(`พบรหัสนักเรียนซ้ำ ${new Set(dup).size} รหัส — การจับคู่แถวใน Google Sheet อาจผิดพลาด บันทึกต่อหรือไม่?`, { confirmText: 'บันทึกต่อ' }))) return;
     await withBusy(btn, 'กำลังบันทึก...', async () => {
       const now = Date.now();
+      const prevStudents = await getStudents(room.id);
       const list: Student[] = clean.map((r, i) => ({ id: r.id, classroomId: room.id, number: r.number.trim() || String(i + 1), studentCode: r.code.trim(), fullName: r.name.trim(), order: i, updatedAt: now }));
       await replaceStudents(room.id, list);
       roster = list.map((s) => ({ id: s.id, number: s.number, code: s.studentCode, name: s.fullName }));
+
+      const freshRoom = (await getClassroom(room.id)) ?? room;
+      room = JSON.parse(JSON.stringify(freshRoom)) as Classroom;
+      const authNow = getAuth();
+
+      if (freshRoom.syncMode === 'google' && freshRoom.sheet) {
+        if (authNow.signedIn) {
+          if (freshRoom.sheet.standard) {
+            try {
+              await pushClassroom(freshRoom.id);
+              toast(`บันทึกรายชื่อ ${list.length} คน และอัปเดต Google Sheet แล้ว`, 'success');
+            } catch (err) {
+              toast(`บันทึกในเครื่องแล้ว แต่อัปเดต Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'error');
+            }
+          } else {
+            try {
+              const res = await pushCustomRosterToSheet(freshRoom.id, prevStudents);
+              valuesCache.clear();
+              const parts: string[] = [];
+              if (res?.added) parts.push(`เพิ่มใหม่ ${res.added} คน`);
+              if (res?.updated) parts.push(`อัปเดต ${res.updated} คน`);
+              const detail = parts.length ? ` (${parts.join(', ')})` : '';
+              toast(`บันทึกรายชื่อ ${list.length} คน และอัปเดตลง Google Sheet แล้ว${detail}`, 'success');
+            } catch (err) {
+              await syncSpreadsheetSyncMeta(freshRoom).catch(() => undefined);
+              toast(`บันทึกในเครื่องแล้ว แต่อัปเดตรายชื่อลง Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'error');
+            }
+          }
+          scheduleAppDataSync();
+        } else {
+          toast(`บันทึกรายชื่อ ${list.length} คนในเครื่องแล้ว — เข้าสู่ระบบ Google เพื่อส่งขึ้น Google Sheet`, 'warn');
+        }
+      } else {
+        toast(`บันทึกรายชื่อ ${list.length} คนแล้ว`, 'success');
+      }
+
       rosterDirty = false;
       markDirty();
       render();
-      if (room.syncMode === 'google' && room.sheet && auth.signedIn) {
-        if (room.sheet.standard) {
-          try {
-            await pushClassroom(room.id);
-            toast(`บันทึกรายชื่อ ${list.length} คน และอัปเดต Google Sheet แล้ว`, 'success');
-          } catch (err) {
-            toast(`บันทึกในเครื่องแล้ว แต่อัปเดต Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'error');
-          }
-        } else {
-          await syncSpreadsheetSyncMeta(room).catch(() => undefined);
-          toast(`บันทึกรายชื่อ ${list.length} คนแล้ว`, 'success');
-        }
-        scheduleAppDataSync();
-      } else toast(`บันทึกรายชื่อ ${list.length} คนแล้ว`, 'success');
+      if (freshRoom.syncMode === 'google' && freshRoom.sheet && !freshRoom.sheet.standard && authNow.signedIn) {
+        void loadMeta();
+      }
     });
   }
 
@@ -936,7 +964,7 @@ export async function renderSettings(
       mapDirty = false;
       markDirty();
       scheduleAppDataSync();
-      if (room.syncMode === 'google' && auth.signedIn) {
+      if (room.syncMode === 'google' && getAuth().signedIn) {
         await syncClassroomDriveProperties(room).catch((err) =>
           console.warn('[EduPlan Class] syncClassroomDriveProperties on saveMapping:', err),
         );

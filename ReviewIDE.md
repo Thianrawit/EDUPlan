@@ -1,3 +1,34 @@
+# บันทึกการแก้ไขบั๊กเพิ่มรายชื่อนักเรียนไม่ซิงก์ลง Google Sheet (ReviewIDE.md)
+**EduPlan Class — Custom Google Sheet Roster Sync & Auth State Fix**
+- วันที่และเวลา: 2026-11-21 16:09 (UTC+7)
+
+## สาเหตุของปัญหา
+1. **ห้องที่เชื่อม Google Sheet ไฟล์กำหนดเอง (`!room.sheet.standard`) ไม่เคยเขียนรายชื่อนักเรียนลงเซลล์ใน Sheet**: ใน `SettingsTab.ts` (`saveRoster()`) โค้ดเดิมสั่ง `pushClassroom()` เฉพาะห้องไฟล์มาตรฐาน (`room.sheet.standard === true`) ส่วนไฟล์กำหนดเองยิงแค่ `syncSpreadsheetSyncMeta()` (ซ่อนใน developerMetadata) จึงไม่เพิ่มแถวนักเรียนใหม่ลง Google Sheet และทำให้เวลาเช็คชื่อ/เช็คงานเกิด Unmatched
+2. **`auth` snapshot เก่าใน `SettingsTab.ts`**: ตัวแปร `const auth = getAuthState()` ถูกอ่านครั้งเดียวตอนเปิดแท็บ ทำให้หากสถานะล็อกอินเปลี่ยนทีหลัง การตรวจ `auth.signedIn` อาจคลาดเคลื่อน
+3. **ลำดับการเคลียร์ `dirty` และ `render()` ใน `saveRoster()`**: เดิมเรียก `rosterDirty = false; markDirty(); render();` ก่อน `await push...` ทำให้ปุ่มหยุดหมุนก่อนส่งข้อมูลเสร็จ และเสี่ยงโดน `realtimeSync` โพลล์แทรกระหว่างกำลังซิงก์
+
+## สรุปผลการแก้ไข (เฉพาะ `src/classroom/*`)
+1. **`src/classroom/googleSheets.ts`**:
+   - เพิ่ม `getFormulaValues()` (อ่านค่าแบบ `FORMULA`) เพื่อป้องกันการเขียนทับเซลล์ที่มีสูตร (`=...`)
+   - เพิ่ม `splitThaiFullName()` รองรับการแยก `คำนำหน้า / ชื่อ / นามสกุล` กรณี Google Sheet แยกคอลัมน์ (`nameMode === 'split'`)
+   - เพิ่ม `pushCustomRosterToSheet(classroomId, previousStudents)` และ `syncStudentsToCustomTab()`:
+     - อัปเดตแท็บรายชื่อหลัก (`roster`) ก่อน เพื่อให้สูตรดึงชื่อในแท็บอื่นทำงานอัตโนมัติ จากนั้นจึงตรวจสอบแท็บ `attendance` และ `assignments` ที่แยกแท็บ (หากมีสูตรดึงชื่อแล้วจะไม่เขียนทับ)
+     - จับคู่นักเรียนเดิมจากรหัส/ชื่อ (รวมถึงข้อมูลก่อนแก้จาก `previousStudents`) เพื่ออัปเดตเซลล์ที่เปลี่ยนโดยข้ามเซลล์ที่เป็นสูตร
+     - เพิ่มแถวนักเรียนใหม่ต่อท้ายนักเรียนคนสุดท้าย: หากมีแถวสรุป/สูตร (เช่น แถว "รวม") ขวางอยู่ จะใช้ `insertDimension` แทรกแถวใหม่ (`inheritFromBefore: true`) เพื่อไม่ทับแถวสรุปและไม่ทำลายสูตร ส่วนแถว template ที่รันเลขที่รอไว้ล่วงหน้าจะเขียนเติมให้โดยไม่ทับสูตรเลขที่
+     - ใช้ `valueInputOption: 'RAW'` และรองรับไฟล์ที่ `room.sheet.roster === null` (เดาหัวตารางด้วย `guessHeaderRow`/`guessMapping` หรือเขียนหัวตารางมาตรฐานกรณีชีตว่าง)
+   - อัปเดต `pushClassroom()` ให้เรียก `pushCustomRosterToSheet()` สำหรับไฟล์กำหนดเองด้วยเมื่อกดซิงก์
+2. **`src/classroom/components/SettingsTab.ts`**:
+   - เปลี่ยนมาใช้ `getAuthState()` สดผ่าน `getAuth()` ทุกจุด (`rosterHtml`, `googleHtml`, `loadMeta`, `saveRoster`, `saveMapping`)
+   - ปรับ `saveRoster()` ให้อ่าน `prevStudents` และ `freshRoom` ล่าสุด, เรียก `pushCustomRosterToSheet()` สำหรับไฟล์กำหนดเองพร้อมแจ้งจำนวนที่เพิ่ม/อัปเดตหรือข้อผิดพลาดชัดเจน, ล้าง `valuesCache` แล้วโหลดพรีวิวใหม่, และย้าย `rosterDirty = false; markDirty(); render();` ไปทำหลังซิงก์เสร็จ
+
+## การตรวจสอบ (Verification)
+- Isolation Check: แก้ไขเฉพาะ 2 ไฟล์ใน `src/classroom/*` (`googleSheets.ts`, `SettingsTab.ts`) ไม่แตะระบบหลัก EduPlan AI
+- Build Check: `npm.cmd run build` (`tsc && vite build`) ผ่าน 100% (Exit Code 0)
+- Zero Emoji Check: `0` รายการในไฟล์ที่แก้ไข
+- Unit Assertions: ทดสอบ `splitThaiFullName()` ครบทุกเคสคำนำหน้าไทยและชื่อเดี่ยวผ่านทั้งหมด
+
+---
+
 # บันทึกการปรับ Mobile Responsive สำหรับ EduPlan Class (ReviewIDE.md)
 **EduPlan Class — Mobile Full-Line Name Readability & Responsive Layout**
 - วันที่และเวลา: 2026-11-19 14:08 (UTC+7)

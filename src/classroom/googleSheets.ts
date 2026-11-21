@@ -43,6 +43,7 @@ import {
   type Classroom,
   type ClassroomRole,
   type Collaborator,
+  type ColumnMapping,
   type ParsedStudent,
   type RowKeyType,
   type SessionHeaderMode,
@@ -294,6 +295,13 @@ export async function syncSpreadsheetSyncMeta(c: Classroom, existingMeta?: Sprea
 export async function getValues(spreadsheetId: string, range: string): Promise<string[][]> {
   const j = await gfetch<{ values?: unknown[][] }>(
     `${SHEETS}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueRenderOption=FORMATTED_VALUE`,
+  );
+  return (j.values ?? []).map((r) => r.map((c) => String(c ?? '')));
+}
+
+async function getFormulaValues(spreadsheetId: string, range: string): Promise<string[][]> {
+  const j = await gfetch<{ values?: unknown[][] }>(
+    `${SHEETS}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueRenderOption=FORMULA`,
   );
   return (j.values ?? []).map((r) => r.map((c) => String(c ?? '')));
 }
@@ -725,6 +733,481 @@ async function pushCustomColumn(
   return { written: rows.size, unmatched: unmatched.map((s) => s.fullName), column: colsPerItem === 2 ? `${L}–${L2}` : L };
 }
 
+// ---------------- Custom Sheet Roster Sync (เพิ่ม/อัปเดตรายชื่อลง Google Sheet ไฟล์กำหนดเอง) ----------------
+const THAI_NAME_PREFIXES = [
+  'ว่าที่ร้อยตรีหญิง',
+  'ว่าที่ร้อยตรี',
+  'ว่าที่ ร.ต. หญิง',
+  'ว่าที่ ร.ต.',
+  'เด็กชาย',
+  'เด็กหญิง',
+  'นางสาว',
+  'ด.ช.',
+  'ด.ญ.',
+  'น.ส.',
+  'นาย',
+  'นาง',
+  'Miss',
+  'Mrs.',
+  'Mr.',
+  'Ms.',
+];
+
+export function splitThaiFullName(fullName: string): { prefix: string; first: string; last: string } {
+  let rest = fullName.replace(/\s+/g, ' ').trim();
+  let prefix = '';
+  for (const p of THAI_NAME_PREFIXES) {
+    if (rest.toLowerCase().startsWith(p.toLowerCase())) {
+      const after = rest.slice(p.length);
+      if (after === '' || /^[\sก-๛A-Za-z]/.test(after)) {
+        prefix = rest.slice(0, p.length);
+        rest = after.trim();
+        break;
+      }
+    }
+  }
+  const parts = rest.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    return { prefix, first: parts[0] ?? '', last: '' };
+  }
+  return { prefix, first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+function isFormulaCell(formulaGrid: string[][], rowIdx: number, colIdx: number): boolean {
+  const raw = (formulaGrid[rowIdx]?.[colIdx] ?? '').trim();
+  return raw.startsWith('=');
+}
+
+function isSummaryLikeText(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  return /^(รวม|สรุป|เฉลี่ย|ค่าเฉลี่ย|หมายเหตุ|ลงชื่อ|ผู้สอน|total|sum|average|summary|note)/i.test(t);
+}
+
+function readMappedNameFromRow(row: string[], m: ColumnMapping): string {
+  const get = (c: number | null) => (c === null ? '' : (row[c] ?? '').trim());
+  if (m.nameMode === 'single') return get(m.name).replace(/\s+/g, ' ').trim();
+  const first = `${get(m.prefix)}${get(m.first)}`;
+  return [first, get(m.last)].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function isRowBlockedForAppend(
+  formattedGrid: string[][],
+  formulaGrid: string[][],
+  rowIdx: number,
+  m: ColumnMapping,
+): boolean {
+  const fRow = formattedGrid[rowIdx] ?? [];
+  const eqRow = formulaGrid[rowIdx] ?? [];
+  const len = Math.max(fRow.length, eqRow.length);
+  if (len === 0) return false;
+
+  // หากแถวนี้มีชื่อหรือรหัสนักเรียนอยู่แล้ว ถือว่ามีข้อมูลขวางอยู่
+  if (readMappedNameFromRow(fRow, m) !== '') return true;
+  if (m.code !== null && (fRow[m.code] ?? '').trim() !== '') return true;
+
+  for (let c = 0; c < len; c++) {
+    const val = (fRow[c] ?? '').trim();
+    const raw = (eqRow[c] ?? '').trim();
+    if (!val && !raw) continue;
+    // ยอมให้เขียนลงแถว template ที่มีเพียงเลขที่ (เช่น 31, 32 หรือสูตร =A31+1) รอไว้
+    if (m.number !== null && c === m.number) {
+      if (isSummaryLikeText(val)) return true;
+      if (/^=(SUM|AVERAGE|COUNT|COUNTA|SUBTOTAL)\(/i.test(raw)) return true;
+      continue;
+    }
+    // คอลัมน์อื่นมีข้อความหรือสูตรใดๆ (เช่น แถว "รวม", หมายเหตุ, สูตรสรุป) -> ต้องแทรกแถวใหม่
+    return true;
+  }
+  return false;
+}
+
+function buildStudentColumnEntries(
+  student: Student,
+  m: ColumnMapping,
+  extraKey?: { keyCol: number; keyType: RowKeyType },
+): { col: number; value: string }[] {
+  const byCol = new Map<number, string>();
+  const setCol = (col: number | null, val: string) => {
+    if (col === null || col === undefined || col < 0) return;
+    byCol.set(col, val);
+  };
+  setCol(m.number, student.number);
+  setCol(m.code, student.studentCode);
+  if (m.nameMode === 'single') {
+    setCol(m.name, student.fullName);
+  } else {
+    const sp = splitThaiFullName(student.fullName);
+    if (m.prefix !== null) {
+      setCol(m.prefix, sp.prefix);
+      setCol(m.first, sp.first);
+      setCol(m.last, sp.last);
+    } else {
+      setCol(m.first, `${sp.prefix}${sp.first}`);
+      setCol(m.last, sp.last);
+    }
+  }
+  if (extraKey && extraKey.keyType !== 'order' && extraKey.keyCol >= 0 && !byCol.has(extraKey.keyCol)) {
+    if (extraKey.keyType === 'code') byCol.set(extraKey.keyCol, student.studentCode);
+    else if (extraKey.keyType === 'number') byCol.set(extraKey.keyCol, student.number);
+    else if (extraKey.keyType === 'name') byCol.set(extraKey.keyCol, student.fullName);
+  }
+  return Array.from(byCol.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([col, value]) => ({ col, value }));
+}
+
+function resolveTabColumnMapping(
+  grid: string[][],
+  sheetInfo: SheetInfo,
+  explicitMapping: ColumnMapping | null,
+  fallbackHeaderRow1Based?: number,
+  extraKey?: { keyCol: number; keyType: RowKeyType },
+): { mapping: ColumnMapping; writeDefaultHeader: boolean } {
+  if (explicitMapping) {
+    const hasAnyCol =
+      explicitMapping.number !== null ||
+      explicitMapping.code !== null ||
+      (explicitMapping.nameMode === 'single' ? explicitMapping.name !== null : explicitMapping.first !== null || explicitMapping.last !== null);
+    if (hasAnyCol) return { mapping: explicitMapping, writeDefaultHeader: false };
+  }
+  const hasGridContent = grid.some((r) => r.some((v) => (v ?? '').trim() !== ''));
+  if (!hasGridContent) {
+    return {
+      mapping: { headerRow: 0, number: 0, code: 1, nameMode: 'single', name: 2, prefix: null, first: null, last: null },
+      writeDefaultHeader: true,
+    };
+  }
+  const headerRow0 =
+    fallbackHeaderRow1Based !== undefined
+      ? Math.max(0, Math.floor(Number(fallbackHeaderRow1Based) || 1) - 1)
+      : guessHeaderRow(grid, sheetInfo.merges);
+  const guessed = guessMapping(grid, headerRow0, sheetInfo.merges);
+  if (extraKey && extraKey.keyType !== 'order') {
+    if (extraKey.keyType === 'code' && guessed.code === null) guessed.code = extraKey.keyCol;
+    else if (extraKey.keyType === 'number' && guessed.number === null) guessed.number = extraKey.keyCol;
+    else if (extraKey.keyType === 'name' && guessed.nameMode === 'single' && guessed.name === null) guessed.name = extraKey.keyCol;
+  }
+  return { mapping: guessed, writeDefaultHeader: false };
+}
+
+interface CustomTabRosterResult {
+  added: number;
+  updated: number;
+}
+
+async function syncStudentsToCustomTab(
+  spreadsheetId: string,
+  sheetInfo: SheetInfo,
+  students: Student[],
+  previousStudents: Student[] | undefined,
+  explicitMapping: ColumnMapping | null,
+  fallbackHeaderRow1Based?: number,
+  extraKey?: { keyCol: number; keyType: RowKeyType },
+  allowUpdateExisting = true,
+): Promise<CustomTabRosterResult> {
+  const q = quoteSheet(sheetInfo.title);
+  const [formattedGrid, formulaGrid] = await Promise.all([
+    getValues(spreadsheetId, q).catch(() => [] as string[][]),
+    getFormulaValues(spreadsheetId, q).catch(() => [] as string[][]),
+  ]);
+
+  const { mapping, writeDefaultHeader } = resolveTabColumnMapping(
+    formattedGrid,
+    sheetInfo,
+    explicitMapping,
+    fallbackHeaderRow1Based,
+    extraKey,
+  );
+
+  const hasWritableCol =
+    mapping.number !== null ||
+    mapping.code !== null ||
+    (mapping.nameMode === 'single' ? mapping.name !== null : mapping.first !== null || mapping.last !== null) ||
+    (extraKey && extraKey.keyType !== 'order');
+  if (!hasWritableCol) return { added: 0, updated: 0 };
+
+  const firstDataRow = Math.max(0, mapping.headerRow + 1);
+  const rowByCode = new Map<string, number>();
+  const rowByName = new Map<string, number>();
+  const rowByExtraKey = new Map<string, number>();
+  let lastScannedStudentRow = -1;
+
+  for (let r = firstDataRow; r < formattedGrid.length; r++) {
+    const row = formattedGrid[r] ?? [];
+    const codeVal = mapping.code !== null ? (row[mapping.code] ?? '').trim() : '';
+    const nameVal = readMappedNameFromRow(row, mapping);
+    const extraVal = extraKey && extraKey.keyType !== 'order' ? (row[extraKey.keyCol] ?? '').trim() : '';
+    const numVal = mapping.number !== null ? (row[mapping.number] ?? '').trim() : '';
+
+    if (isSummaryLikeText(nameVal) || isSummaryLikeText(codeVal) || isSummaryLikeText(numVal)) {
+      continue;
+    }
+    const nameFormula =
+      mapping.nameMode === 'single'
+        ? mapping.name !== null && isFormulaCell(formulaGrid, r, mapping.name)
+        : (mapping.first !== null && isFormulaCell(formulaGrid, r, mapping.first)) ||
+          (mapping.last !== null && isFormulaCell(formulaGrid, r, mapping.last));
+    if (nameFormula && /^=(SUM|AVERAGE|COUNT|COUNTA|SUBTOTAL)\(/i.test((formulaGrid[r]?.[mapping.name ?? mapping.first ?? 0] ?? '').trim())) {
+      continue;
+    }
+
+    const codeKey = normalizeKey(codeVal);
+    const nameKey = normalizeKey(nameVal);
+    const extraKeyVal = normalizeKey(extraVal);
+    if (codeKey && !rowByCode.has(codeKey)) rowByCode.set(codeKey, r);
+    if (nameKey && !rowByName.has(nameKey)) rowByName.set(nameKey, r);
+    if (extraKeyVal && !rowByExtraKey.has(extraKeyVal)) rowByExtraKey.set(extraKeyVal, r);
+    if (nameKey || codeKey || (extraKey && extraKey.keyType !== 'order' && extraKeyVal)) {
+      lastScannedStudentRow = r;
+    }
+  }
+
+  const prevById = new Map((previousStudents ?? []).map((s) => [s.id, s]));
+  const usedRows = new Set<number>();
+  const matchedRows: number[] = [];
+  const existingUpdates: { range: string; values: (string | number)[][] }[] = [];
+  const toAppend: Student[] = [];
+  let updatedStudentsCount = 0;
+
+  const findRowForStudent = (st: Student): number | undefined => {
+    const tryCode = (c: string) => {
+      const k = normalizeKey(c);
+      const r = k ? rowByCode.get(k) : undefined;
+      return r !== undefined && !usedRows.has(r) ? r : undefined;
+    };
+    const tryName = (n: string) => {
+      const k = normalizeKey(n);
+      const r = k ? rowByName.get(k) : undefined;
+      return r !== undefined && !usedRows.has(r) ? r : undefined;
+    };
+    const tryExtra = (s: Student) => {
+      if (!extraKey || extraKey.keyType === 'order') return undefined;
+      const k = studentKey(s, extraKey.keyType);
+      const r = k ? rowByExtraKey.get(k) : undefined;
+      return r !== undefined && !usedRows.has(r) ? r : undefined;
+    };
+
+    const byCurrent = tryCode(st.studentCode) ?? tryName(st.fullName) ?? tryExtra(st);
+    if (byCurrent !== undefined) return byCurrent;
+
+    const prev = prevById.get(st.id);
+    if (prev) {
+      return tryCode(prev.studentCode) ?? tryName(prev.fullName) ?? tryExtra(prev);
+    }
+    return undefined;
+  };
+
+  for (const st of students) {
+    const rIdx = findRowForStudent(st);
+    if (rIdx !== undefined) {
+      usedRows.add(rIdx);
+      matchedRows.push(rIdx);
+      if (allowUpdateExisting) {
+        const entries = buildStudentColumnEntries(st, mapping, extraKey);
+        let rowChanged = false;
+        for (const { col, value } of entries) {
+          if (isFormulaCell(formulaGrid, rIdx, col)) continue;
+          const currentVal = (formattedGrid[rIdx]?.[col] ?? '').trim();
+          if (currentVal !== value.trim()) {
+            existingUpdates.push({ range: `${q}!${colToLetter(col)}${rIdx + 1}`, values: [[value]] });
+            rowChanged = true;
+          }
+        }
+        if (rowChanged) updatedStudentsCount++;
+      }
+    } else {
+      toAppend.push(st);
+    }
+  }
+
+  const dataToWrite: { range: string; values: (string | number)[][] }[] = [];
+  if (writeDefaultHeader) {
+    dataToWrite.push({ range: `${q}!A1:C1`, values: [['เลขที่', 'รหัสนักเรียน', 'ชื่อ-สกุล']] });
+  }
+  dataToWrite.push(...existingUpdates);
+
+  if (toAppend.length > 0) {
+    const lastRow = Math.max(lastScannedStudentRow, ...matchedRows);
+    let insertRowIdx = lastRow >= firstDataRow ? lastRow + 1 : firstDataRow;
+
+    // ตรวจสอบว่าแถวที่จะเขียนนักเรียนใหม่มีข้อมูล/สูตร (เช่น แถว "รวม") ขวางอยู่หรือไม่
+    let blocked = false;
+    for (let i = 0; i < toAppend.length; i++) {
+      if (isRowBlockedForAppend(formattedGrid, formulaGrid, insertRowIdx + i, mapping)) {
+        blocked = true;
+        break;
+      }
+    }
+
+    let insertedRows = false;
+    if (blocked) {
+      try {
+        await batchUpdate(spreadsheetId, [
+          {
+            insertDimension: {
+              range: {
+                sheetId: sheetInfo.sheetId,
+                dimension: 'ROWS',
+                startIndex: insertRowIdx,
+                endIndex: insertRowIdx + toAppend.length,
+              },
+              inheritFromBefore: insertRowIdx > firstDataRow,
+            },
+          },
+        ]);
+        insertedRows = true;
+      } catch {
+        // กรณีแทรกแถวไม่ได้ (เช่น มี Merged Cell ครอบช่วงนั้น) ให้ขยับไปเขียนที่แถวว่างถัดไปแทน
+        while (isRowBlockedForAppend(formattedGrid, formulaGrid, insertRowIdx, mapping)) {
+          insertRowIdx++;
+        }
+      }
+    }
+
+    const maxNeededCol = Math.max(
+      0,
+      ...[
+        mapping.number,
+        mapping.code,
+        mapping.name,
+        mapping.prefix,
+        mapping.first,
+        mapping.last,
+        extraKey?.keyType !== 'order' ? extraKey?.keyCol ?? null : null,
+      ].filter((x): x is number => x !== null && x !== undefined),
+    );
+    await ensureGrid(spreadsheetId, sheetInfo.title, insertRowIdx + toAppend.length + 2, maxNeededCol + 1);
+
+    toAppend.forEach((st, idx) => {
+      const targetRow0Based = insertRowIdx + idx;
+      const targetRow1Based = targetRow0Based + 1;
+      const entries = buildStudentColumnEntries(st, mapping, extraKey);
+      for (const { col, value } of entries) {
+        // หากเขียนลงแถว template ที่มีสูตรรันเลขที่อยู่แล้ว ให้ข้ามคอลัมน์ที่เป็นสูตรเพื่อไม่ให้สูตรพัง
+        if (!insertedRows && isFormulaCell(formulaGrid, targetRow0Based, col)) continue;
+        dataToWrite.push({
+          range: `${q}!${colToLetter(col)}${targetRow1Based}`,
+          values: [[value]],
+        });
+      }
+    });
+  }
+
+  if (dataToWrite.length > 0) {
+    await batchUpdateValues(spreadsheetId, dataToWrite);
+  }
+
+  return { added: toAppend.length, updated: updatedStudentsCount };
+}
+
+export interface RosterSyncResult {
+  added: number;
+  updated: number;
+  syncedTabs: string[];
+}
+
+/** เพิ่ม/อัปเดตรายชื่อนักเรียนจากเว็บลงไฟล์ Google Sheet แบบกำหนดเอง (ไม่ทับสูตรเดิมและไม่ลบแถวอื่น) */
+export async function pushCustomRosterToSheet(
+  classroomId: string,
+  previousStudents?: Student[],
+): Promise<RosterSyncResult | null> {
+  const c = await getClassroom(classroomId);
+  if (!canSync(c) || c.role === 'viewer') return null;
+  if (c.sheet.standard) {
+    await pushStandardAll(c);
+    await syncSpreadsheetSyncMeta(c).catch((err) => console.warn('[EduPlan Class] syncSpreadsheetSyncMeta warning:', err));
+    await syncClassroomDriveProperties(c).catch(() => undefined);
+    return { added: 0, updated: 0, syncedTabs: [STANDARD_TABS.roster, STANDARD_TABS.attendance, STANDARD_TABS.assignments] };
+  }
+
+  const students = await getStudents(c.id);
+  const spreadsheetId = c.sheet.spreadsheetId;
+  const meta = await getSpreadsheetMeta(spreadsheetId);
+  const sheetByTitle = new Map(meta.sheets.map((s) => [s.title, s]));
+
+  const processedTabs = new Set<string>();
+  const syncedTabs: string[] = [];
+  let maxAdded = 0;
+  let maxUpdated = 0;
+
+  // 1) แท็บรายชื่อหลัก (roster) — ทำก่อนเสมอเพื่อให้สูตรในแท็บอื่นดึงค่าไปก่อนที่เราจะตรวจแท็บอื่น
+  const primaryTitle =
+    (c.sheet.roster?.sheetTitle && sheetByTitle.has(c.sheet.roster.sheetTitle) ? c.sheet.roster.sheetTitle : null) ??
+    (c.sheet.attendance?.sheetTitle && sheetByTitle.has(c.sheet.attendance.sheetTitle) ? c.sheet.attendance.sheetTitle : null) ??
+    (c.sheet.assignments?.sheetTitle && sheetByTitle.has(c.sheet.assignments.sheetTitle) ? c.sheet.assignments.sheetTitle : null) ??
+    meta.sheets[0]?.title ??
+    null;
+
+  if (primaryTitle) {
+    const sh = sheetByTitle.get(primaryTitle);
+    if (sh) {
+      const explicitMap = c.sheet.roster?.sheetTitle === primaryTitle ? c.sheet.roster.mapping : null;
+      const fallbackHdr =
+        c.sheet.attendance?.sheetTitle === primaryTitle
+          ? c.sheet.attendance.headerRow
+          : c.sheet.assignments?.sheetTitle === primaryTitle
+            ? c.sheet.assignments.headerRow
+            : undefined;
+      const extraKey =
+        c.sheet.attendance?.sheetTitle === primaryTitle
+          ? { keyCol: parseColumnIndex(c.sheet.attendance.keyCol, 0), keyType: c.sheet.attendance.keyType }
+          : c.sheet.assignments?.sheetTitle === primaryTitle
+            ? { keyCol: parseColumnIndex(c.sheet.assignments.keyCol, 0), keyType: c.sheet.assignments.keyType }
+            : undefined;
+
+      const res = await syncStudentsToCustomTab(spreadsheetId, sh, students, previousStudents, explicitMap, fallbackHdr, extraKey, true);
+      processedTabs.add(primaryTitle);
+      if (res.added > 0 || res.updated > 0) syncedTabs.push(primaryTitle);
+      maxAdded = Math.max(maxAdded, res.added);
+      maxUpdated = Math.max(maxUpdated, res.updated);
+    }
+  }
+
+  // 2) แท็บการมาเรียนและการส่งงาน (กรณีแยกคนละแท็บกับแท็บรายชื่อ และไม่ได้ใช้สูตรดึงชื่อมาเอง)
+  const secondarySpecs: { title: string; headerRow: number; keyCol: number; keyType: RowKeyType }[] = [];
+  if (c.sheet.attendance?.sheetTitle) {
+    secondarySpecs.push({
+      title: c.sheet.attendance.sheetTitle,
+      headerRow: c.sheet.attendance.headerRow,
+      keyCol: parseColumnIndex(c.sheet.attendance.keyCol, 0),
+      keyType: c.sheet.attendance.keyType,
+    });
+  }
+  if (c.sheet.assignments?.sheetTitle) {
+    secondarySpecs.push({
+      title: c.sheet.assignments.sheetTitle,
+      headerRow: c.sheet.assignments.headerRow,
+      keyCol: parseColumnIndex(c.sheet.assignments.keyCol, 0),
+      keyType: c.sheet.assignments.keyType,
+    });
+  }
+
+  for (const spec of secondarySpecs) {
+    if (processedTabs.has(spec.title)) continue;
+    const sh = sheetByTitle.get(spec.title);
+    if (!sh) continue;
+    const res = await syncStudentsToCustomTab(
+      spreadsheetId,
+      sh,
+      students,
+      previousStudents,
+      null,
+      spec.headerRow,
+      { keyCol: spec.keyCol, keyType: spec.keyType },
+      true,
+    );
+    processedTabs.add(spec.title);
+    if (res.added > 0 || res.updated > 0) syncedTabs.push(spec.title);
+    maxAdded = Math.max(maxAdded, res.added);
+    maxUpdated = Math.max(maxUpdated, res.updated);
+  }
+
+  await syncSpreadsheetSyncMeta(c).catch((err) => console.warn('[EduPlan Class] syncSpreadsheetSyncMeta warning:', err));
+  await syncClassroomDriveProperties(c).catch(() => undefined);
+  return { added: maxAdded, updated: maxUpdated, syncedTabs };
+}
+
 // ---------------- Public push API ----------------
 function canSync(c: Classroom | undefined): c is Classroom & { sheet: SheetMapping } {
   return !!c && c.syncMode === 'google' && !!c.sheet && getAuthState().signedIn;
@@ -769,7 +1252,7 @@ export async function pushAssignment(
   return res;
 }
 
-/** ไฟล์มาตรฐาน: อัปเดตรายชื่อและคอลัมน์ / ไฟล์เดิม: เขียนเฉพาะรายการที่ยังไม่ซิงก์ */
+/** ไฟล์มาตรฐาน: อัปเดตรายชื่อและคอลัมน์ / ไฟล์เดิม: ซิงก์รายชื่อใหม่และเขียนรายการที่ยังไม่ซิงก์ */
 export async function pushClassroom(classroomId: string): Promise<void> {
   const c = await getClassroom(classroomId);
   if (!canSync(c)) return;
@@ -779,6 +1262,7 @@ export async function pushClassroom(classroomId: string): Promise<void> {
     await syncClassroomDriveProperties(c).catch(() => undefined);
     return;
   }
+  await pushCustomRosterToSheet(c.id).catch((err) => console.warn('[EduPlan Class] pushCustomRosterToSheet warning:', err));
   if (c.sheet.attendance) {
     for (const s of sortSessions(await getSessions(c.id))) {
       if (!s.sheetSynced) await pushCustomColumn(c, 'attendance', s, sessionHeaderText(s), (sid) => attendanceCell(s, sid));
