@@ -1,3 +1,44 @@
+# บันทึกการแก้ไขบั๊ก Sheet-to-Web Live Pull (ReviewIDE.md)
+**EduPlan Class — Google Sheet Source-of-Truth Live Sync (`pullRoomFromGoogleSheet`)**
+- วันที่และเวลา: 2026-11-21 16:49 (UTC+7)
+
+## สาเหตุเดิมที่แก้ไขใน Google Sheet แล้วหน้าเว็บไม่อัปเดตตาม
+1. `pullClassroomFromSheet()` เดิมยึด `syncMeta.students` (ข้อมูลเก่าใน `developerMetadata`) แทนเซลล์จริงใน Google Sheet และใช้ `restrictCustomCols` ตัดคอลัมน์วันที่/ชิ้นงานที่ครูเพิ่มใหม่ใน Sheet ทิ้ง
+2. `main.ts` เปิด auto-pull ตอนคลิกเข้าห้องเรียนเฉพาะห้องร่วม (`!isOwner`) เจ้าของห้องไม่เคยดึงค่าสดจาก Sheet ตอนเปิดห้อง
+3. `realtimeSync.ts` ไม่มี `visibilitychange` / `window focus` listener สำหรับตรวจการเปลี่ยนแปลงทันทีเมื่อสลับแท็บกลับมาจาก Google Sheet
+4. ปุ่ม `"ซิงก์ข้อมูล"` ใน `TopBar.ts` เรียก `fullSync()` ซึ่งสั่ง `pushClassroom()` เอาข้อมูลเก่าใน Dexie ขึ้นไปเขียนทับ Google Sheet แทนที่จะดึงข้อมูลล่าสุดจาก Sheet ก่อน
+
+## สรุปผลการแก้ไข (เฉพาะ `src/classroom/*`)
+1. **`src/classroom/types.ts`**:
+   - เพิ่มฟิลด์ `lastKnownModifiedTime?: string` ใน `Classroom` (ควบคู่ `lastModifiedTime`)
+2. **`src/classroom/db.ts`**:
+   - ปรับ `replaceClassroomCache()` ให้บันทึก `tombstones` สำหรับรายการที่ถูกลบออกจาก Sheet และล้าง `tombstones` ของรายการที่ยังมีอยู่/เพิ่มใหม่ ภายใน `db.transaction('rw', ...)` เดียวกัน เพื่อไม่ให้ `appDataFolder` snapshot เก่านำข้อมูลที่ลบไปแล้วกลับมาทับ
+3. **`src/classroom/googleSheets.ts`**:
+   - เพิ่ม `batchGetValues()` ยิง `GET .../values:batchGet?ranges=...&valueRenderOption=FORMATTED_VALUE` ดึงทุกแท็บที่ห้องผูกไว้ในครั้งเดียว
+   - ปรับ `pullRoomFromGoogleSheet(room)` (คง alias `pullClassroomFromSheet`) ให้ยึดเซลล์จริงใน Google Sheet เป็น Source of Truth ทั้ง `students` (อัปเดตชื่อที่แก้/เพิ่มเด็กใหม่/ลบแถวที่ถูกลบ โดยจับคู่ ID เดิมจาก `studentCode` หรือ `fullName`), `sessions` (รองรับค่าพิมพ์มือ `มา`/`✓`/`1`, `สาย`/`มาสาย`, `ขาด`/`ลา`/`ลา/ขาด`/`0` ฯลฯ และกรองคอลัมน์สรุปท้ายชีต) และ `assignments` (รองรับตัวเลขคะแนน, `ส่งแล้ว`/`✓`, `ยังไม่ส่ง`/ว่าง ทั้งโหมด 1 และ 2 คอลัมน์)
+   - อัปเดต `lastKnownModifiedTime` จาก Drive `modifiedTime` และอัปเดต `eduplan_classrooms.json` ใน `appDataFolder` ให้ตรงกับค่าล่าสุดจาก Sheet
+   - ปรับ `fullSync()` ให้เช็ค `modifiedTime` และ pull จาก Sheet ก่อนเสมอเมื่อ Sheet ใหม่กว่าหรือไม่มีรายการค้างรอซิงก์ ห้ามเอาข้อมูลเก่าใน Dexie ไปเขียนทับ Sheet
+4. **`src/classroom/realtimeSync.ts`**:
+   - เพิ่ม `visibilitychange` และ `window.focus` listener พร้อม Debounce 3 วินาที (`FOCUS_DEBOUNCE_MS = 3_000`) และถอด listener ใน `stopRealtimeSync()`
+   - เช็ค Drive `modifiedTime` เทียบ `lastKnownModifiedTime`: หาก `!isDirty` ดึง `pullRoomFromGoogleSheet()` + re-render ทันทีพร้อม Toast `"อัปเดตข้อมูลล่าสุดจาก Google Sheet แล้ว"` / หาก `isDirty` แสดงแบนเนอร์ `"ข้อมูลใน Google Sheet ถูกแก้ไขใหม่"` พร้อมปุ่ม `"คลิกเพื่อดึงข้อมูลล่าสุด"`
+   - เพิ่ม `notifyRealtimeModifiedTime()` เพื่อซิงก์ค่าเวลาที่เพิ่งดึงล่าสุดจาก `main.ts`
+5. **`src/classroom/main.ts` & `src/classroom/components/TopBar.ts`**:
+   - **คลิกเข้าห้องเรียน:** ดึง `pullRoomFromGoogleSheet()` สำหรับทุกห้องที่เชื่อม Google Sheet (ทั้งเจ้าของห้องและผู้ร่วมสอน) แสดงป้าย `"กำลังดึงข้อมูลล่าสุดจาก Sheet..."` แล้ว re-render แท็บปัจจุบันทันทีหลังโหลดเสร็จ (และเคลียร์ cooldown เมื่อออกจากห้อง)
+   - **ปุ่ม "ซิงก์ข้อมูล":** เพิ่ม `setTopBarSyncHandler()` ให้ขณะอยู่ในห้องเรียนที่เชื่อม Google Sheet เรียก `pullRoomFromGoogleSheet(room)` และ re-render หน้าเว็บทันที โดยไม่เอาข้อมูลเก่าใน Dexie ขึ้นไปทับ Sheet
+
+## การตรวจสอบ (Verification & Security Audit)
+- Isolation Check: แก้ไขเฉพาะ 6 ไฟล์ใน `src/classroom/*` (`types.ts`, `db.ts`, `googleSheets.ts`, `realtimeSync.ts`, `main.ts`, `components/TopBar.ts`) ไม่แตะระบบหลัก EduPlan AI
+- TypeScript & Build Check: `npx.cmd tsc --noEmit` และ `npm.cmd run build` (`tsc && vite build`) ผ่าน 100% (Exit Code 0) + `node --check worker/worker.js` ผ่าน
+- Security Audit (Static Scan):
+  - Secrets / API Keys / `.env` tracked: `0` รายการ
+  - `eval` / `new Function` / `document.write` / `javascript:` URI / `target="_blank"` ขาด `noopener`: `0` รายการ
+  - Formula Injection Protection: คง `valueInputOption: 'RAW'` (0 `USER_ENTERED`)
+  - XSS & URL Sanitization: คง `escapeHtml()` (รวมถึง `byWho` ใน `realtimeSync.ts`) และ `safeHttpsUrl()` ครบถ้วน
+  - OAuth Scopes: คง 5 Public-Safe Scopes (`openid`, `email`, `profile`, `drive.file`, `drive.appdata`)
+- Dependency Audit (`npm.cmd audit --omit=dev`): 0 Critical, 0 High, 2 Moderate (transitive `uuid <11.1.1` ใต้ `exceljs` — ไม่สั่ง `--force` เพราะจะ downgrade `exceljs` เป็น breaking change)
+
+---
+
 # บันทึกการแก้ไขบั๊กเพิ่มรายชื่อนักเรียนไม่ซิงก์ลง Google Sheet (ReviewIDE.md)
 **EduPlan Class — Custom Google Sheet Roster Sync & Auth State Fix**
 - วันที่และเวลา: 2026-11-21 16:09 (UTC+7)

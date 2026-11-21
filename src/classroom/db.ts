@@ -158,15 +158,48 @@ export async function markAssignmentSync(id: string, patch: Partial<Pick<Assignm
   await db.assignments.update(id, patch);
 }
 
-/** บันทึกแคชโครงสร้างและข้อมูลล่าสุดจาก Google Sheet ลง Dexie (ใช้กับห้องร่วม & Real-time Sync) */
+/** บันทึกแคชโครงสร้างและข้อมูลล่าสุดจาก Google Sheet ลง Dexie ภายใน transaction เดียว (Source of Truth = Sheet) */
 export async function replaceClassroomCache(
   room: Classroom,
   students: Student[],
   sessions: AttendanceSession[],
   assignments: Assignment[],
 ): Promise<void> {
-  await db.transaction('rw', [db.classrooms, db.students, db.sessions, db.assignments], async () => {
-    await db.classrooms.put(room);
+  const now = Date.now();
+  await db.transaction('rw', [db.classrooms, db.students, db.sessions, db.assignments, db.tombstones], async () => {
+    const [prevStudents, prevSessions, prevAssignments] = await Promise.all([
+      db.students.where('classroomId').equals(room.id).primaryKeys(),
+      db.sessions.where('classroomId').equals(room.id).primaryKeys(),
+      db.assignments.where('classroomId').equals(room.id).primaryKeys(),
+    ]);
+
+    const keepStudentIds = new Set(students.map((s) => s.id));
+    const keepSessionIds = new Set(sessions.map((s) => s.id));
+    const keepAssignmentIds = new Set(assignments.map((a) => a.id));
+
+    // บันทึก tombstone สำหรับรายการที่ถูกลบออกจาก Google Sheet เพื่อไม่ให้ AppData snapshot เก่านำกลับมาทับ
+    for (const id of prevStudents) {
+      if (!keepStudentIds.has(id)) await addTombstone('students', id, room.id);
+    }
+    for (const id of prevSessions) {
+      if (!keepSessionIds.has(id)) await addTombstone('sessions', id, room.id);
+    }
+    for (const id of prevAssignments) {
+      if (!keepAssignmentIds.has(id)) await addTombstone('assignments', id, room.id);
+    }
+
+    // ลบ tombstone ของรายการที่ยังมีอยู่หรือถูกเพิ่มกลับมาใน Google Sheet
+    const activeTombIds = [
+      `classrooms:${room.id}`,
+      ...students.map((s) => `students:${s.id}`),
+      ...sessions.map((s) => `sessions:${s.id}`),
+      ...assignments.map((a) => `assignments:${a.id}`),
+    ];
+    if (activeTombIds.length) {
+      await db.tombstones.bulkDelete(activeTombIds);
+    }
+
+    await db.classrooms.put({ ...room, updatedAt: Math.max(room.updatedAt || 0, now) });
     await db.students.where('classroomId').equals(room.id).delete();
     if (students.length) await db.students.bulkPut(students);
     await db.sessions.where('classroomId').equals(room.id).delete();

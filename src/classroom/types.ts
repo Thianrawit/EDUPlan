@@ -32,6 +32,7 @@ export interface Classroom {
   collaborators?: Collaborator[];    // รายชื่อผู้ร่วมสอน (สูงสุด 5 คน)
   myPermissionId?: string;           // permissionId ของตัวเอง (สำหรับห้องร่วม)
   lastModifiedTime?: string;         // เวลาแก้ไขล่าสุดจาก Google Drive
+  lastKnownModifiedTime?: string;    // เวลาแก้ไขล่าสุดที่ซิงก์กับ Google Sheet แล้ว (Source of Truth)
   attendanceHeaderMode?: SessionHeaderMode; // รูปแบบหัวคอลัมน์เช็คชื่อล่าสุดของห้อง
   assignmentStartCol?: number;       // 0-based index คอลัมน์เริ่มต้นของการส่งงาน (Number)
   createdAt: number;

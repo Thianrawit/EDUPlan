@@ -14,6 +14,7 @@ const TUTORIAL_STORAGE_KEY = 'eduplan_classroom_tutorial_seen_v1';
 let syncState: SyncStatus = { state: 'idle', at: null, message: '' };
 let topBarHost: HTMLElement | null = null;
 let customBackHandler: (() => void) | null = null;
+let customSyncHandler: (() => Promise<boolean>) | null = null;
 let settingsMenuOpen = false;
 
 function isInsideRoom(): boolean {
@@ -23,6 +24,11 @@ function isInsideRoom(): boolean {
 export function setTopBarBackHandler(fn: (() => void) | null): void {
   customBackHandler = fn;
   if (topBarHost) render(topBarHost, getAuthState());
+}
+
+/** กำหนดตัวจัดการปุ่ม "ซิงก์ข้อมูล" (คืน true หากจัดการการดึงจาก Sheet ของห้องปัจจุบันแล้ว) */
+export function setTopBarSyncHandler(fn: (() => Promise<boolean>) | null): void {
+  customSyncHandler = fn;
 }
 
 export function refreshTopBar(): void {
@@ -227,9 +233,12 @@ export function mountTopBar(el: HTMLElement): void {
       settingsMenuOpen = false;
       render(el, getAuthState());
       try {
+        if (customSyncHandler && (await customSyncHandler())) {
+          return;
+        }
         const r = await fullSync();
-        if (r.errors.length) toast(`ซิงก์ Google Drive แล้ว แต่ส่งข้อมูลบางห้องไม่สำเร็จ:\n${r.errors.join('\n')}`, 'warn', 9000);
-        else toast(r.changed ? `ซิงก์สำเร็จ — อัปเดต ${r.changed} รายการจากเครื่องอื่น` : 'ซิงก์ข้อมูลสำเร็จ', 'success');
+        if (r.errors.length) toast(`ซิงก์ Google Drive แล้ว แต่ซิงก์บางห้องไม่สำเร็จ:\n${r.errors.join('\n')}`, 'warn', 9000);
+        else toast(r.changed ? `ซิงก์สำเร็จ — อัปเดต ${r.changed} รายการ` : 'ซิงก์ข้อมูลสำเร็จ', 'success');
       } catch (err) {
         toast(errorMessage(err), 'error');
       }

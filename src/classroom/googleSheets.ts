@@ -306,6 +306,16 @@ async function getFormulaValues(spreadsheetId: string, range: string): Promise<s
   return (j.values ?? []).map((r) => r.map((c) => String(c ?? '')));
 }
 
+export async function batchGetValues(spreadsheetId: string, ranges: string[]): Promise<string[][][]> {
+  if (!ranges.length) return [];
+  const qs = ranges.map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
+  const j = await gfetch<{ valueRanges?: { range?: string; values?: unknown[][] }[] }>(
+    `${SHEETS}/${encodeURIComponent(spreadsheetId)}/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`,
+  );
+  const vrs = j.valueRanges ?? [];
+  return ranges.map((_, idx) => (vrs[idx]?.values ?? []).map((row) => row.map((cell) => String(cell ?? ''))));
+}
+
 async function batchUpdateValues(spreadsheetId: string, data: { range: string; values: (string | number)[][] }[]): Promise<void> {
   if (!data.length) return;
   markLocalSpreadsheetWrite(spreadsheetId);
@@ -1879,10 +1889,104 @@ function parseAssignmentHeaderLabel(rawHeader: string): { title: string; maxScor
 
 function parseAttendanceValue(val: string): AttendanceStatus | null {
   const v = val.trim();
-  if (v === 'มา' || v.toLowerCase() === 'present') return 'present';
-  if (v === 'ลา/ขาด' || v === 'ลา' || v === 'ขาด' || v.toLowerCase() === 'absent') return 'absent';
-  if (v === 'มาสาย' || v === 'สาย' || v.toLowerCase() === 'late') return 'late';
+  if (!v) return null;
+  const low = v.toLowerCase();
+  if (
+    v === 'มา' ||
+    v === 'มาเรียน' ||
+    v === '✓' ||
+    v === '✔' ||
+    v === '☑' ||
+    v === '/' ||
+    v === '1' ||
+    low === 'p' ||
+    low === 'present' ||
+    low === 'true' ||
+    low === 'yes'
+  ) {
+    return 'present';
+  }
+  if (v === 'มาสาย' || v === 'สาย' || v === 'ส' || low === 'l' || low === 'late') {
+    return 'late';
+  }
+  if (
+    v === 'ลา/ขาด' ||
+    v === 'ขาด/ลา' ||
+    v === 'ลา' ||
+    v === 'ขาด' ||
+    v === 'ลาป่วย' ||
+    v === 'ลากิจ' ||
+    v === 'ขาดเรียน' ||
+    v === 'ข' ||
+    v === 'ล' ||
+    v === '0' ||
+    v === '✗' ||
+    v === '✘' ||
+    v === '×' ||
+    low === 'x' ||
+    low === 'a' ||
+    low === 'absent' ||
+    low === 'false' ||
+    low === 'no'
+  ) {
+    return 'absent';
+  }
   return null;
+}
+
+function isSubmittedKeyword(raw: string): boolean {
+  const v = raw.trim();
+  if (!v) return false;
+  const low = v.toLowerCase();
+  return (
+    v === SUBMISSION_LABEL.submitted ||
+    v === 'ส่ง' ||
+    v === '✓' ||
+    v === '✔' ||
+    v === '☑' ||
+    v === '/' ||
+    low === 'submitted' ||
+    low === 'done' ||
+    low === 'yes' ||
+    low === 'true'
+  );
+}
+
+function parseSubmissionCell(raw: string): Submission {
+  const v = raw.trim();
+  if (!v) return { status: 'missing', score: null };
+  if (/^-?\d+(?:\.\d+)?$/.test(v) && !Number.isNaN(Number(v))) {
+    return { status: 'submitted', score: Number(v) };
+  }
+  if (isSubmittedKeyword(v)) {
+    return { status: 'submitted', score: null };
+  }
+  return { status: 'missing', score: null };
+}
+
+function parseTwoColSubmission(rawStatus: string, rawScore: string): Submission {
+  const sc = rawScore.trim();
+  const parsedScore = sc !== '' && /^-?\d+(?:\.\d+)?$/.test(sc) && !Number.isNaN(Number(sc)) ? Number(sc) : null;
+  const isSubmitted = parsedScore !== null || isSubmittedKeyword(rawStatus);
+  return { status: isSubmitted ? 'submitted' : 'missing', score: parsedScore };
+}
+
+function isSummaryColumnHeader(header: string): boolean {
+  const h = header.replace(/\s+/g, ' ').trim();
+  if (!h) return false;
+  return /^(รวม|รวมทั้งหมด|รวมมา|รวมขาด|รวมสาย|รวมคะแนน|คะแนนรวม|คะแนนสุทธิ|เฉลี่ย|ค่าเฉลี่ย|ร้อยละ|เปอร์เซ็นต์|%|เกรด|ผลการเรียน|ระดับผลการเรียน|หมายเหตุ|ส่งแล้ว|ยังไม่ส่ง|total|sum|average|avg|percent|grade|gpa|summary|remark|remarks|note|notes)(\b|\s|\(|:|$)/i.test(
+    h,
+  );
+}
+
+function isRemoteModifiedNewer(remoteTime?: string, knownTime?: string): boolean {
+  if (!remoteTime) return false;
+  if (!knownTime) return true;
+  if (remoteTime === knownTime) return false;
+  const rMs = Date.parse(remoteTime);
+  const kMs = Date.parse(knownTime);
+  if (Number.isFinite(rMs) && Number.isFinite(kMs)) return rMs > kMs;
+  return remoteTime !== knownTime;
 }
 
 function buildGridRowMap(
@@ -1911,8 +2015,8 @@ function buildGridRowMap(
   return map;
 }
 
-/** ดึงโครงสร้างและข้อมูลล่าสุด (รายชื่อ + เช็คชื่อ + งาน) จาก Google Sheet มาแคชลง Dexie ให้ตรงกับฝั่งเจ้าของห้อง 100% */
-export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classroom> {
+/** ดึงข้อมูลสดจาก Google Sheet (Source of Truth) ผ่าน values:batchGet แล้วอัปเดตลง Dexie และ AppData snapshot */
+export async function pullRoomFromGoogleSheet(roomIn: Classroom): Promise<Classroom> {
   if (!roomIn.sheet?.spreadsheetId || !getAuthState().signedIn) return roomIn;
   const room: Classroom = JSON.parse(JSON.stringify(roomIn)) as Classroom;
   const spreadsheetId = room.sheet!.spreadsheetId;
@@ -1936,7 +2040,10 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
   ]);
 
   if (driveMeta) {
-    if (driveMeta.modifiedTime) room.lastModifiedTime = driveMeta.modifiedTime;
+    if (driveMeta.modifiedTime) {
+      room.lastModifiedTime = driveMeta.modifiedTime;
+      room.lastKnownModifiedTime = driveMeta.modifiedTime;
+    }
     const collabs = parseCollaboratorsFromProperties(driveMeta.properties);
     room.collaborators = collabs;
     if (room.role && room.role !== 'owner') {
@@ -1955,7 +2062,8 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
   }
 
   const syncMeta = parseSpreadsheetSyncMeta(meta);
-  const sheetTitles = new Set(meta.sheets.map((s) => s.title));
+  const sheetByTitle = new Map(meta.sheets.map((s) => [s.title, s]));
+  const sheetTitles = new Set(sheetByTitle.keys());
   const hasStandardTabs =
     sheetTitles.has(STANDARD_TABS.roster) &&
     sheetTitles.has(STANDARD_TABS.attendance) &&
@@ -1997,8 +2105,6 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
     };
     room.assignmentStartCol = 3;
   } else if (room.sheet) {
-    const firstSheet = meta.sheets[0];
-    const firstTab = firstSheet?.title ?? 'Sheet1';
     room.sheet.spreadsheetName = meta.title || room.sheet.spreadsheetName;
     room.sheet.spreadsheetUrl = safeHttpsUrl(meta.url) || room.sheet.spreadsheetUrl;
     room.sheet.standard = false;
@@ -2015,59 +2121,90 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
     } else if (propAsgStartCol !== null) {
       room.assignmentStartCol = propAsgStartCol;
     }
-    if (!room.sheet.roster || !sheetTitles.has(room.sheet.roster.sheetTitle)) {
-      const firstGrid = firstSheet ? await getValues(spreadsheetId, quoteSheet(firstTab)).catch(() => []) : [];
-      const guessedH = guessHeaderRow(firstGrid, firstSheet?.merges);
-      const guessedMap = guessMapping(firstGrid, guessedH, firstSheet?.merges);
-      room.sheet.roster = { sheetTitle: firstTab, mapping: guessedMap };
-    }
   }
 
-  const rosterTab = room.sheet?.roster?.sheetTitle;
+  // ตรวจสอบแท็บที่จะดึงสดทั้งหมด (ดึงแท็บรายชื่อเสมอเพื่อให้เซลล์ใน Sheet เป็น Source of Truth)
+  let rosterTab = room.sheet?.roster?.sheetTitle;
+  if (!rosterTab || !sheetTitles.has(rosterTab)) {
+    rosterTab = room.sheet?.standard && sheetTitles.has(STANDARD_TABS.roster)
+      ? STANDARD_TABS.roster
+      : room.sheet?.attendance?.sheetTitle && sheetTitles.has(room.sheet.attendance.sheetTitle)
+        ? room.sheet.attendance.sheetTitle
+        : room.sheet?.assignments?.sheetTitle && sheetTitles.has(room.sheet.assignments.sheetTitle)
+          ? room.sheet.assignments.sheetTitle
+          : meta.sheets[0]?.title;
+  }
   const attMap = room.sheet?.attendance;
   const asgMap = room.sheet?.assignments;
 
-  const tabsToFetch = new Set<string>();
-  if (rosterTab && sheetTitles.has(rosterTab) && (!syncMeta?.students?.length || attMap?.sheetTitle === rosterTab || asgMap?.sheetTitle === rosterTab)) {
-    tabsToFetch.add(rosterTab);
-  }
-  if (attMap && sheetTitles.has(attMap.sheetTitle)) tabsToFetch.add(attMap.sheetTitle);
-  if (asgMap && sheetTitles.has(asgMap.sheetTitle)) tabsToFetch.add(asgMap.sheetTitle);
+  const tabsToFetch: string[] = [];
+  const pushTab = (title: string | undefined) => {
+    if (title && sheetTitles.has(title) && !tabsToFetch.includes(title)) tabsToFetch.push(title);
+  };
+  pushTab(rosterTab);
+  pushTab(attMap?.sheetTitle);
+  pushTab(asgMap?.sheetTitle);
 
   const gridByTab = new Map<string, string[][]>();
-  await Promise.all(
-    Array.from(tabsToFetch).map(async (tab) => {
-      const grid = await getValues(spreadsheetId, quoteSheet(tab)).catch(() => []);
-      gridByTab.set(tab, grid);
-    }),
-  );
+  if (tabsToFetch.length) {
+    const batched = await batchGetValues(
+      spreadsheetId,
+      tabsToFetch.map((t) => quoteSheet(t)),
+    );
+    tabsToFetch.forEach((tab, idx) => {
+      gridByTab.set(tab, batched[idx] ?? []);
+    });
+  }
+
+  // กรณีไฟล์กำหนดเองยังไม่มี roster mapping ให้เดาจากตารางที่เพิ่งดึงมา
+  if (room.sheet && rosterTab && (!room.sheet.roster || !sheetTitles.has(room.sheet.roster.sheetTitle))) {
+    const rGrid = gridByTab.get(rosterTab) ?? [];
+    const rSheet = sheetByTitle.get(rosterTab);
+    if (room.sheet.standard && rosterTab === STANDARD_TABS.roster) {
+      room.sheet.roster = {
+        sheetTitle: STANDARD_TABS.roster,
+        mapping: { headerRow: 0, number: 0, code: 1, nameMode: 'single', name: 2, prefix: null, first: null, last: null },
+      };
+    } else if (rGrid.length) {
+      const guessedH = guessHeaderRow(rGrid, rSheet?.merges);
+      const guessedMap = guessMapping(rGrid, guessedH, rSheet?.merges);
+      room.sheet.roster = { sheetTitle: rosterTab, mapping: guessedMap };
+    }
+  }
+
+  const rosterFetched = !!(rosterTab && gridByTab.has(rosterTab));
+  const attFetched = !!(attMap && gridByTab.has(attMap.sheetTitle));
+  const asgFetched = !!(asgMap && gridByTab.has(asgMap.sheetTitle));
 
   const rosterGrid = rosterTab ? gridByTab.get(rosterTab) ?? [] : [];
   const attGrid = attMap ? gridByTab.get(attMap.sheetTitle) ?? [] : [];
   const asgGrid = asgMap ? gridByTab.get(asgMap.sheetTitle) ?? [] : [];
 
-  // 1) Parse Students (ใช้ Master Roster จาก syncMeta สำหรับไฟล์กำหนดเอง หรือ applyMapping บน rosterGrid)
+  // 1) Parse Students — ยึดเซลล์จริงใน Google Sheet เป็น Source of Truth เสมอ
   const byCode = new Map(existingStudents.filter((s) => s.studentCode.trim()).map((s) => [normalizeKey(s.studentCode), s]));
   const byName = new Map(existingStudents.map((s) => [normalizeKey(s.fullName), s]));
   const usedStudentIds = new Set<string>();
 
-  const parsedList: ParsedStudent[] =
-    syncMeta?.students?.length
-      ? syncMeta.students.map((s) => ({ number: s.n, studentCode: s.c, fullName: s.f }))
-      : room.sheet?.roster?.mapping && rosterGrid.length > room.sheet.roster.mapping.headerRow + 1
-        ? applyMapping(rosterGrid, room.sheet.roster.mapping)
-        : !room.sheet?.standard && attGrid.length > (attMap?.headerRow ?? 1)
-          ? applyMapping(attGrid, {
-              headerRow: (attMap?.headerRow ?? 1) - 1,
-              number: 0,
-              code: attMap?.keyType === 'code' ? attMap.keyCol : 1,
-              nameMode: 'single',
-              name: attMap?.keyType === 'name' ? attMap.keyCol : 2,
-              prefix: null,
-              first: null,
-              last: null,
-            })
-          : [];
+  let parsedList: ParsedStudent[] = [];
+  let parsedFromLiveSheet = false;
+
+  if (rosterFetched && room.sheet?.roster?.mapping) {
+    parsedFromLiveSheet = true;
+    parsedList = applyMapping(rosterGrid, room.sheet.roster.mapping).filter((p) => !isSummaryLikeText(p.fullName));
+  } else if (attFetched && attMap) {
+    parsedFromLiveSheet = true;
+    const attSheetInfo = sheetByTitle.get(attMap.sheetTitle);
+    const guessed = guessMapping(attGrid, Math.max(0, attMap.headerRow - 1), attSheetInfo?.merges);
+    parsedList = applyMapping(attGrid, {
+      ...guessed,
+      headerRow: Math.max(0, attMap.headerRow - 1),
+      code: guessed.code ?? (attMap.keyType === 'code' ? attMap.keyCol : null),
+      number: guessed.number ?? (attMap.keyType === 'number' ? attMap.keyCol : null),
+      name: guessed.nameMode === 'single' ? guessed.name ?? (attMap.keyType === 'name' ? attMap.keyCol : 2) : guessed.name,
+    }).filter((p) => !isSummaryLikeText(p.fullName));
+  } else if (syncMeta?.students?.length) {
+    parsedList = syncMeta.students.map((s) => ({ number: s.n, studentCode: s.c, fullName: s.f }));
+  }
 
   const nextStudents: Student[] = [];
   parsedList.forEach((p) => {
@@ -2087,30 +2224,44 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
     });
   });
 
-  const finalStudents = nextStudents.length ? nextStudents : existingStudents;
+  const finalStudents = parsedFromLiveSheet ? nextStudents : nextStudents.length ? nextStudents : existingStudents;
 
-  // 2) Parse Attendance Sessions (อ้างอิง Row ตาม keyType/keyCol เหมือนตอนเขียน)
+  // 2) Parse Attendance Sessions — อ่านจากแท็บการมาเรียนจริงใน Google Sheet (เริ่มจาก attStartCol)
   const nextSessions: AttendanceSession[] = [];
-  if (attMap && attGrid.length >= attMap.headerRow) {
+  if (attFetched && attMap && attGrid.length >= attMap.headerRow) {
     const hRowIdx = attMap.headerRow - 1;
     const headers = attGrid[hRowIdx] ?? [];
     const attRowMap = buildGridRowMap(attGrid, attMap.headerRow, attMap.keyCol, attMap.keyType, finalStudents);
     const syncSesByCol = new Map<number, { col: number | null; date: string; period: string; headerMode?: SessionHeaderMode }>();
     syncMeta?.sessions?.forEach((s) => {
-      if (s.col !== null && s.col !== undefined) syncSesByCol.set(s.col, s);
+      if (s.col !== null && s.col !== undefined) syncSesByCol.set(parseColumnIndex(s.col, -1), s);
     });
-    const restrictCustomCols = !room.sheet?.standard && syncSesByCol.size > 0;
 
     const attStartCol = parseColumnIndex(attMap.startCol, 0);
-    for (let col = attStartCol; col < headers.length; col++) {
-      if (restrictCustomCols && !syncSesByCol.has(col)) continue;
+    let attEndCol = headers.length;
+    if (attMap.mode === 'fixed' && Number(attMap.fixedCount) > 0) {
+      attEndCol = Math.min(attEndCol, attStartCol + Math.floor(Number(attMap.fixedCount)));
+    }
+    if (asgMap && asgMap.sheetTitle === attMap.sheetTitle) {
+      const asgStart = parseColumnIndex(asgMap.startCol, room.assignmentStartCol ?? 0);
+      if (asgStart > attStartCol) attEndCol = Math.min(attEndCol, asgStart);
+    }
+
+    for (let col = attStartCol; col < attEndCol; col++) {
       const hText = (headers[col] ?? '').trim();
+      if (!hText) continue;
+      if (isSummaryColumnHeader(hText)) continue;
+
       const metaSes = syncSesByCol.get(col);
-      if (!hText && !metaSes) continue;
-      const fallbackParsed = parseSessionHeaderLabel(hText);
-      const date = metaSes?.date || fallbackParsed.date;
-      const period = metaSes ? metaSes.period : fallbackParsed.period;
-      const headerMode: SessionHeaderMode = metaSes?.headerMode ?? fallbackParsed.headerMode;
+      const normHText = hText.replace(/\r\n/g, '\n');
+      const sheetParsed = parseSessionHeaderLabel(normHText);
+      // ยึดหัวคอลัมน์จริงจาก Sheet เป็นหลัก หากตรงกับ meta เดิมให้คง date/period เดิมไว้เพื่อความแม่นยำ
+      const metaMatchesSheet = !!metaSes && sessionHeaderText(metaSes).trim() === normHText;
+      const date = metaMatchesSheet && metaSes?.date ? metaSes.date : sheetParsed.date;
+      const period = metaMatchesSheet && metaSes ? metaSes.period : sheetParsed.period;
+      const headerMode: SessionHeaderMode =
+        metaMatchesSheet && metaSes?.headerMode ? metaSes.headerMode : sheetParsed.headerMode;
+
       const records: Record<string, AttendanceStatus> = {};
       finalStudents.forEach((st) => {
         const rIdx = attRowMap.get(st.id);
@@ -2137,9 +2288,9 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
     }
   }
 
-  // 3) Parse Assignments (อ้างอิง Row ตาม keyType/keyCol และใช้ assignmentsMeta เพื่อคืนค่าวันที่สั่ง/กำหนดส่ง/คะแนนเต็ม)
+  // 3) Parse Assignments — อ่านจากแท็บการส่งงานจริงใน Google Sheet (เริ่มจาก asgStartCol)
   const nextAssignments: Assignment[] = [];
-  if (asgMap && asgGrid.length >= asgMap.headerRow) {
+  if (asgFetched && asgMap && asgGrid.length >= asgMap.headerRow) {
     const hRowIdx = asgMap.headerRow - 1;
     const headers = asgGrid[hRowIdx] ?? [];
     const asgRowMap = buildGridRowMap(asgGrid, asgMap.headerRow, asgMap.keyCol, asgMap.keyType, finalStudents);
@@ -2148,23 +2299,28 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
       { col: number | null; title: string; assignedDate: string; dueDate: string; maxScore: number | null }
     >();
     syncMeta?.assignmentsMeta?.forEach((a) => {
-      if (a.col !== null && a.col !== undefined) syncAsgByCol.set(a.col, a);
+      if (a.col !== null && a.col !== undefined) syncAsgByCol.set(parseColumnIndex(a.col, -1), a);
     });
-    const restrictCustomCols = !room.sheet?.standard && syncAsgByCol.size > 0;
 
     const asgStartCol = parseColumnIndex(asgMap.startCol, room.assignmentStartCol ?? 0);
     const colsPerAsg = Number(asgMap.colsPerAssignment) === 2 ? 2 : 1;
-    const step = restrictCustomCols ? 1 : colsPerAsg;
+    let asgEndCol = headers.length;
+    if (attMap && attMap.sheetTitle === asgMap.sheetTitle) {
+      const attStart = parseColumnIndex(attMap.startCol, 0);
+      if (attStart > asgStartCol) asgEndCol = Math.min(asgEndCol, attStart);
+    }
 
-    for (let col = asgStartCol; col < headers.length; col += step) {
-      if (restrictCustomCols && !syncAsgByCol.has(col)) continue;
+    for (let col = asgStartCol; col < asgEndCol; col += colsPerAsg) {
       const hText = (headers[col] ?? '').trim();
-      const metaAsg = syncAsgByCol.get(col);
-      if (!hText && !metaAsg) continue;
+      if (!hText) continue;
       const cleanHText = colsPerAsg === 2 ? hText.replace(/\s*\(สถานะ\)\s*$/, '').trim() : hText;
+      if (isSummaryColumnHeader(cleanHText)) continue;
+
+      const metaAsg = syncAsgByCol.get(col);
       const headerParsed = parseAssignmentHeaderLabel(cleanHText);
-      const title = metaAsg?.title || headerParsed.title;
-      const maxScore = metaAsg ? metaAsg.maxScore : headerParsed.maxScore;
+      // ยึดชื่องานและคะแนนเต็มจากหัวคอลัมน์จริงใน Google Sheet เป็นหลัก
+      const title = headerParsed.title || metaAsg?.title || cleanHText;
+      const maxScore = headerParsed.maxScore !== null ? headerParsed.maxScore : metaAsg?.maxScore ?? null;
 
       const submissions: Record<string, Submission> = {};
       finalStudents.forEach((st) => {
@@ -2174,24 +2330,10 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
           return;
         }
         if (colsPerAsg === 2) {
-          const rawStatus = (asgGrid[rIdx]?.[col] ?? '').trim();
-          const rawScore = (asgGrid[rIdx]?.[col + 1] ?? '').trim();
-          const parsedScore = rawScore !== '' && !Number.isNaN(Number(rawScore)) ? Number(rawScore) : null;
-          const isSubmitted =
-            parsedScore !== null ||
-            rawStatus === SUBMISSION_LABEL.submitted ||
-            rawStatus.toLowerCase() === 'submitted';
-          submissions[st.id] = { status: isSubmitted ? 'submitted' : 'missing', score: parsedScore };
+          submissions[st.id] = parseTwoColSubmission(asgGrid[rIdx]?.[col] ?? '', asgGrid[rIdx]?.[col + 1] ?? '');
           return;
         }
-        const rawVal = (asgGrid[rIdx]?.[col] ?? '').trim();
-        if (rawVal !== '' && !Number.isNaN(Number(rawVal))) {
-          submissions[st.id] = { status: 'submitted', score: Number(rawVal) };
-        } else if (rawVal === SUBMISSION_LABEL.submitted || rawVal.toLowerCase() === 'submitted') {
-          submissions[st.id] = { status: 'submitted', score: null };
-        } else {
-          submissions[st.id] = { status: 'missing', score: null };
-        }
+        submissions[st.id] = parseSubmissionCell(asgGrid[rIdx]?.[col] ?? '');
       });
       const prevAsg =
         existingAssignments.find((a) => a.sheetColumn === col) ??
@@ -2215,11 +2357,22 @@ export async function pullClassroomFromSheet(roomIn: Classroom): Promise<Classro
   await replaceClassroomCache(
     room,
     finalStudents,
-    nextSessions.length || (attMap && attGrid.length) ? nextSessions : existingSessions,
-    nextAssignments.length || (asgMap && asgGrid.length) ? nextAssignments : existingAssignments,
+    attFetched ? nextSessions : existingSessions,
+    asgFetched ? nextAssignments : existingAssignments,
   );
+
+  // อัปเดต snapshot ใน appDataFolder สำหรับห้องของตัวเอง เพื่อไม่ให้ snapshot เก่ากลับมาทับข้อมูลใหม่จาก Sheet
+  const isOwnedRoom = !room.isSharedWithMe && (!room.role || room.role === 'owner');
+  if (isOwnedRoom && getAuthState().signedIn) {
+    void syncAppData().catch(() => undefined);
+  } else {
+    setSyncStatus({ state: 'ok', at: Date.now(), message: 'ดึงข้อมูลล่าสุดจาก Sheet แล้ว' });
+  }
+
   return room;
 }
+
+export const pullClassroomFromSheet = pullRoomFromGoogleSheet;
 
 export interface DriveModificationInfo {
   modifiedTime: string;
@@ -2400,25 +2553,48 @@ export function scheduleAppDataSync(delay = 2500): void {
   }, delay);
 }
 
-/** ปุ่ม "ซิงก์ข้อมูล": appData + ซิงก์ห้องเรียนร่วม + ส่งข้อมูลค้างขึ้น Google Sheet */
+/** ปุ่ม "ซิงก์ข้อมูล": ดึงค่าล่าสุดจาก Google Sheet ก่อน (ห้ามเอาข้อมูลเก่าใน Dexie ไปทับ Sheet) แล้วค่อยซิงก์ AppData */
 export async function fullSync(): Promise<{ changed: number; errors: string[] }> {
-  const changed = await syncAppData();
   const errors: string[] = [];
+  let pulledCount = 0;
+
   try {
     await fetchSharedClassrooms();
   } catch (e) {
     errors.push(`ค้นหาห้องเรียนร่วม: ${e instanceof Error ? e.message : String(e)}`);
   }
+
   const rooms = (await listClassrooms()).filter((c) => c.syncMode === 'google' && c.sheet);
   for (const r of rooms) {
-    if (r.role === 'viewer') continue;
     try {
-      await pushClassroom(r.id);
+      const [ses, asg, modInfo] = await Promise.all([
+        getSessions(r.id),
+        getAssignments(r.id),
+        getDriveFileModificationInfo(r.sheet!.spreadsheetId).catch(() => null),
+      ]);
+      const hasUnsyncedLocal = ses.some((s) => !s.sheetSynced) || asg.some((a) => !a.sheetSynced);
+      const knownMod = r.lastKnownModifiedTime ?? r.lastModifiedTime;
+      const sheetIsNewer = isRemoteModifiedNewer(modInfo?.modifiedTime, knownMod);
+
+      if (r.role === 'viewer' || sheetIsNewer || !hasUnsyncedLocal) {
+        await pullRoomFromGoogleSheet(r);
+        pulledCount++;
+      } else {
+        await pushClassroom(r.id);
+      }
     } catch (e) {
       errors.push(`${r.subject || r.name}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  return { changed, errors };
+
+  let appChanged = 0;
+  try {
+    appChanged = await syncAppData();
+  } catch (e) {
+    errors.push(`AppData: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  return { changed: appChanged + pulledCount, errors };
 }
 
 // ---------------- Google Picker ----------------

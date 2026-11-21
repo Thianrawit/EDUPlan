@@ -10,12 +10,12 @@ import {
   fetchSharedClassrooms,
   isGoogleNotFoundError,
   pickSpreadsheet,
-  pullClassroomFromSheet,
+  pullRoomFromGoogleSheet,
   syncAppData,
-  syncSpreadsheetSyncMeta,
 } from './googleSheets';
 import {
   mountConflictBanner,
+  notifyRealtimeModifiedTime,
   resolveRealtimeConflict,
   startRealtimeSync,
   stopRealtimeSync,
@@ -38,7 +38,7 @@ import { renderHub } from './components/ClassroomHub';
 import { openCollaboratorModal } from './components/CollaboratorModal';
 import { confirmDialog, toast, withBusy } from './components/ColumnMapperModal';
 import { renderSettings } from './components/SettingsTab';
-import { maybeShowFirstVisitTutorial, mountTopBar, refreshTopBar, setTopBarBackHandler } from './components/TopBar';
+import { maybeShowFirstVisitTutorial, mountTopBar, refreshTopBar, setTopBarBackHandler, setTopBarSyncHandler } from './components/TopBar';
 
 interface RouteState {
   view: 'hub' | 'room';
@@ -107,40 +107,43 @@ async function bootstrap(): Promise<void> {
       if (window.location.hash !== curHash) history.replaceState(null, '', curHash);
       return;
     }
+    const prevRoomId = route.view === 'room' ? route.roomId : null;
     route = next;
+    // เมื่อออกจากห้องเรียนหรือสลับไปห้องอื่น ให้ล้าง cooldown เพื่อดึงข้อมูลสดจาก Sheet ทันทีเมื่อคลิกเข้าห้องอีกครั้ง
+    if (prevRoomId && (next.view !== 'room' || next.roomId !== prevRoomId)) {
+      lastRoomPullAt.delete(prevRoomId);
+    }
     const targetHash = buildHash(route);
     if (window.location.hash !== targetHash) history.pushState(null, '', targetHash);
     await render();
   }
 
-  const ownerMetaSynced = new Set<string>();
-  const activeSharedPulls = new Map<string, Promise<boolean>>();
-  const lastSharedPullAt = new Map<string, number>();
-  const SHARED_PULL_COOLDOWN_MS = 5000;
+  const activeRoomPulls = new Map<string, Promise<Classroom | null>>();
+  const lastRoomPullAt = new Map<string, number>();
+  const ROOM_PULL_COOLDOWN_MS = 4000;
 
-  function ensureSharedPull(room: Classroom): Promise<boolean> {
-    const existing = activeSharedPulls.get(room.id);
+  function ensureRoomPull(room: Classroom): Promise<Classroom | null> {
+    const existing = activeRoomPulls.get(room.id);
     if (existing) return existing;
-    const job = (async (): Promise<boolean> => {
+    const job = (async (): Promise<Classroom | null> => {
       try {
-        await pullClassroomFromSheet(room);
-        return true;
+        return await pullRoomFromGoogleSheet(room);
       } catch (err) {
         if (isGoogleNotFoundError(err)) {
           const ok = await confirmDialog(
-            `ยังไม่สามารถอ่านข้อมูลภายในไฟล์ "${room.sheet?.spreadsheetName || room.subject}" ได้ (HTTP 404)\n\nอาจเกิดจาก Token เดิมยังไม่ได้อนุญาตสิทธิ์ Google Sheets หรือต้องเลือกไฟล์ผ่าน Google Picker 1 ครั้งเพื่อเปิดสิทธิ์ให้ไฟล์ที่ถูกแชร์\n\nต้องการเปิด Google Picker เพื่อเลือกไฟล์นี้และปลดล็อกสิทธิ์หรือไม่?`,
+            `ยังไม่สามารถอ่านข้อมูลภายในไฟล์ "${room.sheet?.spreadsheetName || room.subject}" ได้ (HTTP 404)\n\nอาจเกิดจาก Token เดิมยังไม่ได้อนุญาตสิทธิ์ Google Sheets หรือต้องเลือกไฟล์ผ่าน Google Picker 1 ครั้งเพื่อเปิดสิทธิ์\n\nต้องการเปิด Google Picker เพื่อเลือกไฟล์นี้และปลดล็อกสิทธิ์หรือไม่?`,
             { title: 'ยืนยันสิทธิ์เข้าถึงไฟล์ Google Sheet', confirmText: 'เลือกไฟล์เพื่อเปิดสิทธิ์' },
           );
           if (ok) {
             try {
               const picked = await pickSpreadsheet({
-                sharedOnly: true,
+                sharedOnly: room.role !== 'owner',
                 title: `เลือกไฟล์ "${room.sheet?.spreadsheetName || room.subject}" เพื่อเปิดสิทธิ์การซิงก์`,
               });
               if (picked) {
-                await pullClassroomFromSheet(room);
+                const pulled = await pullRoomFromGoogleSheet(room);
                 toast('เปิดสิทธิ์และดึงข้อมูลล่าสุดจาก Google Sheet สำเร็จแล้ว', 'success');
-                return true;
+                return pulled;
               }
             } catch (err2) {
               toast(`เปิดสิทธิ์ Google Sheet ไม่สำเร็จ: ${errorMessage(err2)}`, 'warn');
@@ -149,13 +152,13 @@ async function bootstrap(): Promise<void> {
         } else {
           toast(`ดึงข้อมูลล่าสุดจาก Google Sheet ไม่สำเร็จ: ${errorMessage(err)}`, 'warn');
         }
-        return false;
+        return null;
       } finally {
-        lastSharedPullAt.set(room.id, Date.now());
-        activeSharedPulls.delete(room.id);
+        lastRoomPullAt.set(room.id, Date.now());
+        activeRoomPulls.delete(room.id);
       }
     })();
-    activeSharedPulls.set(room.id, job);
+    activeRoomPulls.set(room.id, job);
     return job;
   }
 
@@ -175,14 +178,13 @@ async function bootstrap(): Promise<void> {
     const collabCount = (room.collaborators ?? []).length;
 
     const authNow = getAuthState();
-    const pullInFlight = activeSharedPulls.has(room.id);
+    const pullInFlight = activeRoomPulls.has(room.id);
     const needsAutoPull =
-      !isOwner &&
       google &&
       authNow.signedIn &&
       authNow.tokenValid &&
-      Date.now() - (lastSharedPullAt.get(room.id) ?? 0) > SHARED_PULL_COOLDOWN_MS;
-    const shouldSyncShared = pullInFlight || needsAutoPull;
+      Date.now() - (lastRoomPullAt.get(room.id) ?? 0) > ROOM_PULL_COOLDOWN_MS;
+    const shouldSyncSheet = pullInFlight || needsAutoPull;
 
     appEl!.innerHTML = `
       <section class="cr-page">
@@ -197,10 +199,10 @@ async function bootstrap(): Promise<void> {
                   <span>${google ? 'ซิงก์ Google Sheet' : 'ในเครื่อง'}</span>
                 </span>
                 ${
-                  shouldSyncShared && students.length > 0
-                    ? `<span class="cr-badge cr-badge--gray" data-shared-sync-pill>
+                  shouldSyncSheet && students.length > 0
+                    ? `<span class="cr-badge cr-badge--gray" data-sheet-sync-pill>
                         <span class="cr-spinner cr-spinner--sm"></span>
-                        <span>กำลังอัปเดตข้อมูล...</span>
+                        <span>กำลังดึงข้อมูลล่าสุดจาก Sheet...</span>
                       </span>`
                     : ''
                 }
@@ -276,12 +278,6 @@ async function bootstrap(): Promise<void> {
       fetchRoomCollaborators(room)
         .then((list) => updateCollabCountLabel(list.length))
         .catch(() => undefined);
-      if (!ownerMetaSynced.has(room.id)) {
-        ownerMetaSynced.add(room.id);
-        syncSpreadsheetSyncMeta(room).catch(() => {
-          ownerMetaSynced.delete(room.id);
-        });
-      }
     }
 
     bar.addEventListener('click', async (e) => {
@@ -323,12 +319,12 @@ async function bootstrap(): Promise<void> {
       if (tab !== route.tab) ctx.openRoom(room.id, tab);
     });
 
-    if (shouldSyncShared && students.length === 0) {
+    if (shouldSyncSheet && students.length === 0) {
       panel.innerHTML = `
         <div class="cr-empty" style="text-align:center;">
           <span class="cr-spinner" style="width:26px;height:26px;border-width:2.5px;color:var(--cr-primary);display:inline-block;"></span>
-          <p class="mt-3 font-semibold" style="color:var(--cr-ink);">กำลังดึงข้อมูลล่าสุดจาก Google Sheet...</p>
-          <p class="cr-muted mt-1">โปรดรอสักครู่ ระบบกำลังเตรียมตารางห้องเรียนให้ตรงกับเจ้าของห้อง</p>
+          <p class="mt-3 font-semibold" style="color:var(--cr-ink);">กำลังดึงข้อมูลล่าสุดจาก Sheet...</p>
+          <p class="cr-muted mt-1">โปรดรอสักครู่ ระบบกำลังซิงก์รายชื่อ การมาเรียน และคะแนนล่าสุดจาก Google Sheet</p>
         </div>`;
     } else if (route.tab === 'attendance') {
       await renderAttendance(panel, room, ctx, currentRole);
@@ -340,16 +336,19 @@ async function bootstrap(): Promise<void> {
       await renderAttendance(panel, room, ctx, currentRole);
     }
 
-    if (shouldSyncShared) {
-      void ensureSharedPull(room).then((ok) => {
-        bar.querySelector('[data-shared-sync-pill]')?.remove();
+    if (shouldSyncSheet) {
+      void ensureRoomPull(room).then((pulled) => {
+        bar.querySelector('[data-sheet-sync-pill]')?.remove();
+        if (pulled) {
+          notifyRealtimeModifiedTime(room.id, pulled.lastKnownModifiedTime ?? pulled.lastModifiedTime);
+        }
         if (route.view !== 'room' || route.roomId !== room.id) return;
-        if (!dirty && (ok || students.length === 0)) {
+        if (!dirty && (pulled || students.length === 0)) {
           void render();
-        } else if (ok && dirty) {
+        } else if (pulled && dirty) {
           const currentPanel = appEl!.querySelector<HTMLElement>('#cr-tab-panel');
           if (currentPanel) {
-            mountConflictBanner(currentPanel, room.ownerEmail || 'ผู้ร่วมสอน', () => {
+            mountConflictBanner(currentPanel, 'Google Sheet', () => {
               dirty = false;
               void resolveRealtimeConflict();
             });
@@ -362,7 +361,8 @@ async function bootstrap(): Promise<void> {
       startRealtimeSync({
         room,
         isDirty: () => dirty,
-        onAutoReloaded: () => {
+        onAutoReloaded: (updatedRoom) => {
+          lastRoomPullAt.set(updatedRoom.id, Date.now());
           if (route.view === 'room' && route.roomId === room.id && !dirty) {
             void render();
           }
@@ -430,6 +430,25 @@ async function bootstrap(): Promise<void> {
   const auth = initAuth();
   mountTopBar(topbarEl);
   setTopBarBackHandler(() => ctx.goHub());
+  setTopBarSyncHandler(async () => {
+    if (route.view !== 'room' || !route.roomId) return false;
+    const currentRoom = await getClassroom(route.roomId);
+    if (!currentRoom || currentRoom.syncMode !== 'google' || !currentRoom.sheet) return false;
+    if (dirty) {
+      const ok = await confirmDialog(
+        'มีการแก้ไขที่ยังไม่ได้บันทึกอยู่ในหน้านี้ ต้องการดึงข้อมูลล่าสุดจาก Google Sheet มาทับหรือไม่?',
+        { title: 'ยืนยันการดึงข้อมูลจาก Google Sheet', confirmText: 'ดึงข้อมูลล่าสุด', danger: true },
+      );
+      if (!ok) return true;
+      dirty = false;
+    }
+    const pulled = await pullRoomFromGoogleSheet(currentRoom);
+    lastRoomPullAt.set(currentRoom.id, Date.now());
+    notifyRealtimeModifiedTime(currentRoom.id, pulled.lastKnownModifiedTime ?? pulled.lastModifiedTime);
+    await render();
+    toast('อัปเดตข้อมูลล่าสุดจาก Google Sheet แล้ว', 'success', 4200, 'refresh');
+    return true;
+  });
 
   if (auth.signedIn && auth.tokenValid) {
     Promise.all([
@@ -441,9 +460,11 @@ async function bootstrap(): Promise<void> {
   }
 
   let prevSigned = auth.signedIn;
+  let prevTokenValid = auth.tokenValid;
   onAuthChange((s) => {
-    if (s.signedIn !== prevSigned) {
+    if (s.signedIn !== prevSigned || s.tokenValid !== prevTokenValid) {
       prevSigned = s.signedIn;
+      prevTokenValid = s.tokenValid;
       if (!dirty) void render();
     }
   });
